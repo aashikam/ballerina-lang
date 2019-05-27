@@ -45,7 +45,7 @@ public class RabbitMQConstants {
     // Channel errors
     public static final String CLOSE_CHANNEL_ERROR = "An error occurred while closing the channel: ";
     public static final String ABORT_CHANNEL_ERROR = "An error occurred while aborting the channel: ";
-    public static final String CHANNEL_CLOSED_ERROR = "Channel already closed, no more messages will be received: ";
+    public static final String CHANNEL_CLOSED_ERROR = "Channel already closed, messages will no longer be received: ";
 
     // Connection constant fields
     public static final String CONNECTION_OBJECT = "Connection";
@@ -64,6 +64,9 @@ public class RabbitMQConstants {
     // Channel listener constant fields
     public static final String QUEUE_CONFIG = "queueConfig";
     public static final String ACK_MODE = "ackMode";
+    public static final String PREFETCH_COUNT = "prefetchCount";
+    public static final String PREFETCH_SIZE = "prefetchSize";
+    public static final String PREFETCH_GLOBAL = "global";
     public static final String CHANNEL_LISTENER_OBJECT = "ChannelListener";
     public static final String SERVICE_CONFIG = "ServiceConfig";
     public static final String CONSUMER_SERVICES = "consumer_services";
@@ -90,10 +93,11 @@ public class RabbitMQConstants {
     public static final String ALIAS_EXCHANGE_NAME = "exchangeName";
     public static final String ALIAS_EXCHANGE_TYPE = "exchangeType";
     public static final String ALIAS_EXCHANGE_DURABLE = "durable";
+    public static final String ALIAS_EXCHANGE_AUTODELETE = "autoDelete";
 
     // Warning suppression
     public static final String UNCHECKED = "unchecked";
 
-    private RabbitMQConstants(){
+    private RabbitMQConstants() {
     }
 }

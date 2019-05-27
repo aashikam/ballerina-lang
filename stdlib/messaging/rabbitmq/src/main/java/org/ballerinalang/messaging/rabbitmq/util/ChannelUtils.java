@@ -191,8 +191,10 @@ public class ChannelUtils {
         String exchangeName = RabbitMQUtils.getStringFromBValue(exchangeConfig, RabbitMQConstants.ALIAS_EXCHANGE_NAME);
         String exchangeType = RabbitMQUtils.getStringFromBValue(exchangeConfig, RabbitMQConstants.ALIAS_EXCHANGE_TYPE);
         boolean durable = RabbitMQUtils.getBooleanFromBValue(exchangeConfig, RabbitMQConstants.ALIAS_EXCHANGE_DURABLE);
+        boolean autoDelete = RabbitMQUtils.getBooleanFromBValue(exchangeConfig,
+                RabbitMQConstants.ALIAS_EXCHANGE_AUTODELETE);
         try {
-            channel.exchangeDeclare(exchangeName, exchangeType, durable);
+            channel.exchangeDeclare(exchangeName, exchangeType, durable, autoDelete, null);
         } catch (IOException exception) {
             String errorMessage = "An error occurred while declaring the exchange: ";
             throw new RabbitMQConnectorException(errorMessage + exception.getMessage(), exception);
@@ -239,10 +241,18 @@ public class ChannelUtils {
      *
      * @param channel   RabbitMQ Channel object.
      * @param queueName Name of the queue.
+     * @param ifUnused  True if the queue should be deleted only if not in use.
+     * @param ifEmpty   True if the queue should be deleted only if empty.
      */
-    public static void queueDelete(Channel channel, String queueName) {
+    public static void queueDelete(Channel channel, String queueName, BValue ifUnused, BValue ifEmpty) {
+        boolean isValidValues = ifUnused instanceof BBoolean && ifEmpty instanceof BBoolean;
         try {
-            channel.queueDelete(queueName);
+            if (isValidValues) {
+                channel.queueDelete(queueName, ((BBoolean) ifUnused).booleanValue(),
+                        ((BBoolean) ifEmpty).booleanValue());
+            } else {
+                channel.queueDelete(queueName);
+            }
         } catch (Exception exception) {
             String errorMessage = "An error occurred while deleting the queue ";
             throw new RabbitMQConnectorException(errorMessage + exception.getMessage(), exception);
@@ -275,7 +285,7 @@ public class ChannelUtils {
             channel.queuePurge(queueName);
         } catch (IOException exception) {
             String errorMessage = "An error occurred while purging the queue ";
-            throw new BallerinaException(errorMessage + e.getMessage(), e);
+            throw new RabbitMQConnectorException(errorMessage + exception.getMessage(), exception);
         }
     }
 

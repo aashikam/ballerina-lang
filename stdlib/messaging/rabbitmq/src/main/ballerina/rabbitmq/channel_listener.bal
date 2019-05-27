@@ -72,9 +72,15 @@ public type ChannelListener object {
 #
 # + queueConfig - Specifies configuration details about the queue to be subscribed to.
 # + ackMode - Type of acknowledgement mode.
+# + prefetchCount - Maximum number of messages that the server will deliver, 0 if unlimited.
+# + prefetchSize - Maximum amount of content (measured in octets) that the server will deliver, 0 if unlimited.
+# + global - True if the settings should be applied to the entire channel rather than each consumer.
 public type RabbitMQServiceConfig record {|
     QueueConfiguration queueConfig;
     AcknowledgementMode ackMode = AUTO_ACK;
+    int prefetchCount = 10000;
+    int prefetchSize?;
+    boolean global?;
 |};
 
 # Service descriptor data generated at compile time.
