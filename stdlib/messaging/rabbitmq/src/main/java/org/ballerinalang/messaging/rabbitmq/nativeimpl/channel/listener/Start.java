@@ -33,6 +33,7 @@ import org.ballerinalang.connector.api.Struct;
 import org.ballerinalang.connector.api.Value;
 import org.ballerinalang.messaging.rabbitmq.RabbitMQConnectorException;
 import org.ballerinalang.messaging.rabbitmq.RabbitMQConstants;
+import org.ballerinalang.messaging.rabbitmq.RabbitMQTransactionContext;
 import org.ballerinalang.messaging.rabbitmq.RabbitMQUtils;
 import org.ballerinalang.model.types.TypeKind;
 import org.ballerinalang.model.values.BMap;
@@ -46,6 +47,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
 
 /**
@@ -63,6 +65,7 @@ import java.util.concurrent.CountDownLatch;
 )
 public class Start extends BlockingNativeCallableUnit {
 
+    private RabbitMQTransactionContext rabbitMQTransactionContext;
     @Override
     public void execute(Context context) {
         @SuppressWarnings(RabbitMQConstants.UNCHECKED)
@@ -71,6 +74,8 @@ public class Start extends BlockingNativeCallableUnit {
         BMap<String, BValue> channelObj =
                 (BMap<String, BValue>) channelListObject.get(RabbitMQConstants.CHANNEL_REFERENCE);
         Channel channel = (Channel) channelObj.getNativeData(RabbitMQConstants.CHANNEL_NATIVE_OBJECT);
+        rabbitMQTransactionContext = (RabbitMQTransactionContext) channelObj.
+                getNativeData(RabbitMQConstants.RABBITMQ_TRANSACTION_CONTEXT);
         @SuppressWarnings(RabbitMQConstants.UNCHECKED)
         ArrayList<Service> services =
                 (ArrayList<Service>) channelListObject.getNativeData(RabbitMQConstants.CONSUMER_SERVICES);
@@ -94,6 +99,7 @@ public class Start extends BlockingNativeCallableUnit {
                 default:
                     throw new BallerinaException("Unsupported acknowledgement mode");
             }
+            rabbitMQTransactionContext.setAutoAck(autoAck);
             boolean isQosSet = channelObj.getNativeData(RabbitMQConstants.QOS_STATUS) != null;
             if (!isQosSet) {
                 try {
@@ -168,6 +174,10 @@ public class Start extends BlockingNativeCallableUnit {
         messageObj.addNativeData(RabbitMQConstants.CHANNEL_NATIVE_OBJECT, channel);
         messageObj.addNativeData(RabbitMQConstants.MESSAGE_CONTENT, message);
         messageObj.addNativeData(RabbitMQConstants.AUTO_ACK_STATUS, autoAck);
+        if (!Objects.isNull(rabbitMQTransactionContext)) {
+            messageObj.addNativeData(RabbitMQConstants.RABBITMQ_TRANSACTION_CONTEXT, rabbitMQTransactionContext);
+        }
+        messageObj.addNativeData(RabbitMQConstants.MESSAGE_ACK_STATUS, false);
         return messageObj;
     }
 

@@ -16,49 +16,46 @@
  * under the License.
  */
 
-package org.ballerinalang.messaging.rabbitmq.nativeimpl.message;
+package org.ballerinalang.messaging.rabbitmq.nativeimpl.channel.listener;
 
 import org.ballerinalang.bre.Context;
 import org.ballerinalang.bre.bvm.BlockingNativeCallableUnit;
+import org.ballerinalang.messaging.rabbitmq.RabbitMQConnectorException;
 import org.ballerinalang.messaging.rabbitmq.RabbitMQConstants;
-import org.ballerinalang.messaging.rabbitmq.RabbitMQTransactionContext;
-import org.ballerinalang.messaging.rabbitmq.util.ChannelUtils;
+import org.ballerinalang.messaging.rabbitmq.RabbitMQUtils;
 import org.ballerinalang.model.types.TypeKind;
-import org.ballerinalang.model.values.BInteger;
 import org.ballerinalang.model.values.BMap;
 import org.ballerinalang.model.values.BValue;
 import org.ballerinalang.natives.annotations.BallerinaFunction;
 import org.ballerinalang.natives.annotations.Receiver;
 
-import java.util.Objects;
-
 /**
- * Retrieves the delivery tag of the message.
+ * Retrieve the Channel which initializes this listener.
  *
  * @since 0.995.0
  */
 @BallerinaFunction(
         orgName = RabbitMQConstants.ORG_NAME,
         packageName = RabbitMQConstants.RABBITMQ,
-        functionName = "getDeliveryTag",
+        functionName = "getChannel",
         receiver = @Receiver(type = TypeKind.OBJECT,
-                structType = RabbitMQConstants.MESSAGE_OBJECT,
-                structPackage = RabbitMQConstants.PACKAGE_RABBITMQ),
-        isPublic = true
+                structType = RabbitMQConstants.CHANNEL_LISTENER_OBJECT,
+                structPackage = RabbitMQConstants.PACKAGE_RABBITMQ)
 )
-public class GetDeliveryTag extends BlockingNativeCallableUnit {
+public class GetChannel extends BlockingNativeCallableUnit {
 
     @Override
     public void execute(Context context) {
-        boolean isInTransaction = context.isInTransaction();
         @SuppressWarnings(RabbitMQConstants.UNCHECKED)
-        BMap<String, BValue> messageObject = (BMap<String, BValue>) context.getRefArgument(0);
-        RabbitMQTransactionContext transactionContext = (RabbitMQTransactionContext) messageObject.
-                getNativeData(RabbitMQConstants.RABBITMQ_TRANSACTION_CONTEXT);
-        long deliveryTag = (long) messageObject.getNativeData(RabbitMQConstants.DELIVERY_TAG);
-        if (isInTransaction && !Objects.isNull(transactionContext)) {
-            ChannelUtils.handleTransactionInConsumer(context, transactionContext, deliveryTag);
+        BMap<String, BValue> channelListObject = (BMap<String, BValue>) context.getRefArgument(0);
+        @SuppressWarnings(RabbitMQConstants.UNCHECKED)
+        BMap<String, BValue> channelObj =
+                (BMap<String, BValue>) channelListObject.get(RabbitMQConstants.CHANNEL_REFERENCE);
+        if (channelObj != null) {
+            context.setReturnValues(channelObj);
+        } else {
+            RabbitMQUtils.returnError("Error occurred while retrieving the Channel",
+                    context, new RabbitMQConnectorException("Channel is not properly initialized"));
         }
-        context.setReturnValues(new BInteger(deliveryTag));
     }
 }

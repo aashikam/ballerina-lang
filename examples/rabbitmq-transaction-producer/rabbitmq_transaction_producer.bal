@@ -4,6 +4,8 @@ import ballerina/rabbitmq;
 public function main() {
     // Creates a ballerina RabbitMQ channel.
     rabbitmq:Channel newChannel = new({ host: "localhost", port: 5672 });
+
+    transaction {
         // Declares the queue.
         var queueResult = newChannel->queueDeclare(queueConfig = { queueName: "MyQueue" });
         if (queueResult is error) {
@@ -18,4 +20,5 @@ public function main() {
         } else {
             io:println("The message was sent successfully");
         }
+    }
 }

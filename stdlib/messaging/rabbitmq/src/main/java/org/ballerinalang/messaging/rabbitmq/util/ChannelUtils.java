@@ -20,8 +20,10 @@ package org.ballerinalang.messaging.rabbitmq.util;
 
 import com.rabbitmq.client.Channel;
 import com.rabbitmq.client.Connection;
+import org.ballerinalang.bre.Context;
 import org.ballerinalang.messaging.rabbitmq.RabbitMQConnectorException;
 import org.ballerinalang.messaging.rabbitmq.RabbitMQConstants;
+import org.ballerinalang.messaging.rabbitmq.RabbitMQTransactionContext;
 import org.ballerinalang.messaging.rabbitmq.RabbitMQUtils;
 import org.ballerinalang.model.values.BBoolean;
 import org.ballerinalang.model.values.BInteger;
@@ -31,6 +33,7 @@ import org.ballerinalang.model.values.BValue;
 import org.ballerinalang.util.exceptions.BallerinaException;
 
 import java.io.IOException;
+import java.util.Objects;
 import java.util.concurrent.TimeoutException;
 
 /**
@@ -296,7 +299,7 @@ public class ChannelUtils {
      * @return True if the message was acknowledged already, and false otherwise.
      */
     public static boolean validateMultipleAcknowledgements(BMap<String, BValue> messageObject) {
-        return messageObject.getNativeData(RabbitMQConstants.MESSAGE_ACK_STATUS) != null;
+        return (Boolean) messageObject.getNativeData(RabbitMQConstants.MESSAGE_ACK_STATUS);
     }
 
     /**
@@ -307,6 +310,23 @@ public class ChannelUtils {
      */
     public static boolean validateAckMode(BMap<String, BValue> messageObject) {
         return !(Boolean) messageObject.getNativeData(RabbitMQConstants.AUTO_ACK_STATUS);
+    }
+
+    /**
+     * Handles transaction block in a RabbitMQ message consumer.
+     *
+     * @param context                    Context.
+     * @param rabbitMQTransactionContext RabbitMQTransactionContext object.
+     * @param deliveryTag                Delivery tag of the message.
+     */
+    public static void handleTransactionInConsumer(Context context,
+                                                   RabbitMQTransactionContext rabbitMQTransactionContext,
+                                                   long deliveryTag) {
+        boolean isInTransaction = context.isInTransaction();
+        if (isInTransaction && !Objects.isNull(rabbitMQTransactionContext)) {
+            rabbitMQTransactionContext.handleTransactionBlock(context);
+            rabbitMQTransactionContext.setDeliveryTag(deliveryTag);
+        }
     }
 
     private ChannelUtils() {

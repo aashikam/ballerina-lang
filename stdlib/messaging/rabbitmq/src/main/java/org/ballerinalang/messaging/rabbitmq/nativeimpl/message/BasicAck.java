@@ -24,6 +24,7 @@ import org.ballerinalang.bre.Context;
 import org.ballerinalang.bre.bvm.BlockingNativeCallableUnit;
 import org.ballerinalang.messaging.rabbitmq.RabbitMQConnectorException;
 import org.ballerinalang.messaging.rabbitmq.RabbitMQConstants;
+import org.ballerinalang.messaging.rabbitmq.RabbitMQTransactionContext;
 import org.ballerinalang.messaging.rabbitmq.RabbitMQUtils;
 import org.ballerinalang.messaging.rabbitmq.util.ChannelUtils;
 import org.ballerinalang.model.types.TypeKind;
@@ -35,6 +36,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
+import java.util.Objects;
 
 /**
  * Acknowledge one or several received messages.
@@ -56,33 +58,40 @@ public class BasicAck extends BlockingNativeCallableUnit {
 
     @Override
     public void execute(Context context) {
+        boolean isInTransaction = context.isInTransaction();
         @SuppressWarnings(RabbitMQConstants.UNCHECKED)
         BMap<String, BValue> messageObject = (BMap<String, BValue>) context.getRefArgument(0);
         Channel channel = RabbitMQUtils.getNativeObject(messageObject,
                 RabbitMQConstants.CHANNEL_NATIVE_OBJECT, Channel.class, context);
+        RabbitMQTransactionContext transactionContext = (RabbitMQTransactionContext) messageObject.
+                getNativeData(RabbitMQConstants.RABBITMQ_TRANSACTION_CONTEXT);
         long deliveryTag = (long) messageObject.getNativeData(RabbitMQConstants.DELIVERY_TAG);
         boolean multiple = context.getBooleanArgument(0);
         boolean multipleAck = ChannelUtils.validateMultipleAcknowledgements(messageObject);
         boolean ackMode = ChannelUtils.validateAckMode(messageObject);
-        if (!multipleAck && ackMode) {
-            try {
-                channel.basicAck(deliveryTag, multiple);
-                messageObject.addNativeData(RabbitMQConstants.MESSAGE_ACK_STATUS, true);
-            } catch (IOException exception) {
-                LOGGER.error("Error occurred while positively acknowledging the message", exception);
-                RabbitMQUtils.returnError("Error occurred while positively acknowledging the message: ",
-                        context, exception);
-            } catch (AlreadyClosedException exception) {
-                LOGGER.error(RabbitMQConstants.CHANNEL_CLOSED_ERROR, exception);
-                RabbitMQUtils.returnError(RabbitMQConstants.CHANNEL_CLOSED_ERROR,
-                        context, exception);
-            }
-        } else if (multipleAck && ackMode) {
-            RabbitMQUtils.returnError(RabbitMQConstants.MULTIPLE_ACK_ERROR, context,
-                    new RabbitMQConnectorException(RabbitMQConstants.MULTIPLE_ACK_ERROR));
+        if (isInTransaction && !Objects.isNull(transactionContext)) {
+            ChannelUtils.handleTransactionInConsumer(context, transactionContext, deliveryTag);
         } else {
-            RabbitMQUtils.returnError(RabbitMQConstants.ACK_MODE_ERROR, context,
-                    new RabbitMQConnectorException(RabbitMQConstants.ACK_MODE_ERROR));
+            if (!multipleAck && ackMode) {
+                try {
+                    channel.basicAck(deliveryTag, multiple);
+                    messageObject.addNativeData(RabbitMQConstants.MESSAGE_ACK_STATUS, true);
+                } catch (IOException exception) {
+                    LOGGER.error(RabbitMQConstants.ACK_ERROR, exception);
+                    RabbitMQUtils.returnError(RabbitMQConstants.ACK_ERROR + exception.getMessage(),
+                            context, exception);
+                } catch (AlreadyClosedException exception) {
+                    LOGGER.error(RabbitMQConstants.CHANNEL_CLOSED_ERROR, exception);
+                    RabbitMQUtils.returnError(RabbitMQConstants.CHANNEL_CLOSED_ERROR,
+                            context, exception);
+                }
+            } else if (multipleAck && ackMode) {
+                RabbitMQUtils.returnError(RabbitMQConstants.MULTIPLE_ACK_ERROR, context,
+                        new RabbitMQConnectorException(RabbitMQConstants.MULTIPLE_ACK_ERROR));
+            } else {
+                RabbitMQUtils.returnError(RabbitMQConstants.ACK_MODE_ERROR, context,
+                        new RabbitMQConnectorException(RabbitMQConstants.ACK_MODE_ERROR));
+            }
         }
     }
 }
