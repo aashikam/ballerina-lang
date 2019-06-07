@@ -20,11 +20,15 @@ package org.ballerinalang.nativeimpl.builtin.tablelib;
 
 import org.ballerinalang.bre.Context;
 import org.ballerinalang.bre.bvm.BlockingNativeCallableUnit;
+import org.ballerinalang.jvm.Strand;
+import org.ballerinalang.jvm.values.TableValue;
 import org.ballerinalang.model.types.TypeKind;
 import org.ballerinalang.model.values.BFunctionPointer;
 import org.ballerinalang.model.values.BTable;
 import org.ballerinalang.natives.annotations.Argument;
 import org.ballerinalang.natives.annotations.BallerinaFunction;
+import org.ballerinalang.util.exceptions.BLangFreezeException;
+import org.ballerinalang.util.exceptions.BallerinaException;
 
 /**
  * {@code Remove} is the function to remove data from a table.
@@ -43,6 +47,19 @@ public class Remove extends BlockingNativeCallableUnit {
     public void execute(Context context) {
         BTable table = (BTable) context.getRefArgument(0);
         BFunctionPointer lambdaFunction = (BFunctionPointer) context.getRefArgument(1);
-        table.performRemoveOperation(context, lambdaFunction);
+        try {
+            table.performRemoveOperation(context, lambdaFunction);
+        } catch (BLangFreezeException e) {
+            throw new BallerinaException(e.getMessage(), "Failed to remove data from the table: " + e.getDetail());
+        }
+    }
+
+    public static void remove(Strand strand, TableValue table) {
+        try {
+            table.performRemoveOperation();
+        } catch (BLangFreezeException e) {
+            throw new org.ballerinalang.jvm.util.exceptions.BallerinaException(e.getMessage(),
+                    "Failed to add data to the table: " + e.getDetail());
+        }
     }
 }

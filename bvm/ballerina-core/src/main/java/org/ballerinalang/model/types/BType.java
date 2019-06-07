@@ -65,8 +65,6 @@ public abstract class BType implements BLangSymbol {
      */
     public abstract <V extends BValue> V getEmptyValue();
 
-    public abstract TypeSignature getSig();
-
     public abstract int getTag();
     
     public String toString() {
@@ -91,6 +89,10 @@ public abstract class BType implements BLangSymbol {
 
     public int hashCode() {
         return (pkgPath + ":" + typeName).hashCode();
+    }
+
+    public boolean isNilable() {
+        return false;
     }
 
     // Methods in BLangSymbol interface

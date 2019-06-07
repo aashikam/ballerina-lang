@@ -19,10 +19,9 @@ package org.ballerinalang.connector.api;
 import org.ballerinalang.bre.Context;
 import org.ballerinalang.bre.bvm.BLangVMStructs;
 import org.ballerinalang.connector.impl.ConnectorSPIModelHelper;
-import org.ballerinalang.model.types.BServiceType;
+import org.ballerinalang.model.types.BObjectType;
 import org.ballerinalang.model.types.TypeTags;
 import org.ballerinalang.model.values.BMap;
-import org.ballerinalang.model.values.BTypeDescValue;
 import org.ballerinalang.model.values.BValue;
 import org.ballerinalang.util.codegen.ObjectTypeInfo;
 import org.ballerinalang.util.codegen.PackageInfo;
@@ -31,7 +30,6 @@ import org.ballerinalang.util.codegen.ProgramFile;
 import org.ballerinalang.util.codegen.ServiceInfo;
 import org.ballerinalang.util.codegen.StructureTypeInfo;
 import org.ballerinalang.util.exceptions.BallerinaException;
-import org.ballerinalang.util.program.BLangFunctions;
 import org.wso2.ballerinalang.compiler.util.Names;
 
 /**
@@ -65,14 +63,11 @@ public final class BLangConnectorSPIUtil {
      */
     public static Service getServiceRegistered(Context context) {
         BValue result = context.getRefArgument(1);
-        if (result == null || result.getType().getTag() != TypeTags.TYPEDESC_TAG
-                || ((BTypeDescValue) result).value().getTag() != TypeTags.SERVICE_TAG) {
+        if (result == null || result.getType().getTag() != TypeTags.SERVICE_TAG) {
             throw new BallerinaConnectorException("Can't get service reference");
         }
-        final BServiceType serviceType = (BServiceType) ((BTypeDescValue) result).value();
         final ProgramFile programFile = context.getProgramFile();
-        final Service service = getService(programFile, serviceType);
-        BLangFunctions.invokeServiceInitFunction(service.getServiceInfo().getInitFunctionInfo());
+        final Service service = getService(programFile, (BMap) result);
         return service;
     }
 
@@ -94,7 +89,7 @@ public final class BLangConnectorSPIUtil {
                                                      Object... values) {
         PackageInfo packageInfo = programFile.getPackageInfo(pkgPath);
         if (packageInfo == null) {
-            throw new BallerinaConnectorException("package - " + pkgPath + " does not exist");
+            throw new BallerinaConnectorException("module - " + pkgPath + " does not exist");
         }
         StructureTypeInfo structureInfo = packageInfo.getStructInfo(structName);
         return BLangVMStructs.createBStruct(structureInfo, values);
@@ -121,7 +116,7 @@ public final class BLangConnectorSPIUtil {
                                                     BValue... values) {
         PackageInfo packageInfo = programFile.getPackageInfo(pkgPath);
         if (packageInfo == null) {
-            throw new BallerinaConnectorException("package - " + pkgPath + " does not exist");
+            throw new BallerinaConnectorException("module - " + pkgPath + " does not exist");
         }
         StructureTypeInfo typeInfo = packageInfo.getStructInfo(objectName);
         if (typeInfo == null || typeInfo.getType().getTag() != TypeTags.OBJECT_TYPE_TAG) {
@@ -140,16 +135,11 @@ public final class BLangConnectorSPIUtil {
         return ConnectorSPIModelHelper.createStruct(bStruct);
     }
 
-
-    public static Service getServiceFromType(ProgramFile programFile, Value value) {
-        if (value == null || value.getType() != Value.Type.TYPEDESC) {
+    public static Service getServiceFromType(ProgramFile programFile, BValue value) {
+        if (value == null || value.getType().getTag() != TypeTags.SERVICE_TAG) {
             throw new BallerinaConnectorException("Can't get service reference");
         }
-        final BTypeDescValue vmValue = (BTypeDescValue) value.getVMValue();
-        if (vmValue.value().getTag() != TypeTags.SERVICE_TAG) {
-            throw new BallerinaConnectorException("Can't get service reference, not service type.");
-        }
-        return getService(programFile, (BServiceType) vmValue.value());
+        return getService(programFile, (BMap) value);
     }
 
     public static BMap<String, BValue> getPackageEndpoint(ProgramFile programFile, String pkgName, String version,
@@ -157,7 +147,7 @@ public final class BLangConnectorSPIUtil {
         String pkgID = getPackageID(pkgName, version);
         final PackageInfo packageInfo = programFile.getPackageInfo(pkgID);
         if (packageInfo == null) {
-            throw new BallerinaConnectorException("Incorrect package name");
+            throw new BallerinaConnectorException("Incorrect module name");
         }
         final PackageVarInfo packageVarInfo = packageInfo.getPackageVarInfo(endpointName);
         if (packageVarInfo == null) {
@@ -167,10 +157,12 @@ public final class BLangConnectorSPIUtil {
                 packageVarInfo.getGlobalMemIndex());
     }
 
-    public static Service getService(ProgramFile programFile, BServiceType serviceType) {
+    public static Service getService(ProgramFile programFile, BMap serviceValue) {
+        final BObjectType serviceType = (BObjectType) serviceValue.getType();
         final ServiceInfo serviceInfo = programFile.getPackageInfo(serviceType.getPackagePath())
-                .getServiceInfo(serviceType.getName());
-        return ConnectorSPIModelHelper.createService(programFile, serviceInfo);
+                .getServiceInfo(serviceType);
+        serviceInfo.serviceValue = serviceValue;
+        return ConnectorSPIModelHelper.createService(programFile, serviceInfo, serviceValue);
     }
 
     private static String getPackageID(String pkgName, String version) {

@@ -20,6 +20,7 @@ package org.ballerinalang.nativeimpl.builtin.jsonlib;
 
 import org.ballerinalang.bre.Context;
 import org.ballerinalang.bre.bvm.BlockingNativeCallableUnit;
+import org.ballerinalang.jvm.util.exceptions.BLangExceptionHelper;
 import org.ballerinalang.model.types.TypeKind;
 import org.ballerinalang.model.values.BString;
 import org.ballerinalang.model.values.BValue;
@@ -27,6 +28,7 @@ import org.ballerinalang.nativeimpl.lang.utils.ErrorHandler;
 import org.ballerinalang.natives.annotations.Argument;
 import org.ballerinalang.natives.annotations.BallerinaFunction;
 import org.ballerinalang.natives.annotations.ReturnType;
+import org.ballerinalang.util.exceptions.BallerinaErrorReasons;
 
 /**
  * Extern function ballerina.model.json:toString.
@@ -52,9 +54,24 @@ public class ToString extends BlockingNativeCallableUnit {
                 jsonStr = json.stringValue();
             }
         } catch (Throwable e) {
-            ErrorHandler.handleJsonException("convert json to string", e);
+            ErrorHandler.handleJsonException(BallerinaErrorReasons.JSON_CONVERSION_ERROR, "convert json to string", e);
         }
 
         ctx.setReturnValues(new BString(jsonStr));
+    }
+
+    public static String toString(Object json) {
+        if (json == null) {
+            return "null";
+        }
+
+        try {
+            return json.toString();
+        } catch (Throwable e) {
+            BLangExceptionHelper.handleJsonException(BallerinaErrorReasons.JSON_OPERATION_ERROR, "get keys from json",
+                    e);
+        }
+
+        return null;
     }
 }

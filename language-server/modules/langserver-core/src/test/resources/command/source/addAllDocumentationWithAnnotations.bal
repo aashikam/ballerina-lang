@@ -5,20 +5,16 @@ function testDocumentation() {
     
 }
 
-endpoint http:Listener listener {
-    
-};
-
 @http:ServiceConfig {
     basePath: "/testDoc"
 }
-service<http:Service> testDocService bind { port: 9090 } {
+service testDocService on new http:Listener(8080) {
     @http:ResourceConfig {
         path: "/testDocRes"
     }
-    testDocResource (endpoint caller, http:Request request) {
+    resource function testDocResource(http:Caller caller, http:Request request) {
         http:Response res = new;
-        _ = caller->respond(res);
+        checkpanic caller->respond(res);
     }
 }
 

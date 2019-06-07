@@ -23,6 +23,7 @@ import org.ballerinalang.model.tree.Node;
 import org.ballerinalang.model.tree.expressions.ExpressionNode;
 import org.eclipse.lsp4j.Position;
 import org.wso2.ballerinalang.compiler.semantics.model.Scope;
+import org.wso2.ballerinalang.compiler.semantics.model.symbols.BSymbol;
 import org.wso2.ballerinalang.compiler.tree.BLangNode;
 import org.wso2.ballerinalang.compiler.tree.expressions.BLangInvocation;
 import org.wso2.ballerinalang.compiler.util.Name;
@@ -36,9 +37,12 @@ import java.util.Map;
  */
 public class InvocationParameterScopeResolver extends CursorPositionResolver {
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
-    public boolean isCursorBeforeNode(DiagnosticPos nodePosition, BLangNode node, TreeVisitor treeVisitor,
-                                      LSContext completionContext) {
+    public boolean isCursorBeforeNode(DiagnosticPos nodePosition, TreeVisitor treeVisitor, LSContext completionContext,
+                                      BLangNode node, BSymbol bSymbol) {
         Position position = completionContext.get(DocumentServiceKeys.POSITION_KEY).getPosition();
         int line = position.getLine();
         int col = position.getCharacter();
@@ -46,11 +50,12 @@ public class InvocationParameterScopeResolver extends CursorPositionResolver {
         int nodeEndLine = zeroBasedPos.eLine;
         int nodeEndCol = zeroBasedPos.eCol;
 
-        if (this.isWithinScopeAfterLastParameterNode(node, treeVisitor, line, col, nodeEndLine, nodeEndCol)) {
+        if (this.isWithinScopeAfterLastParameterNode(node, treeVisitor, line, col, nodeEndLine, nodeEndCol)
+                || withinInvocationArguments(node, line, col, completionContext)) {
             Map<Name, Scope.ScopeEntry> visibleSymbolEntries =
                     treeVisitor.resolveAllVisibleSymbols(treeVisitor.getSymbolEnv());
             treeVisitor.populateSymbols(visibleSymbolEntries, treeVisitor.getSymbolEnv());
-            treeVisitor.setNextNode(node);
+            treeVisitor.setNextNode(bSymbol);
             treeVisitor.forceTerminateVisitor();
             return true;
         }
@@ -61,11 +66,11 @@ public class InvocationParameterScopeResolver extends CursorPositionResolver {
     /**
      * Check whether the given node is within the scope and located after the last child node.
      *
-     * @param node        Current Node to evaluate
-     * @param treeVisitor Operation Tree Visitor
-     * @param curLine     line of the cursor
-     * @param curCol      column of the cursor
-     * @param nodeEndLine
+     * @param node          Current Node to evaluate
+     * @param treeVisitor   Operation Tree Visitor
+     * @param curLine       line of the cursor
+     * @param curCol        column of the cursor
+     * @param nodeEndLine   end line of the node
      * @param nodeEndCol  @return {@link Boolean} whether the last child node or not
      */
     private boolean isWithinScopeAfterLastParameterNode(Node node, TreeVisitor treeVisitor, int curLine, int curCol,
@@ -80,10 +85,6 @@ public class InvocationParameterScopeResolver extends CursorPositionResolver {
         boolean isWithinScope = (isLastChildNode &&
                 (curLine < invocationEndLine || (curLine == invocationEndLine && curCol <= invocationEndCol)) &&
                 (curLine > nodeEndLine || (curLine == nodeEndLine && curCol > nodeEndCol)));
-
-        if (isWithinScope) {
-            treeVisitor.setPreviousNode((BLangNode) node);
-        }
 
         return isWithinScope;
     }

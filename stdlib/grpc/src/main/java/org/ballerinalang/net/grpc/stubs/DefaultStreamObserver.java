@@ -20,15 +20,17 @@ import org.ballerinalang.connector.api.Executor;
 import org.ballerinalang.connector.api.ParamDetail;
 import org.ballerinalang.connector.api.Resource;
 import org.ballerinalang.connector.api.Service;
-import org.ballerinalang.model.types.BStructureType;
+import org.ballerinalang.model.types.BErrorType;
 import org.ballerinalang.model.types.BType;
+import org.ballerinalang.model.values.BError;
 import org.ballerinalang.model.values.BMap;
 import org.ballerinalang.model.values.BValue;
-import org.ballerinalang.net.grpc.GrpcCallableUnitCallBack;
 import org.ballerinalang.net.grpc.GrpcConstants;
 import org.ballerinalang.net.grpc.Message;
 import org.ballerinalang.net.grpc.MessageUtils;
+import org.ballerinalang.net.grpc.ServiceResource;
 import org.ballerinalang.net.grpc.StreamObserver;
+import org.ballerinalang.net.grpc.callback.ClientCallableUnitCallBack;
 import org.ballerinalang.net.grpc.exception.ClientRuntimeException;
 import org.ballerinalang.net.grpc.exception.GrpcClientException;
 import org.slf4j.Logger;
@@ -47,7 +49,7 @@ import static org.ballerinalang.net.grpc.MessageUtils.getHeaderStruct;
  */
 public class DefaultStreamObserver implements StreamObserver {
     private static final Logger LOG = LoggerFactory.getLogger(DefaultStreamObserver.class);
-    private Map<String, Resource> resourceMap = new HashMap<>();
+    private Map<String, ServiceResource> resourceMap = new HashMap<>();
     
     public DefaultStreamObserver(Service callbackService) throws
             GrpcClientException {
@@ -55,86 +57,77 @@ public class DefaultStreamObserver implements StreamObserver {
             throw new GrpcClientException("Error while building the connection. Listener Service does not exist");
         }
         for (Resource resource : callbackService.getResources()) {
-            resourceMap.put(resource.getName(), resource);
+            resourceMap.put(resource.getName(), new ServiceResource(resource));
         }
     }
     
     @Override
     public void onNext(Message value) {
-        Resource resource = resourceMap.get(GrpcConstants.ON_MESSAGE_RESOURCE);
+        ServiceResource resource = resourceMap.get(GrpcConstants.ON_MESSAGE_RESOURCE);
         if (resource == null) {
             String message = "Error in listener service definition. onNext resource does not exists";
             LOG.error(message);
             throw new ClientRuntimeException(message);
         }
-        List<ParamDetail> paramDetails = resource.getParamDetails();
+        List<ParamDetail> paramDetails = resource.getParamDetailList();
         BValue[] signatureParams = new BValue[paramDetails.size()];
-        BMap<String, BValue> headerStruct = getHeaderStruct(resource);
-        BValue requestParam = getRequestParameter(resource, value, headerStruct != null);
+        BMap<String, BValue> headerStruct = null;
+        if (resource.isHeaderRequired()) {
+            headerStruct = getHeaderStruct(resource.getProgramFile());
+        }
+        BValue requestParam = value.getbMessage();
         if (requestParam != null) {
             signatureParams[0] = requestParam;
         }
         if (headerStruct != null) {
             signatureParams[signatureParams.length - 1] = headerStruct;
         }
-        CallableUnitCallback callback = new GrpcCallableUnitCallBack(null);
-        Executor.submit(resource, callback, null, null, signatureParams);
+        CallableUnitCallback callback = new ClientCallableUnitCallBack();
+        Executor.submit(resource.getResource(), callback, null, null, signatureParams);
     }
     
     @Override
     public void onError(Message error) {
-        Resource onError = resourceMap.get(GrpcConstants.ON_ERROR_RESOURCE);
+        ServiceResource onError = resourceMap.get(GrpcConstants.ON_ERROR_RESOURCE);
         if (onError == null) {
             String message = "Error in listener service definition. onError resource does not exists";
             LOG.error(message);
             throw new ClientRuntimeException(message);
         }
-        List<ParamDetail> paramDetails = onError.getParamDetails();
+        List<ParamDetail> paramDetails = onError.getParamDetailList();
         BValue[] signatureParams = new BValue[paramDetails.size()];
+        BMap<String, BValue> headerStruct = null;
+        if (onError.isHeaderRequired()) {
+            headerStruct = getHeaderStruct(onError.getProgramFile());
+        }
         BType errorType = paramDetails.get(0).getVarType();
-        BMap<String, BValue> errorStruct = MessageUtils.getConnectorError((BStructureType) errorType, error.getError());
+        BError errorStruct = MessageUtils.getConnectorError((BErrorType) errorType, error.getError());
         signatureParams[0] = errorStruct;
-        BMap<String, BValue> headerStruct = getHeaderStruct(onError);
         if (headerStruct != null && signatureParams.length == 2) {
             signatureParams[1] = headerStruct;
         }
-        CallableUnitCallback callback = new GrpcCallableUnitCallBack(null);
-        Executor.submit(onError, callback, null, null, signatureParams);
+        CallableUnitCallback callback = new ClientCallableUnitCallBack();
+        Executor.submit(onError.getResource(), callback, null, null, signatureParams);
     }
     
     @Override
     public void onCompleted() {
-        Resource onCompleted = resourceMap.get(GrpcConstants.ON_COMPLETE_RESOURCE);
+        ServiceResource onCompleted = resourceMap.get(GrpcConstants.ON_COMPLETE_RESOURCE);
         if (onCompleted == null) {
             String message = "Error in listener service definition. onCompleted resource does not exists";
             LOG.error(message);
             throw new ClientRuntimeException(message);
         }
-        List<ParamDetail> paramDetails = onCompleted.getParamDetails();
+        List<ParamDetail> paramDetails = onCompleted.getParamDetailList();
         BValue[] signatureParams = new BValue[paramDetails.size()];
-        BMap<String, BValue> headerStruct = getHeaderStruct(onCompleted);
+        BMap<String, BValue> headerStruct = null;
+        if (onCompleted.isHeaderRequired()) {
+            headerStruct = getHeaderStruct(onCompleted.getProgramFile());
+        }
         if (headerStruct != null && signatureParams.length == 1) {
             signatureParams[0] = headerStruct;
         }
-        CallableUnitCallback callback = new GrpcCallableUnitCallBack(null);
-        Executor.submit(onCompleted, callback, null, null, signatureParams);
-    }
-    
-    private BValue getRequestParameter(Resource resource, Message requestMessage, boolean isHeaderRequired) {
-        if (resource == null || resource.getParamDetails() == null || resource.getParamDetails().size() > 2) {
-            throw new ClientRuntimeException("Invalid resource input arguments. arguments must not be greater than " +
-                    "two");
-        }
-        List<ParamDetail> paramDetails = resource.getParamDetails();
-        if ((isHeaderRequired && paramDetails.size() == 2) || (!isHeaderRequired && paramDetails.size() == 1)) {
-            BType requestType = resource.getParamDetails().get(GrpcConstants.CALLBACK_MESSAGE_PARAM_INDEX)
-                    .getVarType();
-            String requestName = resource.getParamDetails().get(GrpcConstants.CALLBACK_MESSAGE_PARAM_INDEX)
-                    .getVarName();
-            return MessageUtils.generateRequestStruct(requestMessage, MessageUtils.getProgramFile(resource),
-                    requestName, requestType);
-        } else {
-            return null;
-        }
+        CallableUnitCallback callback = new ClientCallableUnitCallBack();
+        Executor.submit(onCompleted.getResource(), callback, null, null, signatureParams);
     }
 }

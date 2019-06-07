@@ -16,29 +16,69 @@
 
 package org.ballerinalang.langserver.extensions.ballerina.traces;
 
+import com.google.gson.JsonObject;
+
+import java.util.UUID;
+
 /**
  * Model class for trace log.
  */
 public class TraceRecord {
-    private Trace meta;
-    private String record;
+    private Message message;
+    private String rawMessage;
+    private String id;
+    private String millis;
+    private String sequence;
+    private String logger;
+    private String sourceClass;
+    private String sourceMethod;
+    private String thread;
 
-    TraceRecord(Trace meta, String record) {
-        this.setMeta(meta);
-        this.setRecord(record);
+    TraceRecord(Message message, JsonObject record, String rawMessage) {
+        this.message = message;
+        this.rawMessage = rawMessage;
+        this.id = UUID.randomUUID().toString();
+        this.millis = record.get("millis").getAsString();
+        this.sequence = record.get("sequenceNumber").getAsString();
+        this.logger = record.get("loggerName").getAsString();
+        this.sourceClass = record.get("sourceClassName").getAsString();
+        this.sourceMethod = record.get("sourceMethodName").getAsString();
+        this.thread = record.get("threadID").getAsString();
     }
 
-    public void setMeta(Trace meta) {
-        this.meta = meta;
-    }
-    public Trace getMeta() {
-        return meta;
-    }
-    public String getRecord() {
-        return record;
+    public String getRawMessage() {
+        return rawMessage;
     }
 
-    public void setRecord(String record) {
-        this.record = record;
+    public String getLogger() {
+        return logger;
+    }
+
+    public String getSequence() {
+        return sequence;
+    }
+
+    public String getThread() {
+        return thread;
+    }
+
+    public String getMillis() {
+        return millis;
+    }
+
+    public String getSourceMethod() {
+        return sourceMethod;
+    }
+
+    public String getSourceClass() {
+        return sourceClass;
+    }
+
+    public Message getMessage() {
+        return message;
+    }
+
+    public String getId() {
+        return id;
     }
 }

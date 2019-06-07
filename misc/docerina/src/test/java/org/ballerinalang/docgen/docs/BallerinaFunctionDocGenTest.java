@@ -18,14 +18,14 @@
 package org.ballerinalang.docgen.docs;
 
 import org.ballerinalang.docgen.docs.utils.BallerinaDocGenTestUtils;
-import org.ballerinalang.docgen.model.PackageDoc;
+import org.ballerinalang.docgen.model.ModuleDoc;
 import org.testng.Assert;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
 import org.wso2.ballerinalang.compiler.semantics.model.types.BArrayType;
 import org.wso2.ballerinalang.compiler.tree.BLangFunction;
 import org.wso2.ballerinalang.compiler.tree.BLangPackage;
-import org.wso2.ballerinalang.compiler.tree.BLangVariable;
+import org.wso2.ballerinalang.compiler.tree.BLangSimpleVariable;
 import org.wso2.ballerinalang.compiler.util.TypeTags;
 
 import java.io.IOException;
@@ -50,7 +50,7 @@ public class BallerinaFunctionDocGenTest {
     @Test(description = "Test a Bal file with one Function")
     public void testABalWithOneFunction() {
         try {
-            Map<String, PackageDoc> docsMap =
+            Map<String, ModuleDoc> docsMap =
                     BallerinaDocGenerator.generatePackageDocsFromBallerina(sourceRoot, "helloWorld.bal");
             Assert.assertNotNull(docsMap);
             Assert.assertEquals(docsMap.size(), 1);
@@ -61,8 +61,8 @@ public class BallerinaFunctionDocGenTest {
             Assert.assertEquals(functions.size(), 1);
 
             BLangFunction function = functions.iterator().next();
-            Assert.assertEquals(((BLangVariable) function.getRestParameters()).type.tag, TypeTags.ARRAY);
-            BArrayType argsType = (BArrayType) ((BLangVariable) function.getRestParameters()).type;
+            Assert.assertEquals(((BLangSimpleVariable) function.getRestParameters()).type.tag, TypeTags.ARRAY);
+            BArrayType argsType = (BArrayType) ((BLangSimpleVariable) function.getRestParameters()).type;
             Assert.assertEquals(argsType.eType.tag, TypeTags.STRING);
         } catch (IOException e) {
             Assert.fail();
@@ -74,7 +74,7 @@ public class BallerinaFunctionDocGenTest {
     @Test(description = "Test a Bal file with multiple Functions")
     public void testABalWithMultipleFunctions() {
         try {
-            Map<String, PackageDoc> docsMap =
+            Map<String, ModuleDoc> docsMap =
                     BallerinaDocGenerator.generatePackageDocsFromBallerina(sourceRoot, "balWith2Functions.bal");
             Assert.assertNotNull(docsMap);
             Assert.assertEquals(docsMap.size(), 1);
@@ -102,7 +102,7 @@ public class BallerinaFunctionDocGenTest {
     @Test(description = "Test a Bal file with a native function")
     public void testABalWithNativeFunction() {
         try {
-            Map<String, PackageDoc> docsMap =
+            Map<String, ModuleDoc> docsMap =
                     BallerinaDocGenerator.generatePackageDocsFromBallerina(sourceRoot, "natives.bal", "", true);
             Assert.assertNotNull(docsMap);
             Assert.assertEquals(docsMap.size(), 1);

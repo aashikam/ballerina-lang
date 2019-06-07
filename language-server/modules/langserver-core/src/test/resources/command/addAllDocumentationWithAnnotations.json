@@ -1,96 +1,80 @@
 {
   "expected": {
-    "result":{
-      "edit":{
-        "changes":{
-
-        },
-        "documentChanges":[
+    "result": {
+      "edit": {
+        "documentChanges": [
           {
-            "edits":[
+            "edits": [
               {
-                "range":{
-                  "start":{
-                    "line":3,
-                    "character":0
+                "range": {
+                  "start": {
+                    "line": 3,
+                    "character": 0
                   },
-                  "end":{
-                    "line":3,
-                    "character":30
+                  "end": {
+                    "line": 3,
+                    "character": 0
                   }
                 },
-                "newText":"# Description\nfunction testDocumentation() {"
+                "newText": "# Description\n"
               },
               {
-                "range":{
-                  "start":{
-                    "line":7,
-                    "character":0
+                "range": {
+                  "start": {
+                    "line": 7,
+                    "character": 0
                   },
-                  "end":{
-                    "line":7,
-                    "character":33
+                  "end": {
+                    "line": 7,
+                    "character": 0
                   }
                 },
-                "newText":"# Description\nendpoint http:Listener listener {"
+                "newText": "# Description\n"
               },
               {
-                "range":{
-                  "start":{
-                    "line":14,
-                    "character":0
+                "range": {
+                  "start": {
+                    "line": 11,
+                    "character": 4
                   },
-                  "end":{
-                    "line":14,
-                    "character":58
+                  "end": {
+                    "line": 11,
+                    "character": 4
                   }
                 },
-                "newText":"# Description\nservice<http:Service> testDocService bind { port: 9090 } {"
+                "newText": "# Description\n    #\n    # + caller - caller Parameter Description \n    # + request - request Parameter Description\n    "
               },
               {
-                "range":{
-                  "start":{
-                    "line":18,
-                    "character":0
+                "range": {
+                  "start": {
+                    "line": 20,
+                    "character": 0
                   },
-                  "end":{
-                    "line":18,
-                    "character":61
+                  "end": {
+                    "line": 20,
+                    "character": 0
                   }
                 },
-                "newText":"    # Description\n    #\n    # + caller - caller Parameter Description \n    # + request - request Parameter Description\n    testDocResource (endpoint caller, http:Request request) {"
+                "newText": "# Description\n#\n# + field1 - field1 Parameter Description \n# + field2 - field2 Parameter Description\n"
               },
               {
-                "range":{
-                  "start":{
-                    "line":24,
-                    "character":0
+                "range": {
+                  "start": {
+                    "line": 25,
+                    "character": 0
                   },
-                  "end":{
-                    "line":24,
-                    "character":27
+                  "end": {
+                    "line": 25,
+                    "character": 0
                   }
                 },
-                "newText":"# Description\n#\n# + field1 - field1 Parameter Description \n# + field2 - field2 Parameter Description\ntype testDocRecord record {"
-              },
-              {
-                "range":{
-                  "start":{
-                    "line":29,
-                    "character":0
-                  },
-                  "end":{
-                    "line":29,
-                    "character":27
-                  }
-                },
-                "newText":"# Description\n#\n# + testField - testField Parameter Description \n# + testPrivate - testPrivate Parameter Description \n# + testString - testString Parameter Description\ntype testDocObject object {"
+                "newText": "# Description\n#\n# + testField - testField Parameter Description \n# + testPrivate - testPrivate Parameter Description \n# + testString - testString Parameter Description\n"
               }
             ]
           }
         ]
       }
     },
-    "jsonrpc":"2.0"
+    "jsonrpc": "2.0"
   }
 }

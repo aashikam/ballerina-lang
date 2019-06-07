@@ -19,11 +19,16 @@ package org.ballerinalang.stdlib.io.nativeimpl;
 
 import org.ballerinalang.bre.Context;
 import org.ballerinalang.bre.bvm.CallableUnitCallback;
+import org.ballerinalang.jvm.Strand;
+import org.ballerinalang.jvm.values.ArrayValue;
+import org.ballerinalang.jvm.values.ObjectValue;
+import org.ballerinalang.jvm.values.connector.NonBlockingCallback;
 import org.ballerinalang.model.NativeCallableUnit;
 import org.ballerinalang.model.types.TypeKind;
+import org.ballerinalang.model.values.BError;
 import org.ballerinalang.model.values.BMap;
-import org.ballerinalang.model.values.BStringArray;
 import org.ballerinalang.model.values.BValue;
+import org.ballerinalang.model.values.BValueArray;
 import org.ballerinalang.natives.annotations.Argument;
 import org.ballerinalang.natives.annotations.BallerinaFunction;
 import org.ballerinalang.natives.annotations.Receiver;
@@ -46,10 +51,10 @@ import org.ballerinalang.stdlib.io.utils.IOUtils;
         orgName = "ballerina", packageName = "io",
         functionName = "write",
         receiver = @Receiver(type = TypeKind.OBJECT,
-                structType = "DelimitedTextRecordChannel",
+                structType = "WritableTextRecordChannel",
                 structPackage = "ballerina/io"),
         args = {@Argument(name = "content", type = TypeKind.ARRAY, elementType = TypeKind.STRING)},
-        returnType = {@ReturnType(type = TypeKind.RECORD, structType = "IOError", structPackage = "ballerina/io")},
+        returnType = {@ReturnType(type = TypeKind.ERROR)},
         isPublic = true
 )
 public class WriteTextRecord implements NativeCallableUnit {
@@ -76,7 +81,7 @@ public class WriteTextRecord implements NativeCallableUnit {
         CallableUnitCallback callback = eventContext.getCallback();
         Throwable error = eventContext.getError();
         if (null != error) {
-            BMap<String, BValue> errorStruct = IOUtils.createError(context, error.getMessage());
+            BError errorStruct = IOUtils.createError(context, IOConstants.IO_ERROR_CODE, error.getMessage());
             context.setReturnValues(errorStruct);
         }
         callback.notifySuccess();
@@ -91,7 +96,7 @@ public class WriteTextRecord implements NativeCallableUnit {
     @Override
     public void execute(Context context, CallableUnitCallback callback) {
         BMap<String, BValue> channel = (BMap<String, BValue>) context.getRefArgument(RECORD_CHANNEL_INDEX);
-        BStringArray content = (BStringArray) context.getRefArgument(CONTENT_INDEX);
+        BValueArray content = (BValueArray) context.getRefArgument(CONTENT_INDEX);
         DelimitedRecordChannel delimitedRecordChannel = (DelimitedRecordChannel) channel.getNativeData(IOConstants
                 .TXT_RECORD_CHANNEL_NAME);
         EventContext eventContext = new EventContext(context, callback);
@@ -105,5 +110,40 @@ public class WriteTextRecord implements NativeCallableUnit {
     @Override
     public boolean isBlocking() {
         return false;
+    }
+
+    public static Object write(Strand strand, ObjectValue channel, ArrayValue content) {
+        //TODO : NonBlockingCallback is temporary fix to handle non blocking call
+        NonBlockingCallback callback = new NonBlockingCallback(strand);
+
+        DelimitedRecordChannel delimitedRecordChannel = (DelimitedRecordChannel) channel.getNativeData(
+                IOConstants.TXT_RECORD_CHANNEL_NAME);
+        EventContext eventContext = new EventContext(callback);
+        DelimitedRecordWriteEvent recordWriteEvent = new DelimitedRecordWriteEvent(delimitedRecordChannel, content,
+                                                                                   eventContext, true);
+        Register register = EventRegister.getFactory().register(recordWriteEvent, WriteTextRecord::writeTextResponse);
+        eventContext.setRegister(register);
+        register.submit();
+        //TODO : Remove callback once strand non-blocking support is given
+        callback.sync();
+        return callback.getReturnValue();
+    }
+
+    /**
+     * Callback response received after the bytes are written.
+     *
+     * @param result the response received.
+     * @return the result context.
+     */
+    private static EventResult writeTextResponse(EventResult<Integer, EventContext> result) {
+        EventContext eventContext = result.getContext();
+        //TODO : Remove callback once strand non-blocking support is given
+        NonBlockingCallback callback = eventContext.getNonBlockingCallback();
+        Throwable error = eventContext.getError();
+        if (null != error) {
+            callback.setReturnValues(IOUtils.createError(error.getMessage()));
+        }
+        callback.notifySuccess();
+        return result;
     }
 }

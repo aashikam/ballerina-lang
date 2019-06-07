@@ -20,28 +20,43 @@
 ///////////////////////////////////
 # Represents directory listener endpoint where used to listen to a directory in the local file system.
 #
-# + config - Represents necessary configurations that need to configure
 public type Listener object {
-    private ListenerEndpointConfiguration config;
+    private ListenerConfig config;
 
-    public function init(ListenerEndpointConfiguration listenerConfig) {
+    *AbstractListener;
+
+    public function __init(ListenerConfig listenerConfig) {
         self.config = listenerConfig;
-        check self.initEndpoint();
+        var result = self.initEndpoint();
+        if (result is error) {
+            panic result;
+        }
     }
 
-    extern function initEndpoint() returns error?;
+    public function __start() returns error? {
+        return self.start();
+    }
 
-    public extern function register(typedesc serviceType);
+    public function __stop() returns error? {
+        return ();
+    }
 
-    public extern function start();
+    public function __attach(service s, string? name = ()) returns error? {
+        return self.register(s, name);
+    }
+
+    function initEndpoint() returns error? = external;
+
+    function register(service serviceType, string? name) returns error? = external;
+
+    function start() returns error? = external;
 };
 
 # Represents configurations that required for directory listener.
 #
 # + path - Directory path which need to listen
 # + recursive - Recursively monitor all sub folders or not in the given direcotry path
-public type ListenerEndpointConfiguration record {
-    string path;
+public type ListenerConfig record {|
+    string? path = ();
     boolean recursive = false;
-    !...
-};
+|};

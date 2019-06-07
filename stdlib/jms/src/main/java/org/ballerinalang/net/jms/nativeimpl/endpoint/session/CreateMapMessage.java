@@ -25,23 +25,24 @@ import org.ballerinalang.connector.api.BLangConnectorSPIUtil;
 import org.ballerinalang.connector.api.Struct;
 import org.ballerinalang.model.types.TypeKind;
 import org.ballerinalang.model.values.BBoolean;
-import org.ballerinalang.model.values.BByteArray;
 import org.ballerinalang.model.values.BFloat;
 import org.ballerinalang.model.values.BInteger;
 import org.ballerinalang.model.values.BMap;
 import org.ballerinalang.model.values.BString;
 import org.ballerinalang.model.values.BValue;
+import org.ballerinalang.model.values.BValueArray;
 import org.ballerinalang.natives.annotations.Argument;
 import org.ballerinalang.natives.annotations.BallerinaFunction;
 import org.ballerinalang.natives.annotations.Receiver;
 import org.ballerinalang.natives.annotations.ReturnType;
 import org.ballerinalang.net.jms.AbstractBlockingAction;
-import org.ballerinalang.net.jms.Constants;
+import org.ballerinalang.net.jms.JmsConstants;
 import org.ballerinalang.net.jms.utils.BallerinaAdapter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.Map;
+
 import javax.jms.JMSException;
 import javax.jms.MapMessage;
 import javax.jms.Session;
@@ -49,15 +50,16 @@ import javax.jms.Session;
 /**
  * Create JMS map message.
  */
-@BallerinaFunction(orgName = "ballerina", packageName = "jms",
-        functionName = "createMapMessage",
-        receiver = @Receiver(type = TypeKind.OBJECT, structType = "Session",
-                structPackage = "ballerina/jms"),
-        args = {@Argument(name = "content", type = TypeKind.MAP)},
-        returnType = {
-                @ReturnType(type = TypeKind.OBJECT, structPackage = "ballerina/jms", structType = "Message")
+@BallerinaFunction(orgName = JmsConstants.BALLERINA, packageName = JmsConstants.JMS,
+                   functionName = "createMapMessage",
+                   receiver = @Receiver(type = TypeKind.OBJECT, structType = JmsConstants.SESSION_OBJ_NAME,
+                                        structPackage = JmsConstants.PROTOCOL_PACKAGE_JMS),
+                   args = {@Argument(name = "content", type = TypeKind.MAP)},
+                   returnType = {
+                           @ReturnType(type = TypeKind.OBJECT, structPackage = JmsConstants.PROTOCOL_PACKAGE_JMS,
+                                       structType = JmsConstants.MESSAGE_OBJ_NAME)
         },
-        isPublic = true)
+                   isPublic = true)
 public class CreateMapMessage extends AbstractBlockingAction {
 
     public static final Logger LOGGER = LoggerFactory.getLogger(CreateMapMessage.class);
@@ -67,16 +69,17 @@ public class CreateMapMessage extends AbstractBlockingAction {
 
         Struct sessionBObject = BallerinaAdapter.getReceiverObject(context);
 
-        Session session = BallerinaAdapter.getNativeObject(sessionBObject, Constants.JMS_SESSION, Session.class,
+        Session session = BallerinaAdapter.getNativeObject(sessionBObject, JmsConstants.JMS_SESSION, Session.class,
                                                            context);
         BMap content = (BMap) context.getRefArgument(1);
 
         MapMessage jmsMessage;
 
-        BMap<String, BValue> bStruct = BLangConnectorSPIUtil.createBStruct(context, Constants.BALLERINA_PACKAGE_JMS,
-                Constants.JMS_MESSAGE_STRUCT_NAME);
+        BMap<String, BValue> bStruct = BLangConnectorSPIUtil.createBStruct(context, JmsConstants.BALLERINA_PACKAGE_JMS,
+                                                                           JmsConstants.MESSAGE_OBJ_NAME);
         try {
             jmsMessage = session.createMapMessage();
+            @SuppressWarnings(JmsConstants.UNCHECKED)
             Map<String, BValue> contentMap = content.getMap();
 
             contentMap.forEach((key, value) -> {
@@ -85,20 +88,20 @@ public class CreateMapMessage extends AbstractBlockingAction {
                         jmsMessage.setString(key, value.stringValue());
                     } else if (value instanceof BBoolean) {
                         jmsMessage.setBoolean(key, ((BBoolean) value).booleanValue());
-                    } else if (value instanceof BByteArray) {
-                        jmsMessage.setBytes(key, ((BByteArray) value).getBytes());
+                    } else if (value instanceof BValueArray) {
+                        jmsMessage.setBytes(key, ((BValueArray) value).getBytes());
                     } else if (value instanceof BInteger) {
                         jmsMessage.setLong(key, ((BInteger) value).intValue());
                     } else if (value instanceof BFloat) {
                         jmsMessage.setDouble(key, ((BFloat) value).floatValue());
                     } else {
-                        LOGGER.error("Couldn't set invalid data type to MapMessage : " + value.getType().getName());
+                        LOGGER.error("Couldn't set invalid data type to MapMessage : {}", value.getType().getName());
                     }
                 } catch (JMSException e) {
                     BallerinaAdapter.returnError("Failed to create map message", context, e);
                 }
             });
-            bStruct.addNativeData(Constants.JMS_MESSAGE_OBJECT, jmsMessage);
+            bStruct.addNativeData(JmsConstants.JMS_MESSAGE_OBJECT, jmsMessage);
         } catch (JMSException e) {
             BallerinaAdapter.returnError("Failed to create message.", context, e);
         }

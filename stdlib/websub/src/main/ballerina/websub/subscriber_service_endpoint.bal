@@ -23,123 +23,100 @@ import ballerina/log;
 # Object representing the WebSubSubscriber Service Endpoint.
 #
 # + config - The configuration for the endpoint
-# + serviceEndpoint - The underlying HTTP service endpoint
 public type Listener object {
 
-    public SubscriberServiceEndpointConfiguration config;
+    *AbstractListener;
 
-    private http:Listener serviceEndpoint;
+    public SubscriberServiceEndpointConfiguration? config = ();
 
-    public new () {
-        http:Listener httpEndpoint = new;
-        self.serviceEndpoint = httpEndpoint;
+    private http:Listener? serviceEndpoint = ();
+
+    public function __init(int port, SubscriberServiceEndpointConfiguration? config = ()) {
+        self.init(port, sseEpConfig =  config);
     }
 
-    # Gets called when the endpoint is being initialized during package initialization.
+    public function __attach(service s, string? name = ()) returns error? {
+        // TODO: handle data and return error on error
+        self.registerWebSubSubscriberServiceEndpoint(s);
+        return;
+    }
+
+    # Gets called when the endpoint is being initialized during module initialization.
     #
-    # + c - The Subscriber Service Endpoint Configuration of the endpoint
-    public function init(SubscriberServiceEndpointConfiguration c);
+    # + sseEpConfig - The Subscriber Service Endpoint Configuration of the endpoint
+    function init(int port, SubscriberServiceEndpointConfiguration? sseEpConfig = ());
 
-    # Gets called whenever a service attaches itself to this endpoint and during package initialization.
-    #
-    # + serviceType - The service attached
-    public function register(typedesc serviceType);
+    function initWebSubSubscriberServiceEndpoint() = external;
 
-    # Starts the registered service.
-    public function start();
-
-    # Returns the caller actions the client code uses.
-    #
-    # + return - `http:Connection` The connector that client code uses
-    public function getCallerActions() returns http:Connection;
-
-    # Stops the registered service.
-    public function stop();
-
-    extern function initWebSubSubscriberServiceEndpoint();
-
-    extern function registerWebSubSubscriberServiceEndpoint(typedesc serviceType);
+    function registerWebSubSubscriberServiceEndpoint(service serviceType) = external;
 
     # Sends subscription requests to the specified/discovered hubs if specified to subscribe on startup.
     function sendSubscriptionRequests();
 
     # Start the registered WebSub Subscriber service.
-    extern function startWebSubSubscriberServiceEndpoint();
+    function startWebSubSubscriberServiceEndpoint() = external;
 
     # Sets the topic to which this service is subscribing, for auto intent verification.
     #
     # + webSubServiceName - The name of the service for which subscription happened for a topic
     # + topic - The topic the subscription happened for
-    extern function setTopic(string webSubServiceName, string topic);
+    function setTopic(string webSubServiceName, string topic) = external;
 
     # Retrieves the parameters specified for subscription as annotations and the callback URL to which notification
     # should happen for the services bound to the endpoint.
     #
     # + return - `map[]` array of maps containing subscription details for each service
-    extern function retrieveSubscriptionParameters() returns map[];
+    function retrieveSubscriptionParameters() returns map<any>[] = external;
 
 };
 
-function Listener::init(SubscriberServiceEndpointConfiguration c) {
-    self.config = c;
-    http:ServiceEndpointConfiguration serviceConfig = {
-        host: c.host, port: c.port, secureSocket: c.httpServiceSecureSocket
-    };
+function Listener.init(int port, SubscriberServiceEndpointConfiguration? sseEpConfig = ()) {
+    self.config = sseEpConfig;
+    http:ServiceEndpointConfiguration? serviceConfig = ();
+    if (sseEpConfig is SubscriberServiceEndpointConfiguration) {
+        http:ServiceEndpointConfiguration httpServiceConfig = {
+            host: sseEpConfig.host,
+            secureSocket: sseEpConfig.httpServiceSecureSocket
+        };
+        serviceConfig = httpServiceConfig;
+    }
+    http:Listener httpEndpoint = new(port, config = serviceConfig);
+    self.serviceEndpoint = httpEndpoint;
 
-    self.serviceEndpoint.init(serviceConfig);
     self.initWebSubSubscriberServiceEndpoint();
 }
 
-function Listener::register(typedesc serviceType) {
-    self.registerWebSubSubscriberServiceEndpoint(serviceType);
-}
-
-function Listener::start() {
+public function Listener.__start() returns error? {
+    // TODO: handle data and return error on error
     self.startWebSubSubscriberServiceEndpoint();
     self.sendSubscriptionRequests();
+    return;
 }
 
-function Listener::getCallerActions() returns http:Connection {
-    return self.serviceEndpoint.getCallerActions();
+public function Listener.__stop() returns error? {
+    return self.serviceEndpoint.__stop();
 }
 
-function Listener::stop() {
-    self.serviceEndpoint.stop();
-}
+function Listener.sendSubscriptionRequests() {
+    map<any>[] subscriptionDetailsArray = self.retrieveSubscriptionParameters();
 
-function Listener::sendSubscriptionRequests() {
-    map[] subscriptionDetailsArray = self.retrieveSubscriptionParameters();
-
-    foreach subscriptionDetails in subscriptionDetailsArray {
-        if (lengthof subscriptionDetails.keys() == 0) {
+    foreach var subscriptionDetails in subscriptionDetailsArray {
+        if (subscriptionDetails.keys().length() == 0) {
             continue;
         }
 
+        // TODO: fix retrieveSubscriptionParameters to put values as relevant types.
         string strSubscribeOnStartUp = <string>subscriptionDetails.subscribeOnStartUp;
-        boolean subscribeOnStartUp = <boolean>strSubscribeOnStartUp;
+        boolean subscribeOnStartUp = boolean.convert(strSubscribeOnStartUp);
 
         if (subscribeOnStartUp) {
             string resourceUrl = <string>subscriptionDetails.resourceUrl;
             string hub = <string>subscriptionDetails.hub;
             string topic = <string>subscriptionDetails.topic;
 
-            http:SecureSocket? newSecureSocket;
-            match (<http:SecureSocket>subscriptionDetails.secureSocket) {
-                http:SecureSocket s => { newSecureSocket = s; }
-                error => { newSecureSocket = (); }
-            }
-
-            http:AuthConfig? auth;
-            match (<http:AuthConfig>subscriptionDetails.auth) {
-                http:AuthConfig httpAuth => { auth = httpAuth; }
-                error => { auth = (); }
-            }
-
-            http:FollowRedirects? followRedirects;
-            match (<http:FollowRedirects>subscriptionDetails.followRedirects) {
-                http:FollowRedirects httpFollowRedirects => { followRedirects = httpFollowRedirects; }
-                error => { followRedirects = (); }
-            }
+            var clientConfig = trap <http:ClientEndpointConfig>subscriptionDetails.subscriptionClientConfig;
+            http:ClientEndpointConfig? subscriptionClientConfig =
+                                                clientConfig is http:ClientEndpointConfig ? clientConfig : ();
 
             if (hub == "" || topic == "") {
                 if (resourceUrl == "") {
@@ -147,24 +124,33 @@ function Listener::sendSubscriptionRequests() {
                         "Subscription Request not sent since hub and/or topic and resource URL are unavailable");
                     return;
                 }
-                match (retrieveHubAndTopicUrl(resourceUrl, auth, newSecureSocket, followRedirects)) {
-                    (string, string) discoveredDetails => {
-                        var (retHub, retTopic) = discoveredDetails;
-                        retHub = check http:decode(retHub, "UTF-8");
-                        retTopic = check http:decode(retTopic, "UTF-8");
-                        subscriptionDetails["hub"] = retHub;
-                        hub = retHub;
-                        subscriptionDetails["topic"] = retTopic;
-                        string webSubServiceName = <string>subscriptionDetails.webSubServiceName;
-                        self.setTopic(webSubServiceName, retTopic);
+                var discoveredDetails = retrieveHubAndTopicUrl(resourceUrl, subscriptionClientConfig);
+                if (discoveredDetails is (string, string)) {
+                    var (retHub, retTopic) = discoveredDetails;
+                    var hubDecodeResponse = http:decode(retHub, "UTF-8");
+                    if (hubDecodeResponse is string) {
+                        retHub = hubDecodeResponse;
+                    } else {
+                        panic hubDecodeResponse;
                     }
-                    error websubError => {
-                        log:printError("Error sending out subscription request on start up: " + websubError.message);
-                        continue;
+                    var topicDecodeResponse = http:decode(retTopic, "UTF-8");
+                    if (topicDecodeResponse is string) {
+                        retTopic = topicDecodeResponse;
+                    } else {
+                        panic topicDecodeResponse;
                     }
+                    subscriptionDetails["hub"] = retHub;
+                    hub = retHub;
+                    subscriptionDetails["topic"] = retTopic;
+                    string webSubServiceName = <string>subscriptionDetails.webSubServiceName;
+                    self.setTopic(webSubServiceName, retTopic);
+                } else {
+                    string errCause = <string> discoveredDetails.detail().message;
+                    log:printError("Error sending out subscription request on start up: " + errCause);
+                    continue;
                 }
             }
-            invokeClientConnectorForSubscription(hub, auth, newSecureSocket, followRedirects, subscriptionDetails);
+            invokeClientConnectorForSubscription(hub, subscriptionClientConfig, subscriptionDetails);
         }
     }
 }
@@ -172,16 +158,13 @@ function Listener::sendSubscriptionRequests() {
 # Object representing the configuration for the WebSub Subscriber Service Endpoint.
 #
 # + host - The host name/IP of the endpoint
-# + port - The port to which the endpoint should bind to
 # + httpServiceSecureSocket - The SSL configurations for the service endpoint
 # + extensionConfig - The extension configuration to introduce custom subscriber services (webhooks)
-public type SubscriberServiceEndpointConfiguration record {
-    string host;
-    int port;
-    http:ServiceSecureSocket? httpServiceSecureSocket;
-    ExtensionConfig? extensionConfig;
-    !...
-};
+public type SubscriberServiceEndpointConfiguration record {|
+    string host = "";
+    http:ServiceSecureSocket? httpServiceSecureSocket = ();
+    ExtensionConfig? extensionConfig = ();
+|};
 
 # The extension configuration to introduce custom subscriber services.
 #
@@ -190,19 +173,19 @@ public type SubscriberServiceEndpointConfiguration record {
 # + headerResourceMap - The mapping between header value and resource details
 # + payloadKeyResourceMap - The mapping between value for a particular JSON payload key and resource details
 # + headerAndPayloadKeyResourceMap - The mapping between values for the header and a particular JSON payload key and resource details
-public type ExtensionConfig record {
+public type ExtensionConfig record {|
     TopicIdentifier topicIdentifier = TOPIC_ID_HEADER;
 
     // TODO: make `Link` the default header and special case `Link` to extract the topic (rel="self").
     // <link href="<HUB_URL>"; rel="hub", href="<TOPIC_URL>"; rel="self"/>
-    string? topicHeader;
+    string? topicHeader = ();
 
     // e.g.,
     //  headerResourceMap = {
     //    "watch" : ("onWatch", WatchEvent),
     //    "create" : ("onCreate", CreateEvent)
     //  };
-    map<(string, typedesc)>? headerResourceMap;
+    map<(string, typedesc)>? headerResourceMap = ();
 
     // e.g.,
     //  payloadKeyResourceMap = {
@@ -211,7 +194,7 @@ public type ExtensionConfig record {
     //        "branch.deleted":  ("onBranchDelete", BranchDeletedEvent)
     //    }
     //  };
-    map<map<(string, typedesc)>>? payloadKeyResourceMap;
+    map<map<(string, typedesc)>>? payloadKeyResourceMap = ();
 
     // e.g.,
     //  headerAndPayloadKeyResourceMap = {
@@ -223,92 +206,46 @@ public type ExtensionConfig record {
     //        }
     //    }
     //  };
-    map<map<map<(string, typedesc)>>>? headerAndPayloadKeyResourceMap;
-    !...
-};
+    map<map<map<(string, typedesc)>>>? headerAndPayloadKeyResourceMap = ();
+|};
 
 # The function called to discover hub and topic URLs defined by a resource URL.
 #
 # + resourceUrl - The resource URL advertising hub and topic URLs
+# + subscriptionClientConfig - The configuration for subscription client
 # + return - `(string, string)` (hub, topic) URLs if successful, `error` if not
-function retrieveHubAndTopicUrl(string resourceUrl, http:AuthConfig? auth, http:SecureSocket? localSecureSocket,
-                                http:FollowRedirects? followRedirects) returns @tainted (string, string)|error {
-
-    endpoint http:Client resourceEP {
-        url:resourceUrl,
-        auth:auth,
-        secureSocket: localSecureSocket,
-        followRedirects:followRedirects
-    };
-
+function retrieveHubAndTopicUrl(string resourceUrl, http:ClientEndpointConfig? subscriptionClientConfig)
+                                            returns @tainted (string, string)|error {
+    http:Client resourceEP = new http:Client(resourceUrl, config = subscriptionClientConfig);
     http:Request request = new;
     var discoveryResponse = resourceEP->get("", message = request);
-    error websubError = {};
-    match (discoveryResponse) {
-        http:Response response => {
-            int responseStatusCode = response.statusCode;
-            string[] linkHeaders;
-            if (response.hasHeader("Link")) {
-                linkHeaders = response.getHeaders("Link");
-            }
-
-            if (lengthof linkHeaders > 0) {
-                string hub;
-                string topic;
-                string[] linkHeaderConstituents = [];
-                if (lengthof linkHeaders == 1) {
-                    linkHeaderConstituents = linkHeaders[0].split(",");
-                } else {
-                    linkHeaderConstituents = linkHeaders;
-                }
-
-                foreach link in linkHeaderConstituents {
-                    string[] linkConstituents = link.split(";");
-                    if (linkConstituents[1] != "") {
-                        string url = linkConstituents[0].trim();
-                        url = url.replace("<", "");
-                        url = url.replace(">", "");
-                        if (linkConstituents[1].contains("rel=\"hub\"") && hub == "") {
-                            hub = url;
-                        } else if (linkConstituents[1].contains("rel=\"self\"")) {
-                            if (topic != "") {
-                                websubError = {message:"Link Header contains >1 self URLs"};
-                            } else {
-                                topic = url;
-                            }
-                        }
-                    }
-                }
-                if (hub != "" && topic != "") {
-                    return (hub, topic);
-                } else {
-                    websubError = {message:"Hub and/or Topic URL(s) not identified in link header of resource "
-                        + "URL[" + resourceUrl + "]"};
-                }
-            } else {
-                websubError = {message:"Link header unavailable for resource URL[" + resourceUrl + "]"};
-            }
+    error websubError = error("Dummy");
+    if (discoveryResponse is http:Response) {
+        var topicAndHubs = extractTopicAndHubUrls(discoveryResponse);
+        if (topicAndHubs is (string, string[])) {
+            string topic = "";
+            string[] hubs = [];
+            (topic, hubs) = topicAndHubs;
+            return (hubs[0], topic); // guaranteed by `extractTopicAndHubUrls` for hubs to have length > 0
+        } else {
+            return topicAndHubs;
         }
-        error connErr => {
-            websubError = {message:"Error occurred with WebSub discovery for Resource URL [" + resourceUrl + "]: "
-                + connErr.message, cause:connErr};
-        }
+    } else {
+        string errCause = <string> discoveryResponse.detail().message;
+        map<anydata> errorDetail = { message : "Error occurred with WebSub discovery for Resource URL [" +
+                                resourceUrl + "]: " + errCause };
+        websubError = error(WEBSUB_ERROR_CODE, errorDetail);
     }
     return websubError;
 }
 
-# Function to invoke the WebSubSubscriberConnector's actions for subscription.
+# Function to invoke the WebSubSubscriberConnector's remote functions for subscription.
 #
 # + hub - The hub to which the subscription request is to be sent
+# + subscriptionClientConfig - The configuration for subscription client
 # + subscriptionDetails - Map containing subscription details
-function invokeClientConnectorForSubscription(string hub, http:AuthConfig? auth, http:SecureSocket? localSecureSocket,
-                                              http:FollowRedirects? followRedirects, map subscriptionDetails) {
-    endpoint Client websubHubClientEP {
-        url:hub,
-        clientSecureSocket: localSecureSocket,
-        auth:auth,
-        followRedirects:followRedirects
-    };
+function invokeClientConnectorForSubscription(string hub, http:ClientEndpointConfig? subscriptionClientConfig, map<any> subscriptionDetails) {
+    Client websubHubClientEP = new Client(hub, config = subscriptionClientConfig);
 
     string topic = <string>subscriptionDetails.topic;
     string callback = <string>subscriptionDetails.callback;
@@ -318,15 +255,16 @@ function invokeClientConnectorForSubscription(string hub, http:AuthConfig? auth,
         return;
     }
 
-    int leaseSeconds;
+    int leaseSeconds = 0;
 
     string strLeaseSeconds = <string>subscriptionDetails.leaseSeconds;
-    match (<int>strLeaseSeconds) {
-        int convIntLeaseSeconds => { leaseSeconds = convIntLeaseSeconds; }
-        error convError => {
-            log:printError("Error retreiving specified lease seconds value: " + convError.message);
-            return;
-        }
+    var convIntLeaseSeconds = int.convert(strLeaseSeconds);
+    if (convIntLeaseSeconds is int) {
+        leaseSeconds = convIntLeaseSeconds;
+    } else {
+        string errCause = <string> convIntLeaseSeconds.detail().message;
+        log:printError("Error retreiving specified lease seconds value: " + errCause);
+        return;
     }
 
     string secret = <string>subscriptionDetails.secret;
@@ -341,14 +279,11 @@ function invokeClientConnectorForSubscription(string hub, http:AuthConfig? auth,
     }
 
     var subscriptionResponse = websubHubClientEP->subscribe(subscriptionChangeRequest);
-    match (subscriptionResponse) {
-        SubscriptionChangeResponse subscriptionChangeResponse => {
-            log:printInfo("Subscription Request successful at Hub[" + subscriptionChangeResponse.hub +
-                    "], for Topic[" + subscriptionChangeResponse.topic + "], with Callback [" + callback + "]");
-        }
-        error webSubError => {
-            log:printError("Subscription Request failed at Hub[" + hub + "], for Topic[" + topic + "]: " +
-                    webSubError.message);
-        }
+    if (subscriptionResponse is SubscriptionChangeResponse) {
+        log:printInfo("Subscription Request successful at Hub[" + subscriptionResponse.hub +
+                "], for Topic[" + subscriptionResponse.topic + "], with Callback [" + callback + "]");
+    } else {
+        string errCause = <string> subscriptionResponse.detail().message;
+        log:printError("Subscription Request failed at Hub[" + hub + "], for Topic[" + topic + "]: " + errCause);
     }
 }

@@ -19,11 +19,11 @@
 package org.ballerinalang.stdlib.log;
 
 import org.ballerinalang.bre.Context;
+import org.ballerinalang.jvm.Strand;
 import org.ballerinalang.logging.util.BLogLevel;
 import org.ballerinalang.model.types.TypeKind;
 import org.ballerinalang.natives.annotations.Argument;
 import org.ballerinalang.natives.annotations.BallerinaFunction;
-import org.ballerinalang.util.observability.ObservabilityUtils;
 
 /**
  * Extern function ballerina.log:printInfo.
@@ -33,19 +33,20 @@ import org.ballerinalang.util.observability.ObservabilityUtils;
 @BallerinaFunction(
         orgName = "ballerina", packageName = "log",
         functionName = "printInfo",
-        args = {@Argument(name = "msg", type = TypeKind.STRING)},
+        args = {@Argument(name = "msg", type = TypeKind.ANY)},
         isPublic = true
 )
 public class LogInfo extends AbstractLogFunction {
 
     public void execute(Context ctx) {
-        String pkg = getPackagePath(ctx);
-        String logMessage = getLogMessage(ctx, 0);
-        if (LOG_MANAGER.getPackageLogLevel(pkg).value() <= BLogLevel.INFO.value()) {
-            getLogger(pkg).info(logMessage);
-        }
-        ObservabilityUtils.logMessageToActiveSpan(ctx, BLogLevel.INFO.name(), logMessage, false);
+        logMessage(ctx, BLogLevel.INFO, (pkg, message) -> {
+            getLogger(pkg).info(message);
+        });
+    }
 
-        ctx.setReturnValues();
+    public static void printInfo(Strand strand, Object msg) {
+        logMessage(msg, BLogLevel.INFO, (pkg, message) -> {
+            getLogger(pkg).info(message);
+        });
     }
 }

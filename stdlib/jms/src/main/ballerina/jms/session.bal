@@ -19,25 +19,29 @@
 # + config - Used to store configurations related to a JMS session
 public type Session object {
 
-    public SessionConfiguration config;
+    private SessionConfiguration config;
+    private Connection conn;
 
     # Default constructor of the JMS session
-    public new(Connection connection, SessionConfiguration c) {
+    public function __init(Connection connection, SessionConfiguration c) {
         self.config = c;
+        self.conn = connection;
         self.initEndpoint(connection);
     }
 
-    extern function initEndpoint(Connection connection);
+    function initEndpoint(Connection connection) = external;
 
     # Creates a JMS message which holds text content
     #
     # + content - the text content used to initialize this message
-    public extern function createTextMessage(string content) returns Message|error;
+    # + return - a text message or error in case of errors
+    public function createTextMessage(string content) returns Message|error = external;
 
     # Creates a JMS message which holds Map content
     #
     # + content - the Map content used to initialize this message
-    public extern function createMapMessage(map content) returns Message|error;
+    # + return - a map message or error incase of errors
+    public function createMapMessage(map<any> content) returns Message|error = external;
 
     # Unsubscribes a durable subscription that has been created by a client.
     # It is erroneous for a client to delete a durable subscription while there is an active (not closed) consumer
@@ -45,30 +49,36 @@ public type Session object {
     # acknowledged in the session.
     #
     # + subscriptionId - the name used to identify this subscription
-    public extern function unsubscribe(string subscriptionId) returns error?;
+    # + return - Cancel subscription
+    public function unsubscribe(string subscriptionId) returns error? = external;
 
     # Creates a JMS Queue which can be used as temporary response destination.
-    public extern function createTemporaryQueue() returns Destination|error;
+    #
+    # + return - JMS destination for a temporary queue or error if fails
+    public function createTemporaryQueue() returns Destination|error = external;
 
     # Creates a JMS Topic which can be used as temporary response destination.
-    public extern function createTemporaryTopic() returns Destination|error;
+    #
+    # + return - JMS destination for a temporary topic or error if fails
+    public function createTemporaryTopic() returns Destination|error = external;
 
     # Creates a JMS Queue which can be used with a message producer.
     #
     # + queueName - name of the Queue
-    public extern function createQueue(string queueName) returns Destination|error;
+    # + return - JMS destination for a queue or error if fails
+    public function createQueue(string queueName) returns Destination|error = external;
 
     # Creates a JMS Topic which can be used with a message producer.
     #
     # + topicName - name of the Topic
-    public extern function createTopic(string topicName) returns Destination|error;
+    # + return - JMS destination for a topic or error if fails
+    public function createTopic(string topicName) returns Destination|error = external;
 };
 
 # Configurations related to a JMS session
 #
 # + acknowledgementMode - specifies the session mode that will be used. Legal values are "AUTO_ACKNOWLEDGE",
 #                         "CLIENT_ACKNOWLEDGE", "SESSION_TRANSACTED" and "DUPS_OK_ACKNOWLEDGE"
-public type SessionConfiguration record {
+public type SessionConfiguration record {|
     string acknowledgementMode = "AUTO_ACKNOWLEDGE";
-    !...
-};
+|};

@@ -23,7 +23,6 @@ import io.netty.handler.codec.http.DefaultLastHttpContent;
 import io.netty.handler.codec.http.HttpHeaderNames;
 import io.netty.handler.codec.http.HttpHeaders;
 import org.ballerinalang.bre.Context;
-import org.ballerinalang.bre.bvm.BLangVMErrors;
 import org.ballerinalang.connector.api.BLangConnectorSPIUtil;
 import org.ballerinalang.connector.api.BallerinaConnectorException;
 import org.ballerinalang.connector.api.Struct;
@@ -32,19 +31,19 @@ import org.ballerinalang.mime.util.HeaderUtil;
 import org.ballerinalang.mime.util.MultipartDataSource;
 import org.ballerinalang.model.InterruptibleNativeCallableUnit;
 import org.ballerinalang.model.values.BBoolean;
+import org.ballerinalang.model.values.BError;
 import org.ballerinalang.model.values.BMap;
-import org.ballerinalang.model.values.BRefValueArray;
-import org.ballerinalang.model.values.BString;
 import org.ballerinalang.model.values.BValue;
-import org.ballerinalang.net.http.AcceptEncodingConfig;
+import org.ballerinalang.model.values.BValueArray;
+import org.ballerinalang.net.http.CompressionConfigState;
 import org.ballerinalang.net.http.DataContext;
 import org.ballerinalang.net.http.HttpConstants;
 import org.ballerinalang.net.http.HttpUtil;
 import org.ballerinalang.util.exceptions.BallerinaException;
 import org.ballerinalang.util.observability.ObservabilityConstants;
-import org.ballerinalang.util.observability.ObservabilityUtils;
+import org.ballerinalang.util.observability.ObserveUtils;
 import org.ballerinalang.util.observability.ObserverContext;
-import org.ballerinalang.util.transactions.LocalTransactionInfo;
+import org.ballerinalang.util.transactions.TransactionLocalContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.wso2.transport.http.netty.contract.ClientConnectorException;
@@ -64,12 +63,13 @@ import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.Optional;
 
-import static org.ballerinalang.mime.util.MimeConstants.REQUEST_ENTITY_FIELD;
-import static org.ballerinalang.net.http.HttpConstants.CLIENT_ENDPOINT_SERVICE_URI;
+import static io.netty.handler.codec.http.HttpHeaderNames.ACCEPT_ENCODING;
+import static org.ballerinalang.net.http.HttpConstants.ANN_CONFIG_ATTR_COMPRESSION;
 import static org.ballerinalang.net.http.HttpConstants.HTTP_PACKAGE_PATH;
 import static org.ballerinalang.net.http.HttpConstants.HTTP_STATUS_CODE;
 import static org.ballerinalang.net.http.HttpConstants.REQUEST;
 import static org.ballerinalang.net.http.HttpUtil.extractEntity;
+import static org.ballerinalang.net.http.HttpUtil.getCompressionState;
 import static org.ballerinalang.runtime.Constants.BALLERINA_VERSION;
 import static org.wso2.transport.http.netty.contract.Constants.ENCODING_DEFLATE;
 import static org.wso2.transport.http.netty.contract.Constants.ENCODING_GZIP;
@@ -86,6 +86,7 @@ public abstract class AbstractHTTPAction implements InterruptibleNativeCallableU
     static {
         CACHE_BALLERINA_VERSION = System.getProperty(BALLERINA_VERSION);
     }
+
     @Override
     public boolean persistBeforeOperation() {
         return false;
@@ -101,7 +102,7 @@ public abstract class AbstractHTTPAction implements InterruptibleNativeCallableU
 
         // Extract Argument values
         BMap<String, BValue> bConnector = (BMap<String, BValue>) context.getRefArgument(0);
-        String path = context.getStringArgument(0);
+        String path = context.getStringArgument(1);
 
         BMap<String, BValue> requestStruct = ((BMap<String, BValue>) context.getNullableRefArgument(1));
         if (requestStruct == null) {
@@ -110,66 +111,45 @@ public abstract class AbstractHTTPAction implements InterruptibleNativeCallableU
 
         HttpCarbonMessage requestMsg = HttpUtil
                 .getCarbonMsg(requestStruct, HttpUtil.createHttpCarbonMessage(true));
-
         HttpUtil.checkEntityAvailability(context, requestStruct);
         HttpUtil.enrichOutboundMessage(requestMsg, requestStruct);
-        prepareOutboundRequest(context, bConnector, path, requestMsg);
-        AcceptEncodingConfig acceptEncodingConfig = getAcceptEncodingConfig
-                (getAcceptEncodingConfigFromEndpointConfig(bConnector));
-        handleAcceptEncodingHeader(requestMsg, acceptEncodingConfig);
+        prepareOutboundRequest(context, path, requestMsg, isNoEntityBodyRequest(requestStruct));
+        handleAcceptEncodingHeader(requestMsg, getCompressionConfigFromEndpointConfig(bConnector));
         return requestMsg;
     }
 
-    protected String getAcceptEncodingConfigFromEndpointConfig(BMap<String, BValue> httpClientStruct) {
+    String getCompressionConfigFromEndpointConfig(BMap<String, BValue> httpClientStruct) {
         Struct clientEndpointConfig = BLangConnectorSPIUtil.toStruct(httpClientStruct);
-        Struct epConfig = (Struct) clientEndpointConfig.getNativeData(HttpConstants.CLIENT_ENDPOINT_CONFIG);
-        if (epConfig == null) {
-            return HttpConstants.AUTO;
-        }
-        return epConfig.getRefField(HttpConstants.ANN_CONFIG_ATTR_COMPRESSION).getStringValue();
+        return clientEndpointConfig.getRefField(ANN_CONFIG_ATTR_COMPRESSION).getStringValue();
     }
 
-    protected static AcceptEncodingConfig getAcceptEncodingConfig(String acceptEncodingConfig) {
-        if (HttpConstants.AUTO.equalsIgnoreCase(acceptEncodingConfig)) {
-            return AcceptEncodingConfig.AUTO;
-        } else if (HttpConstants.ALWAYS.equalsIgnoreCase(acceptEncodingConfig)) {
-            return AcceptEncodingConfig.ALWAYS;
-        } else if (HttpConstants.NEVER.equalsIgnoreCase(acceptEncodingConfig)) {
-            return AcceptEncodingConfig.NEVER;
-        } else {
-            throw new BallerinaConnectorException(
-                    "Invalid configuration found for Accept-Encoding: " + acceptEncodingConfig);
+    void handleAcceptEncodingHeader(HttpCarbonMessage outboundRequest, String compressionConfigValue) {
+        CompressionConfigState compressionState = getCompressionState(compressionConfigValue);
+
+        if (compressionState == CompressionConfigState.ALWAYS && (outboundRequest.getHeader(
+                ACCEPT_ENCODING.toString()) == null)) {
+            outboundRequest.setHeader(ACCEPT_ENCODING.toString(), ENCODING_DEFLATE + ", " + ENCODING_GZIP);
+        } else if (compressionState == CompressionConfigState.NEVER && (outboundRequest.getHeader(
+                ACCEPT_ENCODING.toString()) != null)) {
+            outboundRequest.removeHeader(ACCEPT_ENCODING.toString());
         }
     }
 
-    protected void handleAcceptEncodingHeader(HttpCarbonMessage outboundRequest,
-                                              AcceptEncodingConfig acceptEncodingConfig) {
-        if (acceptEncodingConfig == AcceptEncodingConfig.ALWAYS && (
-                outboundRequest.getHeader(HttpHeaderNames.ACCEPT_ENCODING.toString()) == null)) {
-            outboundRequest
-                    .setHeader(HttpHeaderNames.ACCEPT_ENCODING.toString(), ENCODING_DEFLATE + ", " + ENCODING_GZIP);
-        } else if (acceptEncodingConfig == AcceptEncodingConfig.NEVER && (
-                outboundRequest.getHeader(HttpHeaderNames.ACCEPT_ENCODING.toString()) != null)) {
-            outboundRequest.removeHeader(HttpHeaderNames.ACCEPT_ENCODING.toString());
-        }
-    }
-
-    protected void prepareOutboundRequest(Context context, BMap<String, BValue> connector, String path,
-                                          HttpCarbonMessage outboundRequest) {
-        validateParams(connector);
+    protected void prepareOutboundRequest(Context context, String path, HttpCarbonMessage outboundRequest,
+                                          Boolean nonEntityBodyReq) {
         if (context.isInTransaction()) {
-            LocalTransactionInfo localTransactionInfo = context.getLocalTransactionInfo();
-            outboundRequest.setHeader(HttpConstants.HEADER_X_XID, localTransactionInfo.getGlobalTransactionId());
-            outboundRequest.setHeader(HttpConstants.HEADER_X_REGISTER_AT_URL, localTransactionInfo.getURL());
+            TransactionLocalContext transactionLocalContext = context.getLocalTransactionInfo();
+            outboundRequest.setHeader(HttpConstants.HEADER_X_XID, transactionLocalContext.getGlobalTransactionId());
+            outboundRequest.setHeader(HttpConstants.HEADER_X_REGISTER_AT_URL, transactionLocalContext.getURL());
         }
         try {
-            String uri = connector.get(CLIENT_ENDPOINT_SERVICE_URI).stringValue() + path;
+            String uri = getServiceUri(context) + path;
             URL url = new URL(uri);
 
             int port = getOutboundReqPort(url);
             String host = url.getHost();
 
-            setOutboundReqProperties(outboundRequest, url, port, host);
+            setOutboundReqProperties(outboundRequest, url, port, host, nonEntityBodyReq);
             setOutboundReqHeaders(outboundRequest, port, host);
 
         } catch (MalformedURLException e) {
@@ -179,6 +159,14 @@ public abstract class AbstractHTTPAction implements InterruptibleNativeCallableU
         }
     }
 
+    private String getServiceUri(Context context) {
+        String serviceUri = context.getStringArgument(0);
+        if (serviceUri.isEmpty()) {
+            throw new BallerinaException("Service uri is not defined correctly.");
+        }
+        return serviceUri;
+    }
+
     private void setOutboundReqHeaders(HttpCarbonMessage outboundRequest, int port, String host) {
         HttpHeaders headers = outboundRequest.getHeaders();
         setHostHeader(host, port, headers);
@@ -186,7 +174,8 @@ public abstract class AbstractHTTPAction implements InterruptibleNativeCallableU
         removeConnectionHeader(headers);
     }
 
-    private void setOutboundReqProperties(HttpCarbonMessage outboundRequest, URL url, int port, String host) {
+    private void setOutboundReqProperties(HttpCarbonMessage outboundRequest, URL url, int port, String host,
+                                          Boolean nonEntityBodyReq) {
         outboundRequest.setProperty(Constants.HTTP_HOST, host);
         outboundRequest.setProperty(Constants.HTTP_PORT, port);
 
@@ -194,6 +183,7 @@ public abstract class AbstractHTTPAction implements InterruptibleNativeCallableU
         outboundRequest.setProperty(HttpConstants.TO, outboundReqPath);
 
         outboundRequest.setProperty(HttpConstants.PROTOCOL, url.getProtocol());
+        outboundRequest.setProperty(HttpConstants.NO_ENTITY_BODY, nonEntityBodyReq);
     }
 
     private void setHostHeader(String host, int port, HttpHeaders headers) {
@@ -243,12 +233,6 @@ public abstract class AbstractHTTPAction implements InterruptibleNativeCallableU
         return port;
     }
 
-    private void validateParams(BMap<String, BValue> connector) {
-        if (connector == null || connector.get(CLIENT_ENDPOINT_SERVICE_URI) == null) {
-            throw new BallerinaException("Connector parameters not defined correctly.");
-        }
-    }
-
     protected void executeNonBlockingAction(DataContext dataContext, boolean async) {
         HttpCarbonMessage outboundRequestMsg = dataContext.getOutboundRequest();
 
@@ -258,20 +242,20 @@ public abstract class AbstractHTTPAction implements InterruptibleNativeCallableU
         Object sourceHandler = outboundRequestMsg.getProperty(HttpConstants.SRC_HANDLER);
         if (sourceHandler == null) {
             outboundRequestMsg.setProperty(HttpConstants.SRC_HANDLER,
-                                           dataContext.context.getProperty(HttpConstants.SRC_HANDLER));
+                    dataContext.context.getProperty(HttpConstants.SRC_HANDLER));
         }
         Object poolableByteBufferFactory = outboundRequestMsg.getProperty(HttpConstants.POOLED_BYTE_BUFFER_FACTORY);
         if (poolableByteBufferFactory == null) {
             outboundRequestMsg.setProperty(HttpConstants.POOLED_BYTE_BUFFER_FACTORY,
-                                           dataContext.context.getProperty(HttpConstants.POOLED_BYTE_BUFFER_FACTORY));
+                    dataContext.context.getProperty(HttpConstants.POOLED_BYTE_BUFFER_FACTORY));
         }
         Object remoteAddress = outboundRequestMsg.getProperty(HttpConstants.REMOTE_ADDRESS);
         if (remoteAddress == null) {
             outboundRequestMsg.setProperty(HttpConstants.REMOTE_ADDRESS,
-                                           dataContext.context.getProperty(HttpConstants.REMOTE_ADDRESS));
+                    dataContext.context.getProperty(HttpConstants.REMOTE_ADDRESS));
         }
         outboundRequestMsg.setProperty(HttpConstants.ORIGIN_HOST,
-                                       dataContext.context.getProperty(HttpConstants.ORIGIN_HOST));
+                dataContext.context.getProperty(HttpConstants.ORIGIN_HOST));
         sendOutboundRequest(dataContext, outboundRequestMsg, async);
     }
 
@@ -284,7 +268,7 @@ public abstract class AbstractHTTPAction implements InterruptibleNativeCallableU
             if (dirty(requestStruct)) {
                 cleanOutboundReq(outboundRequestMsg, requestStruct, contentType);
             } else {
-                requestStruct.put(HttpConstants.REQUEST_REUSE_STATUS_INDEX, new BBoolean(HttpConstants.DIRTY_REQUEST));
+                requestStruct.put(HttpConstants.REQUEST_REUSE_STATUS_FIELD, new BBoolean(HttpConstants.DIRTY_REQUEST));
             }
         }
     }
@@ -305,9 +289,14 @@ public abstract class AbstractHTTPAction implements InterruptibleNativeCallableU
         }
     }
 
+    static boolean isNoEntityBodyRequest(BMap<String, BValue> requestStruct) {
+        BValue noEntityBodyReq = requestStruct.get(HttpConstants.REQUEST_NO_ENTITY_BODY_FIELD);
+        return ((BBoolean) noEntityBodyReq).booleanValue();
+    }
+
     private boolean dirty(BMap<String, BValue> requestStruct) {
-        BValue isDirty = requestStruct.get(HttpConstants.REQUEST_REUSE_STATUS_INDEX);
-        return ((BBoolean) isDirty).booleanValue() == HttpConstants.DIRTY_REQUEST;
+        BValue isDirty = requestStruct.get(HttpConstants.REQUEST_REUSE_STATUS_FIELD);
+        return ((BBoolean) isDirty).booleanValue();
     }
 
     private void sendOutboundRequest(DataContext dataContext, HttpCarbonMessage outboundRequestMsg, boolean async) {
@@ -317,7 +306,7 @@ public abstract class AbstractHTTPAction implements InterruptibleNativeCallableU
             dataContext.notifyInboundResponseStatus(null, HttpUtil.getError(dataContext.context, e));
         } catch (Exception e) {
             BallerinaException exception = new BallerinaException("Failed to send outboundRequestMsg to the backend",
-                                                                  e, dataContext.context);
+                    e, dataContext.context);
             dataContext.notifyInboundResponseStatus(null, HttpUtil.getError(dataContext.context, exception));
         }
     }
@@ -334,9 +323,9 @@ public abstract class AbstractHTTPAction implements InterruptibleNativeCallableU
      */
     private void send(DataContext dataContext, HttpCarbonMessage outboundRequestMsg, boolean async) {
         BMap<String, BValue> bConnector = (BMap<String, BValue>) dataContext.context.getRefArgument(0);
-        Struct httpClient = BLangConnectorSPIUtil.toStruct(bConnector);
+        Struct clientEndpoint = BLangConnectorSPIUtil.toStruct(bConnector);
         HttpClientConnector clientConnector = (HttpClientConnector)
-                httpClient.getNativeData(HttpConstants.CALLER_ACTIONS);
+                clientEndpoint.getNativeData(HttpConstants.HTTP_CLIENT);
         String contentType = HttpUtil.getContentTypeFromTransportMessage(outboundRequestMsg);
         String boundaryString = null;
 
@@ -346,11 +335,25 @@ public abstract class AbstractHTTPAction implements InterruptibleNativeCallableU
 
         HttpUtil.checkAndObserveHttpRequest(dataContext.context, outboundRequestMsg);
 
-        final HTTPClientConnectorListener httpClientConnectorLister = ObservabilityUtils.isObservabilityEnabled() ?
+        final HTTPClientConnectorListener httpClientConnectorLister = ObserveUtils.isObservabilityEnabled() ?
                 new ObservableHttpClientConnectorListener(dataContext) :
                 new HTTPClientConnectorListener(dataContext);
         final HttpMessageDataStreamer outboundMsgDataStreamer = getHttpMessageDataStreamer(outboundRequestMsg);
         final OutputStream messageOutputStream = outboundMsgDataStreamer.getOutputStream();
+        BMap<String, BValue> requestStruct = ((BMap<String, BValue>) dataContext.context.
+                getNullableRefArgument(HttpConstants.REQUEST_STRUCT_INDEX));
+        BMap<String, BValue> entityStruct = null;
+        if (requestStruct != null) {
+            entityStruct = extractEntity(requestStruct);
+            if (entityStruct == null) {
+                //This is reached when it is a passthrough scenario(the body has not been built) or when the
+                // entity body is empty/null. It is not possible to differentiate the two scenarios in Ballerina,
+                // hence the value for passthrough is set to be true for both cases because transport side will
+                // interpret this value only when there is an unbuilt body in carbon message.
+                outboundRequestMsg.setPassthrough(true);
+            }
+        }
+
         HttpResponseFuture future = clientConnector.send(outboundRequestMsg);
         if (async) {
             future.setResponseHandleListener(httpClientConnectorLister);
@@ -358,14 +361,15 @@ public abstract class AbstractHTTPAction implements InterruptibleNativeCallableU
             future.setHttpConnectorListener(httpClientConnectorLister);
         }
         try {
-            if (boundaryString != null) {
-                serializeMultiparts(dataContext.context, messageOutputStream, boundaryString);
-            } else {
-                serializeDataSource(dataContext.context, messageOutputStream);
+            if (entityStruct != null) {
+                if (boundaryString != null) {
+                    serializeMultiparts(entityStruct, messageOutputStream, boundaryString);
+                } else {
+                    serializeDataSource(entityStruct, messageOutputStream);
+                }
             }
         } catch (IOException | EncoderException serializerException) {
-            // We don't have to do anything here as the client connector will notify
-            // the error though the listener
+            // We don't have to do anything here as the client connector will notify the error though the listener
             logger.warn("couldn't serialize the message", serializerException);
         } catch (RuntimeException exception) {
             if (exception.getMessage() != null &&
@@ -393,27 +397,18 @@ public abstract class AbstractHTTPAction implements InterruptibleNativeCallableU
      * Serialize multipart entity body. If an array of body parts exist, encode body parts else serialize body content
      * if it exist as a byte channel.
      *
-     * @param context             Represent the ballerina context which is the runtime state of the program
+     * @param entityStruct        Represents the entity that holds the actual body
      * @param boundaryString      Boundary string that should be used in encoding body parts
      * @param messageOutputStream Output stream to which the payload is written
      */
-    private void serializeMultiparts(Context context, OutputStream messageOutputStream, String boundaryString)
-            throws IOException {
-        BMap<String, BValue> entityStruct = getEntityStruct(context);
-        if (entityStruct != null) {
-            BRefValueArray bodyParts = EntityBodyHandler.getBodyPartArray(entityStruct);
-            if (bodyParts != null && bodyParts.size() > 0) {
-                serializeMultipartDataSource(messageOutputStream, boundaryString,
-                                             entityStruct);
-            } else { //If the content is in a byte channel
-                serializeDataSource(context, messageOutputStream);
-            }
+    private void serializeMultiparts(BMap<String, BValue> entityStruct, OutputStream messageOutputStream,
+                                     String boundaryString) throws IOException {
+        BValueArray bodyParts = EntityBodyHandler.getBodyPartArray(entityStruct);
+        if (bodyParts != null && bodyParts.size() > 0) {
+            serializeMultipartDataSource(messageOutputStream, boundaryString, entityStruct);
+        } else { //If the content is in a byte channel
+            serializeDataSource(entityStruct, messageOutputStream);
         }
-    }
-
-    private BMap<String, BValue> getEntityStruct(Context context) {
-        BMap<String, BValue> requestStruct = ((BMap<String, BValue>) context.getRefArgument(1));
-        return (BMap<String, BValue>) requestStruct.get(REQUEST_ENTITY_FIELD);
     }
 
     /**
@@ -430,24 +425,16 @@ public abstract class AbstractHTTPAction implements InterruptibleNativeCallableU
         HttpUtil.closeMessageOutputStream(messageOutputStream);
     }
 
-    private void serializeDataSource(Context context, OutputStream messageOutputStream) throws IOException {
-        BMap<String, BValue> requestStruct = ((BMap<String, BValue>) context.getNullableRefArgument(1));
-        if (requestStruct == null) {
-            return;
-        }
-
-        BMap<String, BValue> entityStruct = extractEntity(requestStruct);
-        if (entityStruct != null) {
-            BValue messageDataSource = EntityBodyHandler.getMessageDataSource(entityStruct);
-            if (messageDataSource != null) {
-                HttpUtil.serializeDataSource(messageDataSource, entityStruct, messageOutputStream);
-                HttpUtil.closeMessageOutputStream(messageOutputStream);
-            } else { //When the entity body is a byte channel and when it is not null
-                if (EntityBodyHandler.getByteChannel(entityStruct) != null) {
-                    EntityBodyHandler.writeByteChannelToOutputStream(entityStruct, messageOutputStream);
-                    HttpUtil.closeMessageOutputStream(messageOutputStream);
-                }
-            }
+    private void serializeDataSource(BMap<String, BValue> entityStruct, OutputStream messageOutputStream)
+            throws IOException {
+        BValue messageDataSource = EntityBodyHandler.getMessageDataSource(entityStruct);
+        if (messageDataSource != null) {
+            HttpUtil.serializeDataSource(messageDataSource, entityStruct, messageOutputStream);
+            HttpUtil.closeMessageOutputStream(messageOutputStream);
+        } else if (EntityBodyHandler.getByteChannel(entityStruct) != null) {
+            //When the entity body is a byte channel and when it is not null
+            EntityBodyHandler.writeByteChannelToOutputStream(entityStruct, messageOutputStream);
+            HttpUtil.closeMessageOutputStream(messageOutputStream);
         }
     }
 
@@ -473,19 +460,17 @@ public abstract class AbstractHTTPAction implements InterruptibleNativeCallableU
         @Override
         public void onResponseHandle(ResponseHandle responseHandle) {
             BMap<String, BValue> httpFuture = BLangConnectorSPIUtil.createBStruct(this.dataContext.context,
-                                                                     HttpConstants.PROTOCOL_PACKAGE_HTTP,
-                                                                     HttpConstants.HTTP_FUTURE);
+                    HttpConstants.PROTOCOL_PACKAGE_HTTP,
+                    HttpConstants.HTTP_FUTURE);
             httpFuture.addNativeData(HttpConstants.TRANSPORT_HANDLE, responseHandle);
             this.dataContext.notifyInboundResponseStatus(httpFuture, null);
         }
 
         @Override
         public void onError(Throwable throwable) {
-            BMap<String, BValue> httpConnectorError;
+            BError httpConnectorError;
             if (throwable instanceof EndpointTimeOutException) {
-                httpConnectorError = BLangConnectorSPIUtil.createBStruct(this.dataContext.context,
-                                                                         HttpConstants.PROTOCOL_PACKAGE_HTTP,
-                                                                         HttpConstants.HTTP_TIMEOUT_ERROR);
+                httpConnectorError = HttpUtil.getError(this.dataContext.context, throwable);
             } else if (throwable instanceof IOException) {
                 this.dataContext.getOutboundRequest().setIoException((IOException) throwable);
                 httpConnectorError = HttpUtil.getError(this.dataContext.context, throwable);
@@ -494,7 +479,6 @@ public abstract class AbstractHTTPAction implements InterruptibleNativeCallableU
                         .setIoException(new IOException(throwable.getMessage(), throwable));
                 httpConnectorError = HttpUtil.getError(this.dataContext.context, throwable);
             }
-            httpConnectorError.put(BLangVMErrors.ERROR_MESSAGE_FIELD, new BString(throwable.getMessage()));
             this.dataContext.notifyInboundResponseStatus(null, httpConnectorError);
         }
     }
@@ -524,11 +508,17 @@ public abstract class AbstractHTTPAction implements InterruptibleNativeCallableU
             if (throwable instanceof ClientConnectorException) {
                 ClientConnectorException clientConnectorException = (ClientConnectorException) throwable;
                 addHttpStatusCode(clientConnectorException.getHttpStatusCode());
+                Optional<ObserverContext> observerContext = ObserveUtils.getObserverContextOfCurrentFrame(context);
+                observerContext.ifPresent(ctx -> {
+                    ctx.addProperty(ObservabilityConstants.PROPERTY_ERROR, Boolean.TRUE);
+                    ctx.addProperty(ObservabilityConstants.PROPERTY_ERROR_MESSAGE, throwable.getMessage());
+                });
+
             }
         }
 
         private void addHttpStatusCode(int statusCode) {
-            Optional<ObserverContext> observerContext = ObservabilityUtils.getParentContext(context);
+            Optional<ObserverContext> observerContext = ObserveUtils.getObserverContextOfCurrentFrame(context);
             observerContext.ifPresent(ctx -> ctx.addTag(ObservabilityConstants.TAG_KEY_HTTP_STATUS_CODE,
                                                         String.valueOf(statusCode)));
         }

@@ -21,12 +21,15 @@ package org.ballerinalang.stdlib.io.nativeimpl;
 
 import org.ballerinalang.bre.Context;
 import org.ballerinalang.bre.bvm.CallableUnitCallback;
+import org.ballerinalang.jvm.Strand;
+import org.ballerinalang.jvm.values.ObjectValue;
+import org.ballerinalang.jvm.values.connector.NonBlockingCallback;
 import org.ballerinalang.model.NativeCallableUnit;
 import org.ballerinalang.model.types.TypeKind;
+import org.ballerinalang.model.values.BError;
 import org.ballerinalang.model.values.BFloat;
 import org.ballerinalang.model.values.BMap;
 import org.ballerinalang.model.values.BValue;
-import org.ballerinalang.natives.annotations.Argument;
 import org.ballerinalang.natives.annotations.BallerinaFunction;
 import org.ballerinalang.natives.annotations.Receiver;
 import org.ballerinalang.stdlib.io.channels.base.DataChannel;
@@ -47,8 +50,8 @@ import org.ballerinalang.stdlib.io.utils.IOUtils;
 @BallerinaFunction(
         orgName = "ballerina", packageName = "io",
         functionName = "readFloat32",
-        receiver = @Receiver(type = TypeKind.OBJECT, structType = "DataChannel", structPackage = "ballerina/io"),
-        args = {@Argument(name = "len", type = TypeKind.STRING)},
+        receiver = @Receiver(type = TypeKind.OBJECT, structType = "ReadableDataChannel",
+                structPackage = "ballerina/io"),
         isPublic = true
 )
 public class ReadFloat32 implements NativeCallableUnit {
@@ -69,7 +72,7 @@ public class ReadFloat32 implements NativeCallableUnit {
         Throwable error = eventContext.getError();
         CallableUnitCallback callback = eventContext.getCallback();
         if (null != error) {
-            BMap<String, BValue> errorStruct = IOUtils.createError(context, error.getMessage());
+            BError errorStruct = IOUtils.createError(context, IOConstants.IO_ERROR_CODE, error.getMessage());
             context.setReturnValues(errorStruct);
         } else {
             Double readDouble = result.getResponse();
@@ -94,5 +97,41 @@ public class ReadFloat32 implements NativeCallableUnit {
     @Override
     public boolean isBlocking() {
         return false;
+    }
+
+    public static Object readFloat32(Strand strand, ObjectValue dataChannelObj) {
+        //TODO : NonBlockingCallback is temporary fix to handle non blocking call
+        NonBlockingCallback callback = new NonBlockingCallback(strand);
+
+        DataChannel channel = (DataChannel) dataChannelObj.getNativeData(IOConstants.DATA_CHANNEL_NAME);
+        EventContext eventContext = new EventContext(callback);
+        ReadFloatEvent event = new ReadFloatEvent(channel, Representation.BIT_32, eventContext);
+        Register register = EventRegister.getFactory().register(event, ReadFloat32::readChannelResponse);
+        eventContext.setRegister(register);
+        register.submit();
+        //TODO : Remove callback once strand non-blocking support is given
+        callback.sync();
+        return callback.getReturnValue();
+    }
+
+    /**
+     * Triggers upon receiving the response.
+     *
+     * @param result the response received after reading double.
+     * @return read double value.
+     */
+    private static EventResult readChannelResponse(EventResult<Double, EventContext> result) {
+        EventContext eventContext = result.getContext();
+        Throwable error = eventContext.getError();
+        //TODO : Remove callback once strand non-blocking support is given
+        NonBlockingCallback callback = eventContext.getNonBlockingCallback();
+        if (null != error) {
+            callback.setReturnValues(IOUtils.createError(error.getMessage()));
+        } else {
+            callback.setReturnValues(result.getResponse());
+        }
+        IOUtils.validateChannelState(eventContext);
+        callback.notifySuccess();
+        return result;
     }
 }

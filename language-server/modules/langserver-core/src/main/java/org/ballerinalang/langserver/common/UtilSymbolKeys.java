@@ -27,7 +27,9 @@ public class UtilSymbolKeys {
 
     public static final String CLOSE_BRACE_KEY = "}";
 
-    public static final String OPEN_BRACKET_KEY = "(";
+    public static final String OPEN_PARENTHESES_KEY = "(";
+
+    public static final String CLOSE_PARENTHESES_KEY = ")";
 
     public static final String PKG_DELIMITER_KEYWORD = ":";
 
@@ -39,7 +41,9 @@ public class UtilSymbolKeys {
 
     public static final String SEMI_COLON_SYMBOL_KEY = ";";
 
-    public static final String ACTION_INVOCATION_SYMBOL_KEY = "->";
+    public static final String RIGHT_ARROW_SYMBOL_KEY = "->";
+
+    public static final String LEFT_ARROW_SYMBOL_KEY = "<-";
 
     public static final String BANG_SYMBOL_KEY = "!";
 
@@ -49,11 +53,17 @@ public class UtilSymbolKeys {
 
     public static final String LT_SYMBOL_KEY = "<";
 
+    public static final String OBJECT_REFERENCE_SYMBOL_KEY = "*";
+
     public static final String DOLLAR_SYMBOL_KEY = "$";
     // End non letter symbol keys
 
 
     public static final String ITR_OP_LAMBDA_PARAM_REPLACE_TOKEN = "%params%";
+
+    public static final String ITR_OP_LAMBDA_KEY_REPLACE_TOKEN = "%key%";
+
+    public static final String ITR_OP_LAMBDA_VALUE_REPLACE_TOKEN = "%value%";
 
     public static final String ACTION_KEYWORD_KEY = "action";
 
@@ -73,11 +83,17 @@ public class UtilSymbolKeys {
 
     public static final String RECORD_KEYWORD_KEY = "record";
 
+    public static final String SELF_KEYWORD_KEY = "self";
+
     public static final String NEW_KEYWORD_KEY = "new";
     
     public static final String IMPORT_KEYWORD_KEY = "import";
+    
+    public static final String LISTENER_KEYWORD_KEY = "listener";
 
     public static final String SLASH_KEYWORD_KEY = "/";
-
-    public static final String EP_OBJECT_IDENTIFIER = "getCallerActions";
+    
+    public static final String BALLERINA_KW = "ballerina";
+    
+    public static final String BUILTIN_KW = "builtin";
 }

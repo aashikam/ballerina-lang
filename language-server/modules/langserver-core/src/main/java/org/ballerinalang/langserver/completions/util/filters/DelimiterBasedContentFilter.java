@@ -17,29 +17,37 @@
 */
 package org.ballerinalang.langserver.completions.util.filters;
 
+import org.antlr.v4.runtime.CommonToken;
 import org.antlr.v4.runtime.Token;
+import org.ballerinalang.langserver.LSGlobalContextKeys;
 import org.ballerinalang.langserver.common.UtilSymbolKeys;
 import org.ballerinalang.langserver.common.utils.CommonUtil;
 import org.ballerinalang.langserver.common.utils.FilterUtils;
-import org.ballerinalang.langserver.compiler.LSServiceOperationContext;
+import org.ballerinalang.langserver.compiler.DocumentServiceKeys;
+import org.ballerinalang.langserver.compiler.LSContext;
 import org.ballerinalang.langserver.completions.CompletionKeys;
 import org.ballerinalang.langserver.completions.SymbolInfo;
+import org.ballerinalang.langserver.index.LSIndexException;
 import org.ballerinalang.langserver.index.LSIndexImpl;
-import org.ballerinalang.langserver.index.dao.ObjectDAO;
-import org.ballerinalang.langserver.index.dao.OtherTypeDAO;
-import org.ballerinalang.langserver.index.dao.PackageFunctionDAO;
-import org.ballerinalang.langserver.index.dao.RecordDAO;
-import org.ballerinalang.model.elements.PackageID;
+import org.ballerinalang.langserver.index.dao.BPackageSymbolDAO;
+import org.ballerinalang.langserver.index.dao.DAOType;
+import org.ballerinalang.langserver.index.dto.BFunctionSymbolDTO;
+import org.ballerinalang.langserver.index.dto.BObjectTypeSymbolDTO;
+import org.ballerinalang.langserver.index.dto.BPackageSymbolDTO;
+import org.ballerinalang.langserver.index.dto.BRecordTypeSymbolDTO;
+import org.ballerinalang.langserver.index.dto.OtherTypeSymbolDTO;
 import org.eclipse.lsp4j.CompletionItem;
 import org.eclipse.lsp4j.jsonrpc.messages.Either;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.wso2.ballerinalang.compiler.semantics.model.Scope;
-import org.wso2.ballerinalang.compiler.semantics.model.symbols.BPackageSymbol;
+import org.wso2.ballerinalang.compiler.semantics.model.types.BFutureType;
+import org.wso2.ballerinalang.compiler.tree.BLangImportPackage;
+import org.wso2.ballerinalang.compiler.tree.BLangPackage;
 
-import java.sql.SQLException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 /**
@@ -50,38 +58,35 @@ public class DelimiterBasedContentFilter extends AbstractSymbolFilter {
     private static final Logger logger = LoggerFactory.getLogger(DelimiterBasedContentFilter.class);
 
     @Override
-    public Either<List<CompletionItem>, List<SymbolInfo>> filterItems(LSServiceOperationContext completionContext) {
-
-        List<String> poppedTokens = CommonUtil
-                .popNFromStack(completionContext.get(CompletionKeys.FORCE_CONSUMED_TOKENS_KEY), 3).stream()
-                .map(Token::getText)
+    public Either<List<CompletionItem>, List<SymbolInfo>> filterItems(LSContext ctx) {
+        List<CommonToken> lhsTokens = ctx.get(CompletionKeys.LHS_TOKENS_KEY);
+        List<CommonToken> defaultTokens = lhsTokens.stream()
+                .filter(commonToken -> commonToken.getChannel() == Token.DEFAULT_CHANNEL)
                 .collect(Collectors.toList());
-
-        String delimiter = "";
-        for (String poppedToken : poppedTokens) {
-            if (poppedToken.equals(UtilSymbolKeys.DOT_SYMBOL_KEY)
-                    || poppedToken.equals(UtilSymbolKeys.PKG_DELIMITER_KEYWORD)
-                    || poppedToken.equals(UtilSymbolKeys.ACTION_INVOCATION_SYMBOL_KEY)
-                    || poppedToken.equals(UtilSymbolKeys.BANG_SYMBOL_KEY)) {
-                delimiter = poppedToken;
-                break;
-            }
-        }
-        
+        String delimiter = CommonUtil.getLastItem(defaultTokens).getText();
+        String symbolToken = defaultTokens.get(defaultTokens.size() - 2).getText();
         ArrayList<SymbolInfo> returnSymbolsInfoList = new ArrayList<>();
-        String tokenBeforeDelimiter = poppedTokens.get(poppedTokens.lastIndexOf(delimiter) - 1);
+        List<SymbolInfo> visibleSymbols = ctx.get(CompletionKeys.VISIBLE_SYMBOLS_KEY);
+        SymbolInfo symbol = FilterUtils.getVariableByName(symbolToken, visibleSymbols);
+        boolean isWorkerReceive = UtilSymbolKeys.LEFT_ARROW_SYMBOL_KEY.equals(delimiter);
+        boolean isActionInvocation = UtilSymbolKeys.RIGHT_ARROW_SYMBOL_KEY.equals(delimiter)
+                && CommonUtil.isClientObject(symbol.getScopeEntry().symbol);
+        boolean isWorkerSend = !isActionInvocation && UtilSymbolKeys.RIGHT_ARROW_SYMBOL_KEY.equals(delimiter);
 
-        if (UtilSymbolKeys.DOT_SYMBOL_KEY.equals(delimiter)
-                || UtilSymbolKeys.ACTION_INVOCATION_SYMBOL_KEY.equals(delimiter)
-                || UtilSymbolKeys.BANG_SYMBOL_KEY.equals(delimiter)) {
-            returnSymbolsInfoList.addAll(FilterUtils.getInvocationAndFieldSymbolsOnVar(completionContext,
-                    tokenBeforeDelimiter,
-                    delimiter,
-                    completionContext.get(CompletionKeys.VISIBLE_SYMBOLS_KEY)));
+        if (UtilSymbolKeys.DOT_SYMBOL_KEY.equals(delimiter) || UtilSymbolKeys.BANG_SYMBOL_KEY.equals(delimiter)
+                || isActionInvocation) {
+            returnSymbolsInfoList.addAll(FilterUtils.getInvocationAndFieldSymbolsOnVar(ctx, symbolToken, delimiter,
+                    visibleSymbols));
+        } else if (isWorkerSend || isWorkerReceive) {
+            List<SymbolInfo> filteredList = visibleSymbols.stream()
+                    .filter(symbolInfo -> symbolInfo.getScopeEntry().symbol.type instanceof BFutureType
+                    && ((BFutureType) symbolInfo.getScopeEntry().symbol.type).workerDerivative)
+                    .collect(Collectors.toList());
+            returnSymbolsInfoList.addAll(filteredList);
         } else if (UtilSymbolKeys.PKG_DELIMITER_KEYWORD.equals(delimiter)) {
             // We are filtering the package functions, actions and the types
-            Either<List<CompletionItem>, List<SymbolInfo>> filteredList = 
-                    this.getActionsFunctionsAndTypes(completionContext, tokenBeforeDelimiter, delimiter);
+            Either<List<CompletionItem>, List<SymbolInfo>> filteredList = this.getActionsFunctionsAndTypes(ctx,
+                    symbolToken, delimiter);
             if (filteredList.isLeft()) {
                 return Either.forLeft(filteredList.getLeft());
             }
@@ -93,72 +98,105 @@ public class DelimiterBasedContentFilter extends AbstractSymbolFilter {
 
     /**
      * Get the actions, functions and types.
-     * @param completionContext     Text Document Service context (Completion Context)
-     * @param packageName           Package name to evaluate against
+     * @param context               Text Document Service context (Completion Context)
+     * @param pkgName               Package name to evaluate against
      * @param delimiter             Delimiter
      * @return {@link ArrayList}    List of filtered symbol info
      */
     private Either<List<CompletionItem>, List<SymbolInfo>> getActionsFunctionsAndTypes(
-            LSServiceOperationContext completionContext, String packageName, String delimiter) {
+            LSContext context, String pkgName, String delimiter) {
 
-        List<SymbolInfo> symbols = completionContext.get(CompletionKeys.VISIBLE_SYMBOLS_KEY);
-
+        LSIndexImpl lsIndex = context.get(LSGlobalContextKeys.LS_INDEX_KEY);
         // Extract the package symbol
-        SymbolInfo packageSymbolInfo = symbols.stream().filter(item -> {
-            Scope.ScopeEntry scopeEntry = item.getScopeEntry();
-            return item.getSymbolName().equals(packageName) && scopeEntry.symbol instanceof BPackageSymbol;
-        }).findFirst().orElse(null);
-
-        if (packageSymbolInfo != null) {
-            Scope.ScopeEntry packageEntry = packageSymbolInfo.getScopeEntry();
-            PackageID packageID = packageEntry.symbol.pkgID;
-
-            try {
-                List<PackageFunctionDAO> packageFunctionDAOs = LSIndexImpl.getInstance().getQueryProcessor()
-                        .getFilteredFunctionsFromPackage(packageID.getName().getValue(),
-                                packageID.getOrgName().getValue(), false, false);
-                List<RecordDAO> recordDAOs = LSIndexImpl.getInstance().getQueryProcessor()
-                        .getRecordsFromPackageOnAccessType(packageID.getName().getValue(),
-                                packageID.getOrgName().getValue(), false);
-                List<OtherTypeDAO> otherTypeDAOs = LSIndexImpl.getInstance().getQueryProcessor()
-                        .getOtherTypesFromPackage(packageID.getName().getValue(), packageID.getOrgName().getValue());
-                List<ObjectDAO> objectDAOs = LSIndexImpl.getInstance().getQueryProcessor()
-                        .getObjectsFromPackageOnAccessType(packageID.getName().getValue(),
-                                packageID.getOrgName().getValue(), false);
-                if (packageFunctionDAOs.isEmpty() && recordDAOs.isEmpty() && objectDAOs.isEmpty()) {
-                    return Either.forRight(
-                            FilterUtils.getInvocationAndFieldSymbolsOnVar(completionContext,
-                                    packageName, delimiter,
-                                    completionContext.get(CompletionKeys.VISIBLE_SYMBOLS_KEY)));
-                }
-                List<CompletionItem> completionItems = packageFunctionDAOs.stream()
-                        .map(PackageFunctionDAO::getCompletionItem)
-                        .collect(Collectors.toList());
-                completionItems.addAll(
-                        recordDAOs.stream()
-                                .map(RecordDAO::getCompletionItem)
-                                .collect(Collectors.toList())
-                );
-                completionItems.addAll(
-                        otherTypeDAOs.stream()
-                                .map(OtherTypeDAO::getCompletionItem)
-                                .collect(Collectors.toList())
-                );
-                completionItems.addAll(
-                        objectDAOs.stream()
-                                .map(ObjectDAO::getCompletionItem)
-                                .collect(Collectors.toList())
-                );
-                return Either.forLeft(completionItems);
-            } catch (SQLException e) {
-                logger.warn("Error retrieving Completion Items from Index DB.");
-                return Either.forRight(
-                        FilterUtils.getInvocationAndFieldSymbolsOnVar(completionContext, packageName,
-                                delimiter,
-                                completionContext.get(CompletionKeys.VISIBLE_SYMBOLS_KEY)));
+        String relativePath = context.get(DocumentServiceKeys.RELATIVE_FILE_PATH_KEY);
+        BLangPackage currentBLangPkg = context.get(DocumentServiceKeys.CURRENT_BLANG_PACKAGE_CONTEXT_KEY);
+        BLangPackage sourceOwnerPkg = CommonUtil.getSourceOwnerBLangPackage(relativePath, currentBLangPkg);
+        Optional bLangImport = CommonUtil.getCurrentFileImports(sourceOwnerPkg, context)
+                .stream()
+                .filter(importPkg -> importPkg.getAlias().getValue().equals(pkgName))
+                .findFirst();
+        
+        try {
+            String realPackageName;
+            String realOrgName;
+            if (bLangImport.isPresent()) {
+                // There is an added import statement.
+                realPackageName = CommonUtil.getPackageNameComponentsCombined(((BLangImportPackage) bLangImport.get()));
+                realOrgName = ((BLangImportPackage) bLangImport.get()).getOrgName().getValue();
+            } else {
+                realPackageName = pkgName;
+                realOrgName = "";
             }
-        }
+            
+            BPackageSymbolDTO dto = new BPackageSymbolDTO.BPackageSymbolDTOBuilder()
+                    .setName(realPackageName)
+                    .setOrgName(realOrgName)
+                    .build();
+            List<BPackageSymbolDTO> result = ((BPackageSymbolDAO) lsIndex.getDaoFactory().get(DAOType.PACKAGE_SYMBOL))
+                    .get(dto);
+            
+            if (result.isEmpty()) {
+                // There is no package entry found in the index.
+                return this.filterSymbolsOnFallback(context, pkgName, delimiter);
+            } else {
+                // Package entry found in the index. content is searched LSIndex.
+                HashMap<Integer, ArrayList<CompletionItem>> completionMap = new HashMap<>();
 
-        return Either.forRight(new ArrayList<>());
+                BPackageSymbolDAO pkgSymbolDAO = ((BPackageSymbolDAO) lsIndex.getDaoFactory()
+                        .get(DAOType.PACKAGE_SYMBOL));
+                ArrayList<BFunctionSymbolDTO> funcDTOs = new ArrayList<>(pkgSymbolDAO.getFunctions(dto, -1, false,
+                        false, false));
+                ArrayList<BRecordTypeSymbolDTO> recordDTOs = new ArrayList<>(pkgSymbolDAO.getRecords(dto, false));
+                ArrayList<OtherTypeSymbolDTO> otherTypeDTOs = new ArrayList<>(pkgSymbolDAO.getOtherTypes(dto));
+                ArrayList<BObjectTypeSymbolDTO> objDTOs = new ArrayList<>(pkgSymbolDAO.getObjects(dto, false));
+                ArrayList<BObjectTypeSymbolDTO> clientEpDTOs = new ArrayList<>(pkgSymbolDAO.getClientEndpoints(dto));
+
+                if (bLangImport.isPresent()) {
+                    List<CompletionItem> completionItems = funcDTOs.stream()
+                            .map(BFunctionSymbolDTO::getCompletionItem)
+                            .collect(Collectors.toList());
+                    completionItems.addAll(recordDTOs.stream()
+                            .map(BRecordTypeSymbolDTO::getCompletionItem)
+                            .collect(Collectors.toList()));
+                    completionItems.addAll(objDTOs.stream()
+                            .map(BObjectTypeSymbolDTO::getCompletionItem)
+                            .collect(Collectors.toList()));
+                    completionItems.addAll(clientEpDTOs.stream()
+                            .map(BObjectTypeSymbolDTO::getCompletionItem)
+                            .collect(Collectors.toList()));
+                    completionItems.addAll(otherTypeDTOs.stream()
+                            .map(OtherTypeSymbolDTO::getCompletionItem)
+                            .collect(Collectors.toList()));
+                    
+                    return Either.forLeft(completionItems);
+                }
+                
+                funcDTOs.forEach(fDto ->
+                        CommonUtil.populateIdCompletionMap(completionMap, fDto.getPackageId(),
+                                fDto.getCompletionItem()));
+                recordDTOs.forEach(rDto ->
+                        CommonUtil.populateIdCompletionMap(completionMap, rDto.getPackageId(),
+                                rDto.getCompletionItem()));
+                objDTOs.forEach(objDto ->
+                        CommonUtil.populateIdCompletionMap(completionMap, objDto.getPackageId(),
+                                objDto.getCompletionItem()));
+                otherTypeDTOs.forEach(otherDto ->
+                        CommonUtil.populateIdCompletionMap(completionMap, otherDto.getPackageId(),
+                                otherDto.getCompletionItem()));
+                
+                return Either.forLeft(CommonUtil.fillCompletionWithPkgImport(completionMap, context));
+            }
+        } catch (LSIndexException e) {
+            logger.warn("Error retrieving Completion Items from Index DB.");
+            return this.filterSymbolsOnFallback(context, pkgName, delimiter);
+        }
+    }
+    
+    private Either<List<CompletionItem>, List<SymbolInfo>> filterSymbolsOnFallback(LSContext context,
+                                                                                   String pkgName, String delimiter) {
+        List<SymbolInfo> visibleSymbols = context.get(CompletionKeys.VISIBLE_SYMBOLS_KEY);
+        List<SymbolInfo> filteredSymbols = FilterUtils.getInvocationAndFieldSymbolsOnVar(context, pkgName,
+                delimiter, visibleSymbols);
+        return Either.forRight(filteredSymbols);
     }
 }

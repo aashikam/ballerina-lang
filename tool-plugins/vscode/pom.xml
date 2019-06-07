@@ -19,7 +19,7 @@
     <parent>
         <groupId>org.ballerinalang</groupId>
         <artifactId>ballerina-parent</artifactId>
-        <version>0.981.2-SNAPSHOT</version>
+        <version>0.992.0-m2-SNAPSHOT</version>
         <relativePath>../../pom.xml</relativePath>
     </parent>
 
@@ -56,13 +56,7 @@
     <dependencies>
         <dependency>
             <groupId>org.ballerinalang</groupId>
-            <artifactId>language-server-stdio-launcher</artifactId>
-            <version>${project.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>org.ballerinalang</groupId>
-            <artifactId>ballerina-composer-web</artifactId>
-            <classifier>ballerina-composer-library</classifier>
+            <artifactId>composer-library</artifactId>
             <version>${project.version}</version>
             <type>zip</type>
         </dependency>
@@ -77,22 +71,29 @@
         <plugins>
             <plugin>
                 <groupId>org.codehaus.mojo</groupId>
+                <artifactId>build-helper-maven-plugin</artifactId>
+                <version>1.12</version>
+                <executions>
+                    <execution>
+                    <id>vscode-test-skip</id>
+                    <phase>test</phase>
+                    <goals>
+                        <goal>bsh-property</goal>
+                    </goals>
+                    <configuration>
+                        <source>vscodeTestSkip = ${skipTests} ||  ${maven.test.skip} || ${vscode.test.skip};</source>
+                        <properties>
+                        <property>vscodeTestSkip</property>
+                        </properties>
+                    </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
                 <artifactId>exec-maven-plugin</artifactId>
                 <version>${maven.exec.plugin.version}</version>
                 <executions>
-                    <execution>
-                        <id>backup-package-lock</id>
-                        <goals>
-                            <goal>exec</goal>
-                        </goals>
-                        <phase>validate</phase>
-                        <configuration>
-                            <executable>node</executable>
-                            <arguments>
-                                <argument>./scripts/npm-preinstall</argument>
-                            </arguments>
-                        </configuration>
-                    </execution>
                     <execution>
                         <id>npm-install</id>
                         <goals>
@@ -107,19 +108,21 @@
                             </arguments>
                         </configuration>
                     </execution>
-                    <execution>
-                        <id>replace-package-lock</id>
+                    <!-- <execution>
+                        <id>run tests</id>
                         <goals>
                             <goal>exec</goal>
                         </goals>
-                        <phase>generate-sources</phase>
+                        <phase>test</phase>
                         <configuration>
-                            <executable>node</executable>
+                            <executable>${npm.executable}</executable>
                             <arguments>
-                                <argument>./scripts/npm-postinstall</argument>
+                                <argument>run</argument>
+                                <argument>test</argument>
                             </arguments>
+                            <skip>${vscodeTestSkip}</skip>
                         </configuration>
-                    </execution>
+                    </execution> -->
                     <execution>
                         <id>vsix-package</id>
                         <goals>
@@ -134,6 +137,22 @@
                                 <argument>--</argument>
                                 <argument>--out</argument>
                                 <argument>target/ballerina-vscode-plugin-${project.version}.vsix</argument>
+                            </arguments>
+                        </configuration>
+                    </execution>
+                    <execution>
+                        <id>update-version</id>
+                        <goals>
+                            <goal>exec</goal>
+                        </goals>
+                        <phase>generate-sources</phase>
+                        <configuration>
+                            <executable>${npm.executable}</executable>
+                            <arguments>
+                                <argument>run</argument>
+                                <argument>update-version</argument>
+                                <argument>--</argument>
+                                <argument>${project.version}</argument>
                             </arguments>
                         </configuration>
                     </execution>
@@ -168,7 +187,6 @@
                         </goals>
                         <configuration>
                             <target>
-                                <delete dir="${project.basedir}/server-build" includeemptydirs="true" />
                                 <delete dir="${project.basedir}/target" includeemptydirs="true" />
                             </target>
                         </configuration>
@@ -193,11 +211,12 @@
                         </goals>
                         <configuration>
                             <target name="copy resources">
-                                <mkdir dir="${project.basedir}/resources/diagram" />
-                                <copy todir="${project.basedir}/resources/diagram" overwrite="true" flatten="true">
-                                    <fileset dir="${project.build.directory}/temp">
-                                        <include name="**/*.js" />
-                                        <include name="**/*.css" />
+                                <mkdir dir="${project.basedir}/resources/composer" />
+                                <copy todir="${project.basedir}/resources/composer" overwrite="true">
+                                    <fileset dir="${project.build.directory}/composer/composer-library-${project.version}">
+                                        <include name="**/*.*" />
+                                        <exclude name="**/*.map" />
+                                        <exclude name="**/*.d.ts" />
                                     </fileset>
                                 </copy>
                             </target>
@@ -210,26 +229,6 @@
                 <artifactId>maven-dependency-plugin</artifactId>
                 <executions>
                     <execution>
-                        <id>copy-server</id>
-                        <phase>initialize</phase>
-                        <goals>
-                            <goal>copy</goal>
-                        </goals>
-                        <configuration>
-                            <artifactItems>
-                                <artifactItem>
-                                    <groupId>org.ballerinalang</groupId>
-                                    <artifactId>language-server-stdio-launcher</artifactId>
-                                    <version>${ballerina.version}</version>
-                                    <type>jar</type>
-                                    <overWrite>true</overWrite>
-                                    <outputDirectory>${basedir}/server-build/</outputDirectory>
-                                    <destFileName>language-server-stdio-launcher.jar</destFileName>
-                                </artifactItem>
-                            </artifactItems>
-                        </configuration>
-                    </execution>
-                    <execution>
                         <id>copy-distribution</id>
                         <phase>generate-resources</phase>
                         <goals>
@@ -238,7 +237,7 @@
                         <configuration>
                             <includeGroupIds>org.ballerinalang</includeGroupIds>
                             <includeArtifactIds>ballerina-tools</includeArtifactIds>
-                            <outputDirectory>${project.build.directory}/test/</outputDirectory>
+                            <outputDirectory>extractedDistribution</outputDirectory>
                             <overWriteReleases>true</overWriteReleases>
                             <overWriteSnapshots>true</overWriteSnapshots>
                             <useSubDirectoryPerArtifact>false</useSubDirectoryPerArtifact>
@@ -253,9 +252,8 @@
                         </goals>
                         <configuration>
                             <includeGroupIds>org.ballerinalang</includeGroupIds>
-                            <includeClassifiers>ballerina-composer-library</includeClassifiers>
-                            <includeArtifactIds>ballerina-composer-web</includeArtifactIds>
-                            <outputDirectory>${project.build.directory}/temp</outputDirectory>
+                            <includeArtifactIds>composer-library</includeArtifactIds>
+                            <outputDirectory>${project.build.directory}/composer</outputDirectory>
                             <overWriteReleases>true</overWriteReleases>
                             <overWriteSnapshots>true</overWriteSnapshots>
                             <useSubDirectoryPerArtifact>false</useSubDirectoryPerArtifact>
@@ -264,31 +262,11 @@
                     </execution>
                 </executions>
             </plugin>
-            <plugin>
-                <groupId>com.google.code.maven-replacer-plugin</groupId>
-                <artifactId>replacer</artifactId>
-                <version>${maven.replacer.plugin.version}</version>
-                <executions>
-                    <execution>
-                        <id>replace-version</id>
-                        <phase>validate</phase>
-                        <goals>
-                            <goal>replace</goal>
-                        </goals>
-                    </execution>
-                </executions>
-                <configuration>
-                    <includes>
-                        <include>${basedir}/package.json</include>
-                    </includes>
-                    <replacements>
-                        <replacement>
-                            <token>"version": "(.*?)",</token>
-                            <value>"version": "${project.version}",</value>
-                        </replacement>
-                    </replacements>
-                </configuration>
-            </plugin>
         </plugins>
     </build>
+    <properties>
+        <skipTests>false</skipTests>
+        <maven.test.skip>false</maven.test.skip>
+        <vscode.test.skip>false</vscode.test.skip>
+    </properties>
 </project>

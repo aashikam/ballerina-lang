@@ -21,9 +21,9 @@ package org.ballerinalang.net.http.clientendpoint;
 import org.ballerinalang.bre.Context;
 import org.ballerinalang.bre.bvm.BlockingNativeCallableUnit;
 import org.ballerinalang.connector.api.BLangConnectorSPIUtil;
-import org.ballerinalang.connector.api.BallerinaConnectorException;
 import org.ballerinalang.connector.api.Struct;
 import org.ballerinalang.model.types.TypeKind;
+import org.ballerinalang.model.values.BBoolean;
 import org.ballerinalang.model.values.BMap;
 import org.ballerinalang.model.values.BValue;
 import org.ballerinalang.natives.annotations.Argument;
@@ -34,17 +34,20 @@ import org.ballerinalang.net.http.HttpUtil;
 import org.ballerinalang.util.exceptions.BallerinaException;
 import org.wso2.transport.http.netty.contract.HttpClientConnector;
 import org.wso2.transport.http.netty.contract.HttpWsConnectorFactory;
-import org.wso2.transport.http.netty.contract.config.ProxyServerConfiguration;
 import org.wso2.transport.http.netty.contract.config.SenderConfiguration;
+import org.wso2.transport.http.netty.contractimpl.sender.channel.pool.ConnectionManager;
 import org.wso2.transport.http.netty.message.HttpConnectorUtil;
 
 import java.net.MalformedURLException;
 import java.net.URL;
-import java.net.UnknownHostException;
 import java.util.Map;
 
-import static org.ballerinalang.net.http.HttpConstants.CALLER_ACTIONS;
+import static org.ballerinalang.net.http.HttpConstants.HTTP2_PRIOR_KNOWLEDGE;
+import static org.ballerinalang.net.http.HttpConstants.HTTP_CLIENT;
 import static org.ballerinalang.net.http.HttpConstants.HTTP_PACKAGE_PATH;
+import static org.ballerinalang.net.http.HttpUtil.getConnectionManager;
+import static org.ballerinalang.net.http.HttpUtil.populateSenderConfigurations;
+import static org.wso2.transport.http.netty.contract.Constants.HTTP_2_0_VERSION;
 
 /**
  * Initialization of client endpoint.
@@ -56,18 +59,19 @@ import static org.ballerinalang.net.http.HttpConstants.HTTP_PACKAGE_PATH;
         orgName = "ballerina", packageName = "http",
         functionName = "createSimpleHttpClient",
         args = {@Argument(name = "uri", type = TypeKind.STRING),
-                @Argument(name = "config", type = TypeKind.RECORD, structType = "ClientEndpointConfig")},
+                @Argument(name = "client", type = TypeKind.OBJECT, structType = "Client")},
         isPublic = true
 )
 public class CreateSimpleHttpClient extends BlockingNativeCallableUnit {
 
-    private static final int DEFAULT_MAX_REDIRECT_COUNT = 5;
     private HttpWsConnectorFactory httpConnectorFactory = HttpUtil.createHttpWsConnectionFactory();
 
     @Override
     public void execute(Context context) {
         BMap<String, BValue> configBStruct =
                 (BMap<String, BValue>) context.getRefArgument(HttpConstants.CLIENT_ENDPOINT_CONFIG_INDEX);
+        BMap<String, BValue> globalPoolConfig = (BMap<String, BValue>) context
+                .getRefArgument(HttpConstants.CLIENT_GLOBAL_POOL_INDEX);
         Struct clientEndpointConfig = BLangConnectorSPIUtil.toStruct(configBStruct);
         String urlString = context.getStringArgument(HttpConstants.CLIENT_ENDPOINT_URL_INDEX);
         HttpConnectionManager connectionManager = HttpConnectionManager.getInstance();
@@ -81,100 +85,47 @@ public class CreateSimpleHttpClient extends BlockingNativeCallableUnit {
         scheme = url.getProtocol();
         Map<String, Object> properties =
                 HttpConnectorUtil.getTransportProperties(connectionManager.getTransportConfig());
-        SenderConfiguration senderConfiguration =
-                HttpConnectorUtil.getSenderConfiguration(connectionManager.getTransportConfig(), scheme);
+        SenderConfiguration senderConfiguration = new SenderConfiguration();
+        senderConfiguration.setScheme(scheme);
 
         if (connectionManager.isHTTPTraceLoggerEnabled()) {
             senderConfiguration.setHttpTraceLogEnabled(true);
         }
         senderConfiguration.setTLSStoreType(HttpConstants.PKCS_STORE_TYPE);
 
-        populateSenderConfigurationOptions(senderConfiguration, clientEndpointConfig);
-        Struct connectionThrottling = clientEndpointConfig.getStructField(HttpConstants.
-                CONNECTION_THROTTLING_STRUCT_REFERENCE);
-        if (connectionThrottling != null) {
-            long maxActiveConnections = connectionThrottling
-                    .getIntField(HttpConstants.CONNECTION_THROTTLING_MAX_ACTIVE_CONNECTIONS);
-            if (!isInteger(maxActiveConnections)) {
-                throw new BallerinaConnectorException("invalid maxActiveConnections value: "
-                        + maxActiveConnections);
-            }
-            senderConfiguration.getPoolConfiguration().setMaxActivePerPool((int) maxActiveConnections);
-
-            long waitTime = connectionThrottling
-                    .getIntField(HttpConstants.CONNECTION_THROTTLING_WAIT_TIME);
-            senderConfiguration.getPoolConfiguration().setMaxWaitTime(waitTime);
-
-            long maxActiveStreamsPerConnection = connectionThrottling.
-                    getIntField(HttpConstants.CONNECTION_THROTTLING_MAX_ACTIVE_STREAMS_PER_CONNECTION);
-            if (!isInteger(maxActiveStreamsPerConnection)) {
-                throw new BallerinaConnectorException("invalid maxActiveStreamsPerConnection value: "
-                                                      + maxActiveStreamsPerConnection);
-            }
-            senderConfiguration.getPoolConfiguration().setHttp2MaxActiveStreamsPerConnection(
-                    maxActiveStreamsPerConnection == -1 ? Integer.MAX_VALUE : (int) maxActiveStreamsPerConnection);
-        }
-        HttpClientConnector httpClientConnector = httpConnectorFactory
-                .createHttpClientConnector(properties, senderConfiguration);
-        BMap<String, BValue> httpClient = BLangConnectorSPIUtil.createBStruct(context.getProgramFile(),
-                HTTP_PACKAGE_PATH, CALLER_ACTIONS, urlString, clientEndpointConfig);
-        httpClient.addNativeData(HttpConstants.CALLER_ACTIONS, httpClientConnector);
-        httpClient.addNativeData(HttpConstants.CLIENT_ENDPOINT_CONFIG, clientEndpointConfig);
-        context.setReturnValues(httpClient);
-    }
-
-    private void populateSenderConfigurationOptions(SenderConfiguration senderConfiguration, Struct
-            clientEndpointConfig) {
-        ProxyServerConfiguration proxyServerConfiguration = null;
-        Struct secureSocket = clientEndpointConfig.getStructField(HttpConstants.ENDPOINT_CONFIG_SECURE_SOCKET);
-
-        if (secureSocket != null) {
-            HttpUtil.populateSSLConfiguration(senderConfiguration, secureSocket);
+        String httpVersion = clientEndpointConfig.getRefField(HttpConstants.CLIENT_EP_HTTP_VERSION).getStringValue();
+        if (HTTP_2_0_VERSION.equals(httpVersion)) {
+            BMap<String, BValue> http2Settings = (BMap<String, BValue>) configBStruct.get(HttpConstants.HTTP2_SETTINGS);
+            boolean http2PriorKnowledge = ((BBoolean) http2Settings.get(HTTP2_PRIOR_KNOWLEDGE)).booleanValue();
+            senderConfiguration.setForceHttp2(http2PriorKnowledge);
         } else {
-            HttpUtil.setDefaultTrustStore(senderConfiguration);
-        }
-        Struct proxy = clientEndpointConfig.getStructField(HttpConstants.PROXY_STRUCT_REFERENCE);
-        if (proxy != null) {
-            String proxyHost = proxy.getStringField(HttpConstants.PROXY_HOST);
-            int proxyPort = (int) proxy.getIntField(HttpConstants.PROXY_PORT);
-            String proxyUserName = proxy.getStringField(HttpConstants.PROXY_USERNAME);
-            String proxyPassword = proxy.getStringField(HttpConstants.PROXY_PASSWORD);
-            try {
-                proxyServerConfiguration = new ProxyServerConfiguration(proxyHost, proxyPort);
-            } catch (UnknownHostException e) {
-                throw new BallerinaConnectorException("Failed to resolve host" + proxyHost, e);
-            }
-            if (!proxyUserName.isEmpty()) {
-                proxyServerConfiguration.setProxyUsername(proxyUserName);
-            }
-            if (!proxyPassword.isEmpty()) {
-                proxyServerConfiguration.setProxyPassword(proxyPassword);
-            }
-            senderConfiguration.setProxyServerConfiguration(proxyServerConfiguration);
+            BMap<String, BValue> http1Settings = (BMap<String, BValue>) configBStruct.get(HttpConstants.HTTP1_SETTINGS);
+            String chunking = http1Settings.get(HttpConstants.CLIENT_EP_CHUNKING).stringValue();
+            senderConfiguration.setChunkingConfig(HttpUtil.getChunkConfig(chunking));
+            String keepAliveConfig = http1Settings.get(HttpConstants.CLIENT_EP_IS_KEEP_ALIVE).stringValue();
+            senderConfiguration.setKeepAliveConfig(HttpUtil.getKeepAliveConfig(keepAliveConfig));
         }
 
-        String chunking = clientEndpointConfig.getRefField(HttpConstants.CLIENT_EP_CHUNKING).getStringValue();
-        senderConfiguration.setChunkingConfig(HttpUtil.getChunkConfig(chunking));
+        populateSenderConfigurations(senderConfiguration, clientEndpointConfig);
+        ConnectionManager poolManager;
+        BMap<String, BValue> userDefinedPoolConfig = (BMap<String, BValue>) configBStruct.get(
+                HttpConstants.USER_DEFINED_POOL_CONFIG);
 
-        long timeoutMillis = clientEndpointConfig.getIntField(HttpConstants.CLIENT_EP_ENDPOINT_TIMEOUT);
-        if (timeoutMillis < 0 || !isInteger(timeoutMillis)) {
-            throw new BallerinaConnectorException("invalid idle timeout: " + timeoutMillis);
+        if (userDefinedPoolConfig == null) {
+            poolManager = getConnectionManager(globalPoolConfig);
+        } else {
+            poolManager = getConnectionManager(userDefinedPoolConfig);
         }
-        senderConfiguration.setSocketIdleTimeout((int) timeoutMillis);
 
-        String keepAliveConfig = clientEndpointConfig.getRefField(HttpConstants.CLIENT_EP_IS_KEEP_ALIVE)
-                .getStringValue();
-        senderConfiguration.setKeepAliveConfig(HttpUtil.getKeepAliveConfig(keepAliveConfig));
-
-        String httpVersion = clientEndpointConfig.getStringField(HttpConstants.CLIENT_EP_HTTP_VERSION);
-        if (httpVersion != null) {
-            senderConfiguration.setHttpVersion(httpVersion);
-        }
-        String forwardedExtension = clientEndpointConfig.getStringField(HttpConstants.CLIENT_EP_FORWARDED);
-        senderConfiguration.setForwardedExtensionConfig(HttpUtil.getForwardedExtensionConfig(forwardedExtension));
-    }
-
-    private boolean isInteger(long val) {
-        return (int) val == val;
+        HttpClientConnector httpClientConnector = httpConnectorFactory
+                .createHttpClientConnector(properties, senderConfiguration, poolManager);
+        BMap<String, BValue> httpClient = BLangConnectorSPIUtil.createBStruct(context.getProgramFile(),
+                                                                              HTTP_PACKAGE_PATH,
+                                                                              HTTP_CLIENT, urlString,
+                                                                              clientEndpointConfig);
+        httpClient.addNativeData(HttpConstants.HTTP_CLIENT, httpClientConnector);
+        httpClient.addNativeData(HttpConstants.CLIENT_ENDPOINT_CONFIG, clientEndpointConfig);
+        configBStruct.addNativeData(HttpConstants.HTTP_CLIENT, httpClientConnector);
+        context.setReturnValues((httpClient));
     }
 }

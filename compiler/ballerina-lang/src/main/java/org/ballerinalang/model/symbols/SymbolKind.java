@@ -37,6 +37,7 @@ public enum SymbolKind {
     PACKAGE_VARIABLE,
     TRANSFORMER,
     TYPE_DEF,
+    ERROR,
 
     PARAMETER,
     LOCAL_VARIABLE,
@@ -45,6 +46,7 @@ public enum SymbolKind {
 
     CAST_OPERATOR,
     CONVERSION_OPERATOR,
+    TYPEOF_OPERATOR,
 
     XMLNS,
     SCOPE,

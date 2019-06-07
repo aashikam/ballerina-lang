@@ -36,6 +36,7 @@ public class BNullType extends BType {
         super(typeName, pkgPath, null);
     }
 
+    @Override
     public <V extends BValue> V getZeroValue() {
         return (V) null;
     }
@@ -46,12 +47,12 @@ public class BNullType extends BType {
     }
 
     @Override
-    public TypeSignature getSig() {
-        return new TypeSignature(TypeSignature.SIG_NULL);
+    public int getTag() {
+        return TypeTags.NULL_TAG;
     }
 
     @Override
-    public int getTag() {
-        return TypeTags.NULL_TAG;
+    public boolean isNilable() {
+        return true;
     }
 }

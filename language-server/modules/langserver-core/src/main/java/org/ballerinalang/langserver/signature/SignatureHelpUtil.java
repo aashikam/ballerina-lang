@@ -18,15 +18,19 @@ package org.ballerinalang.langserver.signature;
 import org.ballerinalang.langserver.common.UtilSymbolKeys;
 import org.ballerinalang.langserver.common.utils.CommonUtil;
 import org.ballerinalang.langserver.common.utils.FilterUtils;
+import org.ballerinalang.langserver.compiler.LSContext;
 import org.ballerinalang.langserver.compiler.LSServiceOperationContext;
 import org.ballerinalang.langserver.completions.SymbolInfo;
 import org.ballerinalang.model.elements.MarkdownDocAttachment;
+import org.eclipse.lsp4j.MarkupContent;
 import org.eclipse.lsp4j.ParameterInformation;
 import org.eclipse.lsp4j.Position;
 import org.eclipse.lsp4j.SignatureHelp;
 import org.eclipse.lsp4j.SignatureInformation;
-import org.wso2.ballerinalang.compiler.semantics.model.symbols.BEndpointVarSymbol;
+import org.eclipse.lsp4j.SignatureInformationCapabilities;
+import org.eclipse.lsp4j.jsonrpc.messages.Either;
 import org.wso2.ballerinalang.compiler.semantics.model.symbols.BInvokableSymbol;
+import org.wso2.ballerinalang.compiler.semantics.model.symbols.BObjectTypeSymbol;
 import org.wso2.ballerinalang.compiler.semantics.model.symbols.BSymbol;
 
 import java.util.ArrayDeque;
@@ -36,7 +40,7 @@ import java.util.Deque;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 /**
@@ -114,8 +118,8 @@ public class SignatureHelpUtil {
         
         if (!idAgainst.isEmpty() && (delimiter.equals(UtilSymbolKeys.DOT_SYMBOL_KEY)
                 || delimiter.equals(UtilSymbolKeys.PKG_DELIMITER_KEYWORD))) {
-            functions = FilterUtils.getInvocationAndFieldSymbolsOnVar(ctx, idAgainst, delimiter, visibleSymbols);
-        } else if (!idAgainst.isEmpty() && (delimiter.equals(UtilSymbolKeys.ACTION_INVOCATION_SYMBOL_KEY))) {
+            functions = FilterUtils.getInvocationAndFieldSymbolsOnVar(ctx, idAgainst, delimiter, visibleSymbols, false);
+        } else if (!idAgainst.isEmpty() && (delimiter.equals(UtilSymbolKeys.RIGHT_ARROW_SYMBOL_KEY))) {
             functions = getEndpointActionsByName(idAgainst, visibleSymbols);
         } else {
             functions = visibleSymbols;
@@ -124,9 +128,10 @@ public class SignatureHelpUtil {
         functions.removeIf(symbolInfo -> !CommonUtil.isValidInvokableSymbol(symbolInfo.getScopeEntry().symbol));
         List<SignatureInformation> signatureInformationList = functions
                 .stream()
-                .map(symbolInfo
-                        -> getSignatureInformation((BInvokableSymbol) symbolInfo.getScopeEntry().symbol, funcName))
-                .filter(Objects::nonNull)
+                .map(symbolInfo -> getSignatureInformation((BInvokableSymbol) symbolInfo.getScopeEntry().symbol,
+                        funcName, ctx))
+                .filter(Optional::isPresent)
+                .map(Optional::get)
                 .collect(Collectors.toList());
 
         SignatureHelp signatureHelp = new SignatureHelp();
@@ -140,25 +145,25 @@ public class SignatureHelpUtil {
     /**
      * Get the signature information for the given Ballerina function.
      *
-     * @param bInvokableSymbol BLang Invokable symbol
+     * @param bInvokableSymbol                  BLang Invokable symbol
+     * @param signatureCtx                      Lang Server Signature Help Context
      * @return {@link SignatureInformation}     Signature information for the function
      */
-    private static SignatureInformation getSignatureInformation(BInvokableSymbol bInvokableSymbol, String funcName) {
+    private static Optional<SignatureInformation> getSignatureInformation(BInvokableSymbol bInvokableSymbol,
+                                                                          String funcName, LSContext signatureCtx) {
         List<ParameterInformation> parameterInformationList = new ArrayList<>();
         SignatureInformation signatureInformation = new SignatureInformation();
         List<String> nameComps = Arrays.asList(bInvokableSymbol.getName().getValue().split("\\."));
         
         if (!funcName.equals(CommonUtil.getLastItem(nameComps))) {
-            return null;
+            return Optional.empty();
         }
 
-        SignatureInfoModel signatureInfoModel = getSignatureInfoModel(bInvokableSymbol);
+        SignatureInfoModel signatureInfoModel = getSignatureInfoModel(bInvokableSymbol, signatureCtx);
         // Join the function parameters to generate the function's signature
         String paramsJoined = signatureInfoModel.getParameterInfoModels().stream().map(parameterInfoModel -> {
             // For each of the parameters, create a parameter info instance
-            ParameterInformation parameterInformation =
-                    new ParameterInformation(parameterInfoModel.paramValue, parameterInfoModel.description);
-            parameterInformationList.add(parameterInformation);
+            parameterInformationList.add(getParameterInformation(parameterInfoModel));
 
             return parameterInfoModel.toString();
         }).collect(Collectors.joining(", "));
@@ -166,22 +171,25 @@ public class SignatureHelpUtil {
         signatureInformation.setParameters(parameterInformationList);
         signatureInformation.setDocumentation(signatureInfoModel.signatureDescription);
 
-        return signatureInformation;
+        return Optional.of(signatureInformation);
     }
 
     /**
      * Get the required signature information filled model.
      *
      * @param bInvokableSymbol                  Invokable symbol
+     * @param signatureCtx                      Lang Server Signature Help Context
      * @return {@link SignatureInfoModel}       SignatureInfoModel containing signature information
      */
-    private static SignatureInfoModel getSignatureInfoModel(BInvokableSymbol bInvokableSymbol) {
+    private static SignatureInfoModel getSignatureInfoModel(BInvokableSymbol bInvokableSymbol, LSContext signatureCtx) {
         Map<String, String> paramDescMap = new HashMap<>();
         SignatureInfoModel signatureInfoModel = new SignatureInfoModel();
         List<ParameterInfoModel> paramModels = new ArrayList<>();
         MarkdownDocAttachment docAttachment = bInvokableSymbol.getMarkdownDocAttachment();
-        
-        signatureInfoModel.setSignatureDescription(docAttachment.description.trim());
+
+        if (docAttachment.description != null) {
+            signatureInfoModel.setSignatureDescription(docAttachment.description.trim(), signatureCtx);
+        }
         docAttachment.parameters.forEach(attribute ->
                 paramDescMap.put(attribute.getName(), attribute.getDescription()));
 
@@ -189,13 +197,23 @@ public class SignatureHelpUtil {
             ParameterInfoModel parameterInfoModel = new ParameterInfoModel();
             parameterInfoModel.setParamType(bVarSymbol.getType().toString());
             parameterInfoModel.setParamValue(bVarSymbol.getName().getValue());
-            parameterInfoModel.setDescription(paramDescMap.get(bVarSymbol.getName().getValue()));
+            if (paramDescMap.containsKey(bVarSymbol.getName().getValue())) {
+                parameterInfoModel.setDescription(paramDescMap.get(bVarSymbol.getName().getValue()));
+            }
             paramModels.add(parameterInfoModel);
         });
 
         signatureInfoModel.setParameterInfoModels(paramModels);
 
         return signatureInfoModel;
+    }
+
+    private static ParameterInformation getParameterInformation(ParameterInfoModel parameterInfoModel) {
+        MarkupContent paramDocumentation = new MarkupContent();
+        paramDocumentation.setKind(CommonUtil.MARKDOWN_MARKUP_KIND);
+        paramDocumentation.setValue(parameterInfoModel.description);
+
+        return new ParameterInformation(parameterInfoModel.paramValue, paramDocumentation);
     }
 
     private static void setItemInfo(String line, int startPosition, LSServiceOperationContext signatureContext) {
@@ -209,10 +227,10 @@ public class SignatureHelpUtil {
                     || TERMINAL_CHARACTERS.contains(Character.toString(c))) {
                 callableItemName = line.substring(counter + 1, startPosition + 1);
                 if (">".equals(String.valueOf(c)) && "-".equals(String.valueOf(line.charAt(counter - 1)))) {
-                    delimiter.append(UtilSymbolKeys.ACTION_INVOCATION_SYMBOL_KEY);
+                    delimiter.append(UtilSymbolKeys.RIGHT_ARROW_SYMBOL_KEY);
                     counter--;
                 } else {
-                    delimiter.append(String.valueOf(c));
+                    delimiter.append(c);
                 }
                 captureIdentifierAgainst(line, counter, signatureContext, delimiter.toString());
                 break;
@@ -235,7 +253,7 @@ public class SignatureHelpUtil {
         String identifier = "";
         if (UtilSymbolKeys.DOT_SYMBOL_KEY.equals(delimiter)
                 || UtilSymbolKeys.PKG_DELIMITER_KEYWORD.equals(delimiter)
-                || UtilSymbolKeys.ACTION_INVOCATION_SYMBOL_KEY.equals(delimiter)) {
+                || UtilSymbolKeys.RIGHT_ARROW_SYMBOL_KEY.equals(delimiter)) {
             counter--;
             while (counter > 0) {
                 char c = line.charAt(counter);
@@ -249,22 +267,21 @@ public class SignatureHelpUtil {
         }
         signatureContext.put(SignatureKeys.IDENTIFIER_AGAINST, identifier.trim());
     }
-    
+
     private static List<SymbolInfo> getEndpointActionsByName(String epName, List<SymbolInfo> symbolInfoList) {
-        List<SymbolInfo> filteredList = new ArrayList<>();
-        SymbolInfo filteredSymbol = symbolInfoList.stream()
+        Optional<SymbolInfo> filteredSymbol = symbolInfoList.stream()
                 .filter(symbolInfo -> {
                     BSymbol bSymbol = symbolInfo.getScopeEntry().symbol;
-                    return bSymbol.getName().getValue().equals(epName) && bSymbol instanceof BEndpointVarSymbol;
+                    return bSymbol.getName().getValue().equals(epName) && CommonUtil.isClientObject(bSymbol);
                 })
-                .findFirst().orElse(null);
-        if (filteredSymbol != null) {
-            filteredList.addAll(FilterUtils
-                    .getEndpointActions((BEndpointVarSymbol) filteredSymbol.getScopeEntry().symbol));
+                .findFirst();
+
+        if (filteredSymbol.isPresent()) {
+            return FilterUtils
+                    .getClientActions((BObjectTypeSymbol) filteredSymbol.get().getScopeEntry().symbol.type.tsymbol);
         }
-        
-        return filteredList;
-    } 
+        return new ArrayList<>();
+    }
 
     /**
      * Parameter information model to hold the parameter information meta data.
@@ -302,7 +319,7 @@ public class SignatureHelpUtil {
 
         private List<ParameterInfoModel> parameterInfoModels;
 
-        private String signatureDescription;
+        private Either<String, MarkupContent> signatureDescription;
 
         List<ParameterInfoModel> getParameterInfoModels() {
             return parameterInfoModels;
@@ -312,8 +329,21 @@ public class SignatureHelpUtil {
             this.parameterInfoModels = parameterInfoModels;
         }
 
-        void setSignatureDescription(String signatureDescription) {
-            this.signatureDescription = signatureDescription;
+        void setSignatureDescription(String signatureDescription, LSContext signatureContext) {
+            SignatureInformationCapabilities capabilities = signatureContext
+                    .get(SignatureKeys.SIGNATURE_HELP_CAPABILITIES_KEY).getSignatureInformation();
+            List<String> documentationFormat = capabilities != null ? capabilities.getDocumentationFormat()
+                    : new ArrayList<>();
+            if (documentationFormat != null
+                    && !documentationFormat.isEmpty()
+                    && documentationFormat.get(0).equals(CommonUtil.MARKDOWN_MARKUP_KIND)) {
+                MarkupContent signatureMarkupContent = new MarkupContent();
+                signatureMarkupContent.setKind(CommonUtil.MARKDOWN_MARKUP_KIND);
+                signatureMarkupContent.setValue(signatureDescription);
+                this.signatureDescription = Either.forRight(signatureMarkupContent);
+            } else {
+                this.signatureDescription = Either.forLeft(signatureDescription);
+            }
         }
     }
 }

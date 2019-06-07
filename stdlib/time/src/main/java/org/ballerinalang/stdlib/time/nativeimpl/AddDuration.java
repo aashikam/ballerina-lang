@@ -18,15 +18,11 @@
 package org.ballerinalang.stdlib.time.nativeimpl;
 
 import org.ballerinalang.bre.Context;
-import org.ballerinalang.model.types.TypeKind;
+import org.ballerinalang.jvm.Strand;
+import org.ballerinalang.jvm.values.MapValue;
 import org.ballerinalang.model.values.BMap;
 import org.ballerinalang.model.values.BValue;
-import org.ballerinalang.natives.annotations.Argument;
 import org.ballerinalang.natives.annotations.BallerinaFunction;
-import org.ballerinalang.natives.annotations.Receiver;
-import org.ballerinalang.natives.annotations.ReturnType;
-
-import static org.ballerinalang.stdlib.time.util.TimeUtils.STRUCT_TYPE_TIME;
 
 /**
  * Add given durations to the time.
@@ -35,18 +31,7 @@ import static org.ballerinalang.stdlib.time.util.TimeUtils.STRUCT_TYPE_TIME;
  */
 @BallerinaFunction(
         orgName = "ballerina", packageName = "time",
-        functionName = "addDuration",
-        receiver = @Receiver(type = TypeKind.OBJECT, structType = STRUCT_TYPE_TIME, structPackage = "ballerina/time"),
-        args = {@Argument(name = "years", type = TypeKind.INT),
-                @Argument(name = "months", type = TypeKind.INT),
-                @Argument(name = "days", type = TypeKind.INT),
-                @Argument(name = "hours", type = TypeKind.INT),
-                @Argument(name = "minutes", type = TypeKind.INT),
-                @Argument(name = "seconds", type = TypeKind.INT),
-                @Argument(name = "milliseconds", type = TypeKind.INT)},
-        returnType = {@ReturnType(type = TypeKind.OBJECT, structType = "Time",
-                                  structPackage = "ballerina/time")},
-        isPublic = true
+        functionName = "addDuration"
 )
 public class AddDuration extends AbstractTimeFunction {
 
@@ -62,5 +47,11 @@ public class AddDuration extends AbstractTimeFunction {
         long milliSeconds = context.getIntArgument(6);
         context.setReturnValues(
                 addDuration(context, timeStruct, years, months, dates, hours, minutes, seconds, milliSeconds));
+    }
+
+    public static MapValue<?, ?> addDuration(Strand strand, MapValue<String, Object> timeRecord, long years,
+                                             long months, long dates, long hours, long minutes, long seconds,
+                                             long milliSeconds) {
+        return addDuration(timeRecord, years, months, dates, hours, minutes, seconds, milliSeconds);
     }
 }

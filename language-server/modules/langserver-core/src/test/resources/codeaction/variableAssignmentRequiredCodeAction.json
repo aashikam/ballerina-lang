@@ -2,24 +2,24 @@
   "range": {
     "start": {
       "line": 3,
-      "character": 4
+      "character": 3
     },
     "end": {
       "line": 3,
-      "character": 4
+      "character": 3
     }
   },
   "expected": {
-    "title": "Create Variable",
+    "title": "Create Local Variable",
     "command": "CREATE_VAR",
     "arguments": [
       {
-        "argumentK": "function.location",
-        "argumentV": "4,4"
+        "argumentK":"node.line",
+        "argumentV":"3"
       },
       {
-        "argumentK": "function.returns",
-        "argumentV": "int"
+        "argumentK":"node.column",
+        "argumentV":"3"
       }
     ]
   }

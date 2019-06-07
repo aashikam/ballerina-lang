@@ -1,3 +1,19 @@
+// Copyright (c) 2018 WSO2 Inc. (http://www.wso2.org) All Rights Reserved.
+//
+// WSO2 Inc. licenses this file to you under the Apache License,
+// Version 2.0 (the "License"); you may not use this file except
+// in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing,
+// software distributed under the License is distributed on an
+// "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+// KIND, either express or implied.  See the License for the
+// specific language governing permissions and limitations
+// under the License.
+
 import ballerina/http;
 import ballerina/io;
 import ballerina/system;
@@ -7,9 +23,9 @@ import ballerina/system;
 # + filePath - File path
 # + encoding - Encoding
 # + return - CharacterChannel of the file after writing to the file
-function openForWriting (string filePath, string encoding) returns io:CharacterChannel {
-    io:ByteChannel byteChannel = io:openFile(filePath, "w");
-    io:CharacterChannel result = new io:CharacterChannel(byteChannel, encoding);
+function openForWriting (string filePath, string encoding) returns io:WritableCharacterChannel {
+    io:WritableByteChannel byteChannel = io:openWritableFile(filePath);
+    io:WritableCharacterChannel result = new io:WritableCharacterChannel(byteChannel, encoding);
     return result;
 }
 
@@ -17,7 +33,7 @@ function openForWriting (string filePath, string encoding) returns io:CharacterC
 @http:ServiceConfig {
     basePath:"/update-settings"
 }
-service<http:Service> update_token bind { port: 9295 } {
+service update_token on new http:Listener(9295) {
 
     # Updates the access token.
     #
@@ -28,13 +44,13 @@ service<http:Service> update_token bind { port: 9295 } {
         methods:["GET"],
         path:"/{token}"
     }
-    one_px_image (endpoint caller, http:Request request, string token) {
+    resource function one_px_image (http:Caller caller, http:Request request, string token) {
         http:Response response = new;
         response.setPayload("<svg xmlns=\"http://www.w3.org/2000/svg\"/>");
         response.setHeader("Content-Type", "image/svg+xml");
         var destinationChannel = openForWriting(system:getUserHome() + "/.ballerina/Settings.toml", "UTF-8");
         var result = destinationChannel.write("[central]\naccesstoken= \"" + token  + "\"", 0);
         io:println("Token updated");
-        _ = caller -> respond(response);
+        checkpanic caller->respond(response);
     }
 }

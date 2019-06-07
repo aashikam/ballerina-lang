@@ -1,7 +1,7 @@
 <idea-plugin>
     <id>io.ballerina</id>
     <name>Ballerina</name>
-    <version>0.981.0</version>
+    <version>0.991.0</version>
     <vendor email="ballerinalang@wso2.com" url="http://wso2.org">WSO2 Inc.</vendor>
 
     <description><![CDATA[
@@ -10,7 +10,9 @@
 
     <change-notes><![CDATA[
       <ul>
-        <li>Ballerina 0.981.0 grammar support.</li>
+        <li>Improved performance, stability and reduced plugin size with “Lsp4IntelliJ” language client support.</li>
+        <li>Ballerina language server based code formatting.</li>
+        <li>Minor bug fixes and improvements.</li>
       </ul>
     ]]>
     </change-notes>
@@ -23,7 +25,6 @@
     <!-- uncomment to enable plugin in all products -->
     <depends>com.intellij.modules.lang</depends>
     <depends optional="true" config-file="java-deps.xml">com.intellij.modules.java</depends>
-
     <module-components>
         <component>
             <implementation-class>
@@ -34,6 +35,14 @@
 
     <extensions defaultExtensionNs="com.intellij">
 
+        <!--lsp4intellij extensions-->
+        <completion.contributor implementationClass="org.wso2.lsp4intellij.contributors.LSPCompletionContributor"
+                                id="LSPCompletionContributor" language="Ballerina"/>
+
+        <localInspection displayName="LSP" shortName="LSP" enabledByDefault="true"
+                         implementationClass="org.wso2.lsp4intellij.contributors.inspection.DummyLSPInspection"/>
+
+        <!--Ballerina plugin extensions-->
         <fileTypeFactory implementation="io.ballerina.plugins.idea.BallerinaFileTypeFactory"/>
 
         <lang.parserDefinition language="Ballerina"
@@ -44,50 +53,24 @@
 
         <lang.syntaxHighlighterFactory language="Ballerina"
                                        implementationClass="io.ballerina.plugins.idea.highlighting.BallerinaSyntaxHighlighterFactory"/>
-        <stubIndex implementation="io.ballerina.plugins.idea.stubs.index.BallerinaFunctionIndex"/>
-        <stubIndex implementation="io.ballerina.plugins.idea.stubs.index.BallerinaGlobalVariableIndex"/>
-        <stubIndex implementation="io.ballerina.plugins.idea.stubs.index.BallerinaAnnotationIndex"/>
-        <stubIndex implementation="io.ballerina.plugins.idea.stubs.index.BallerinaGlobalEndpointIndex"/>
-        <stubIndex implementation="io.ballerina.plugins.idea.stubs.index.BallerinaEndpointIndex"/>
-        <stubIndex implementation="io.ballerina.plugins.idea.stubs.index.BallerinaWorkerIndex"/>
-        <stubIndex implementation="io.ballerina.plugins.idea.stubs.index.BallerinaNamespaceIndex"/>
         <!--Add organization index-->
-
-        <stubElementTypeHolder class="io.ballerina.plugins.idea.psi.BallerinaTypes"/>
 
         <indexPatternBuilder implementation="io.ballerina.plugins.idea.BallerinaIndexPatternBuilder"/>
 
         <codeInsight.lineMarkerProvider language="Ballerina"
                                         implementationClass="io.ballerina.plugins.idea.marker.BallerinaTypeFunctionMarker"/>
 
-        <completion.contributor language="Ballerina"
-                                implementationClass="io.ballerina.plugins.idea.completion.BallerinaKeywordContributor"/>
-        <completion.contributor language="Ballerina"
-                                implementationClass="io.ballerina.plugins.idea.completion.BallerinaCompletionContributor"/>
-
-        <lang.findUsagesProvider language="Ballerina"
-                                 implementationClass="io.ballerina.plugins.idea.usage.BallerinaFindUsageProvider"/>
-
         <lang.elementManipulator forClass="io.ballerina.plugins.idea.psi.BallerinaCompletePackageName"
                                  implementationClass="io.ballerina.plugins.idea.psi.manipulator.BallerinaPackageManipulator"/>
 
-        <codeInsight.parameterInfo language="Ballerina"
-                                   implementationClass="io.ballerina.plugins.idea.editor.BallerinaParameterInfoHandler"/>
+        <spellchecker.support language="Ballerina"
+                              implementationClass="io.ballerina.plugins.idea.spellchecker.BallerinaSpellcheckingStrategy"/>
 
-        <externalAnnotator language="Ballerina"
-                           implementationClass="io.ballerina.plugins.idea.BallerinaExternalAnnotator"/>
-
-        <!--<spellchecker.support language="Ballerina"-->
-        <!--implementationClass="org.ballerinalang.plugins.idea.spellchecker.BallerinaSpellcheckingStrategy"/>-->
         <!--<defaultTemplatePropertiesProvider-->
         <!--implementation="org.ballerinalang.plugins.idea.actions.BallerinaTemplatePropertiesProvider"/>-->
 
         <annotator language="Ballerina"
                    implementationClass="io.ballerina.plugins.idea.codeinsight.daemon.impl.BallerinaAnnotator"/>
-
-        <!--refactoring-->
-        <lang.refactoringSupport language="Ballerina"
-                                 implementationClass="io.ballerina.plugins.idea.refactoring.BallerinaRefactoringSupport"/>
 
         <!-- file templates -->
         <internalFileTemplate name="Ballerina File"/>
@@ -96,18 +79,13 @@
         <lang.braceMatcher language="Ballerina"
                            implementationClass="io.ballerina.plugins.idea.codeinsight.highlighting.BallerinaPairedBraceMatcher"/>
 
-        <!--live templates-->
-        <defaultLiveTemplatesProvider
-                implementation="io.ballerina.plugins.idea.template.BallerinaLiveTemplateProvider"/>
-        <liveTemplateContext implementation="io.ballerina.plugins.idea.template.BallerinaEverywhereContextType"/>
-        <liveTemplateContext implementation="io.ballerina.plugins.idea.template.BallerinaCodeContextType$File"/>
-        <liveTemplateContext implementation="io.ballerina.plugins.idea.template.BallerinaCodeContextType$Service"/>
-        <liveTemplateContext
-                implementation="io.ballerina.plugins.idea.template.BallerinaCodeContextType$Function"/>
+        <!--folding builder-->
+        <lang.foldingBuilder language="Ballerina"
+                             implementationClass="io.ballerina.plugins.idea.editor.BallerinaFoldingBuilder"/>
 
         <!--formatter-->
-        <lang.formatter language="Ballerina"
-                        implementationClass="io.ballerina.plugins.idea.formatter.BallerinaFormattingModelBuilder"/>
+        <!--<lang.formatter language="Ballerina"-->
+        <!--implementationClass="io.ballerina.plugins.idea.formatter.BallerinaFormattingModelBuilder"/>-->
         <codeStyleSettingsProvider
                 implementation="io.ballerina.plugins.idea.formatter.settings.BallerinaCodeStyleSettingsProvider"/>
         <langCodeStyleSettingsProvider
@@ -118,6 +96,8 @@
 
         <enterHandlerDelegate
                 implementation="io.ballerina.plugins.idea.formatter.BallerinaEnterBetweenBracesHandler"/>
+        <enterHandlerDelegate
+                implementation="io.ballerina.plugins.idea.formatter.BallerinaEnterInDocumentationHandler"/>
 
         <!-- sdk -->
         <sdkType implementation="io.ballerina.plugins.idea.sdk.BallerinaSdkType"/>
@@ -131,8 +111,12 @@
         <projectService serviceInterface="io.ballerina.plugins.idea.sdk.BallerinaSdkService"
                         serviceImplementation="io.ballerina.plugins.idea.sdk.BallerinaSmallIDEsSdkService"
                         overrides="false"/>
+
         <editorNotificationProvider
                 implementation="io.ballerina.plugins.idea.inspections.WrongSdkConfigurationNotificationProvider"/>
+
+        <editorNotificationProvider
+                implementation="io.ballerina.plugins.idea.inspections.VersionMismatchNotificationProvider"/>
 
         <!-- module -->
         <moduleType id="BALLERINA_MODULE" implementationClass="io.ballerina.plugins.idea.BallerinaModuleType"/>
@@ -169,9 +153,6 @@
         <xdebugger.breakpointType
                 implementation="io.ballerina.plugins.idea.debugger.breakpoint.BallerinaBreakPointType"/>
 
-        <codeInsight.template.postfixTemplateProvider language="Ballerina"
-                                                      implementationClass="io.ballerina.plugins.idea.codeinsight.template.postfix.BallerinaPostfixTemplateProvider"/>
-
         <!--project-->
         <applicationService
                 serviceImplementation="io.ballerina.plugins.idea.project.BallerinaApplicationLibrariesService"/>
@@ -190,21 +171,34 @@
 
         <applicationService
                 serviceImplementation="io.ballerina.plugins.idea.codeinsight.semanticanalyzer.BallerinaSemanticAnalyzerSettings"/>
-        <applicationService
-                serviceImplementation="io.ballerina.plugins.idea.codeinsight.recursivesearch.BallerinaRecursiveReferenceSearchSettings"/>
 
-        <!--inspections-->
-        <localInspection language="Ballerina" displayName="Unresolved reference inspection" groupPath="Ballerina"
-                         groupName="General" enabledByDefault="true" level="ERROR"
-                         shortName="BallerinaUnresolvedReference"
-                         implementationClass="io.ballerina.plugins.idea.codeinspection.BallerinaUnresolvedReferenceInspection"/>
-
+        <preloadingActivity
+                implementation="io.ballerina.plugins.idea.preloading.BallerinaPreloadingActivity"
+                id="io.ballerina.plugins.idea.preloading.BallerinaPreloadingActivity"/>
     </extensions>
+
     <actions>
-        <!-- Add your actions here -->
+        <!-- Ballerina Plugin Actions -->
         <action id="Ballerina.NewBallerinaFile" class="io.ballerina.plugins.idea.actions.BallerinaCreateFileAction"
                 text="Ballerina File" description="Create new Ballerina file">
             <add-to-group group-id="NewGroup" anchor="before" relative-to-action="NewFile"/>
         </action>
+
+        <action class="org.wso2.lsp4intellij.actions.LSPReformatAction" id="ReformatCode"
+                use-shortcut-of="ReformatCode"
+                overrides="true" text="Reformat Code"/>
+        <action class="org.wso2.lsp4intellij.actions.LSPShowReformatDialogAction" id="ShowReformatFileDialog"
+                use-shortcut-of="ShowReformatFileDialog" overrides="true" text="Show Reformat File Dialog"/>
+        <action class="org.wso2.lsp4intellij.actions.LSPReferencesAction"
+                id="LSPFindUsages">
+            <keyboard-shortcut first-keystroke="shift alt F7" keymap="$default"/>
+        </action>
     </actions>
+
+    <application-components>
+        <component>
+            <implementation-class>org.wso2.lsp4intellij.IntellijLanguageClient</implementation-class>
+        </component>
+    </application-components>
+
 </idea-plugin>

@@ -1,0 +1,4 @@
+// In this example, a message is sent to an existing queue
+// using Ballerina RabbitMQ channel and ballerina transactions.
+// Upon successful execution of the transaction block,
+// the channel will commit and rollback in-case of any error.

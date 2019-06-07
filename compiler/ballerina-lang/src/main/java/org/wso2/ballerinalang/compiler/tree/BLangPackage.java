@@ -18,6 +18,7 @@
 package org.wso2.ballerinalang.compiler.tree;
 
 import org.ballerinalang.compiler.CompilerPhase;
+import org.ballerinalang.model.elements.Flag;
 import org.ballerinalang.model.elements.PackageID;
 import org.ballerinalang.model.tree.AnnotationNode;
 import org.ballerinalang.model.tree.CompilationUnitNode;
@@ -27,30 +28,36 @@ import org.ballerinalang.model.tree.ImportPackageNode;
 import org.ballerinalang.model.tree.NodeKind;
 import org.ballerinalang.model.tree.PackageNode;
 import org.ballerinalang.model.tree.ServiceNode;
+import org.ballerinalang.model.tree.SimpleVariableNode;
 import org.ballerinalang.model.tree.TopLevelNode;
 import org.ballerinalang.model.tree.TypeDefinition;
-import org.ballerinalang.model.tree.VariableNode;
 import org.ballerinalang.model.tree.XMLNSDeclarationNode;
 import org.ballerinalang.util.diagnostic.Diagnostic;
 import org.wso2.ballerinalang.compiler.packaging.RepoHierarchy;
 import org.wso2.ballerinalang.compiler.semantics.model.symbols.BPackageSymbol;
 import org.wso2.ballerinalang.compiler.semantics.model.symbols.BSymbol;
+import org.wso2.ballerinalang.compiler.tree.expressions.BLangConstant;
+import org.wso2.ballerinalang.compiler.tree.expressions.BLangLambdaFunction;
 import org.wso2.ballerinalang.compiler.util.diagnotic.BDiagnostic;
 
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.List;
+import java.util.Queue;
 import java.util.Set;
 
 /**
  * @since 0.94
  */
 public class BLangPackage extends BLangNode implements PackageNode {
+
     public List<BLangCompilationUnit> compUnits;
     public List<BLangImportPackage> imports;
     public List<BLangXMLNS> xmlnsList;
     public List<BLangEndpoint> globalEndpoints;
-    public List<BLangVariable> globalVars;
+    public List<BLangConstant> constants;
+    public List<BLangSimpleVariable> globalVars;
     public List<BLangService> services;
     public List<BLangFunction> functions;
     public List<BLangTypeDefinition> typeDefinitions;
@@ -59,9 +66,14 @@ public class BLangPackage extends BLangNode implements PackageNode {
     public Set<CompilerPhase> completedPhases;
     public List<BSymbol> objAttachedFunctions;
     public List<TopLevelNode> topLevelNodes;
+    public List<BLangTestablePackage> testablePkgs;
+    // Queue to maintain lambda functions so that we can visit all lambdas at the end of the semantic phase
+    public Queue<BLangLambdaFunction> lambdaFunctions = new ArrayDeque<>();
 
     public PackageID packageID;
     public BPackageSymbol symbol;
+    public Set<Flag> flagSet;
+    public byte[] jarBinaryContent;
 
     // TODO Revisit these instance variables
     public BDiagnosticCollector diagCollector;
@@ -73,6 +85,7 @@ public class BLangPackage extends BLangNode implements PackageNode {
         this.imports = new ArrayList<>();
         this.xmlnsList = new ArrayList<>();
         this.globalEndpoints = new ArrayList<>();
+        this.constants = new ArrayList<>();
         this.globalVars = new ArrayList<>();
         this.services = new ArrayList<>();
         this.functions = new ArrayList<>();
@@ -83,6 +96,8 @@ public class BLangPackage extends BLangNode implements PackageNode {
         this.topLevelNodes = new ArrayList<>();
         this.completedPhases = EnumSet.noneOf(CompilerPhase.class);
         this.diagCollector = new BDiagnosticCollector();
+        this.testablePkgs = new ArrayList<>();
+        this.flagSet = EnumSet.noneOf(Flag.class);
     }
 
     @Override
@@ -111,7 +126,12 @@ public class BLangPackage extends BLangNode implements PackageNode {
     }
 
     @Override
-    public List<BLangVariable> getGlobalVariables() {
+    public List<BLangConstant> getConstants() {
+        return constants;
+    }
+
+    @Override
+    public List<BLangSimpleVariable> getGlobalVariables() {
         return globalVars;
     }
 
@@ -152,8 +172,8 @@ public class BLangPackage extends BLangNode implements PackageNode {
     }
 
     @Override
-    public void addGlobalVariable(VariableNode globalVar) {
-        this.globalVars.add((BLangVariable) globalVar);
+    public void addGlobalVariable(SimpleVariableNode globalVar) {
+        this.globalVars.add((BLangSimpleVariable) globalVar);
         this.topLevelNodes.add(globalVar);
     }
 
@@ -181,11 +201,54 @@ public class BLangPackage extends BLangNode implements PackageNode {
         this.topLevelNodes.add(typeDefinition);
     }
 
+    /**
+     * Add testable package to package list.
+     *
+     * @param testablePkg testable package node
+     */
+    public void addTestablePkg(BLangTestablePackage testablePkg) {
+        this.testablePkgs.add(testablePkg);
+    }
+
+    /**
+     * Get the testable package list.
+     *
+     * @return testable package list
+     */
+    public List<BLangTestablePackage> getTestablePkgs() {
+        return testablePkgs;
+    }
+
+    /**
+     * Get testable package from the list.
+     *
+     * @return testable package
+     */
+    public BLangTestablePackage getTestablePkg() {
+        return testablePkgs.stream().findAny().get();
+    }
+
+    /**
+     * Checks if the package contains a testable package.
+     *
+     * @return true it testable package exists else false
+     */
+    public boolean containsTestablePkg() {
+        return testablePkgs.stream().findAny().isPresent();
+    }
     @Override
     public NodeKind getKind() {
         return NodeKind.PACKAGE;
     }
 
+    /**
+     * Get flags.
+     *
+     * @return flags of the package
+     */
+    public Set<Flag> getFlags() {
+        return flagSet;
+    }
     /**
      * This class collect diagnostics.
      *

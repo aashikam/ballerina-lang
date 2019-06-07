@@ -15,9 +15,11 @@
  */
 package org.ballerinalang.langserver.hover.util;
 
+import org.ballerinalang.langserver.common.UtilSymbolKeys;
 import org.ballerinalang.langserver.common.constants.ContextConstants;
 import org.ballerinalang.langserver.common.constants.NodeContextKeys;
 import org.ballerinalang.langserver.common.position.PositionTreeVisitor;
+import org.ballerinalang.langserver.common.utils.CommonUtil;
 import org.ballerinalang.langserver.compiler.DocumentServiceKeys;
 import org.ballerinalang.langserver.compiler.LSContext;
 import org.ballerinalang.langserver.compiler.LSPackageLoader;
@@ -26,9 +28,8 @@ import org.ballerinalang.model.Whitespace;
 import org.ballerinalang.model.elements.MarkdownDocAttachment;
 import org.ballerinalang.model.elements.PackageID;
 import org.eclipse.lsp4j.Hover;
-import org.eclipse.lsp4j.MarkedString;
+import org.eclipse.lsp4j.MarkupContent;
 import org.eclipse.lsp4j.Position;
-import org.eclipse.lsp4j.jsonrpc.messages.Either;
 import org.wso2.ballerinalang.compiler.semantics.model.symbols.BAttachedFunction;
 import org.wso2.ballerinalang.compiler.semantics.model.symbols.BEndpointVarSymbol;
 import org.wso2.ballerinalang.compiler.semantics.model.symbols.BInvokableSymbol;
@@ -44,7 +45,7 @@ import org.wso2.ballerinalang.compiler.tree.BLangFunction;
 import org.wso2.ballerinalang.compiler.tree.BLangPackage;
 import org.wso2.ballerinalang.compiler.tree.BLangResource;
 import org.wso2.ballerinalang.compiler.tree.BLangService;
-import org.wso2.ballerinalang.compiler.tree.BLangVariable;
+import org.wso2.ballerinalang.compiler.tree.BLangSimpleVariable;
 import org.wso2.ballerinalang.compiler.tree.types.BLangArrayType;
 import org.wso2.ballerinalang.compiler.tree.types.BLangConstrainedType;
 import org.wso2.ballerinalang.compiler.tree.types.BLangType;
@@ -175,10 +176,7 @@ public class HoverUtil {
                             hoverContext.get(NodeContextKeys.PACKAGE_OF_NODE_KEY));
             hover = getHoverInformation(packageSymbol, hoverContext);
         } else {
-            hover = new Hover();
-            List<Either<String, MarkedString>> contents = new ArrayList<>();
-            contents.add(Either.forLeft(""));
-            hover.setContents(contents);
+            hover = getDefaultHoverObject();
         }
         return hover;
     }
@@ -222,7 +220,8 @@ public class HoverUtil {
      * @return {@link Hover}    hover object.
      */
     private static Hover getHoverFromDocAttachment(MarkdownDocAttachment docAttachment, LSContext context) {
-        Hover hover = new Hover();
+        MarkupContent hoverMarkupContent = new MarkupContent();
+        hoverMarkupContent.setKind(CommonUtil.MARKDOWN_MARKUP_KIND);
         StringBuilder content = new StringBuilder();
         Map<String, List<MarkdownDocAttachment.Parameter>> filterAttributes =
                 filterDocumentationAttributes(docAttachment, context);
@@ -247,11 +246,9 @@ public class HoverUtil {
                     getReturnValueDescription(docAttachment.returnValueDescription)));
         }
 
-        List<Either<String, MarkedString>> contents = new ArrayList<>();
-        contents.add(Either.forLeft(content.toString()));
-        hover.setContents(contents);
+        hoverMarkupContent.setValue(content.toString());
 
-        return hover;
+        return new Hover(hoverMarkupContent);
     }
 
     /**
@@ -296,9 +293,10 @@ public class HoverUtil {
      */
     private static Hover getDefaultHoverObject() {
         Hover hover = new Hover();
-        List<Either<String, MarkedString>> contents = new ArrayList<>();
-        contents.add(Either.forLeft(""));
-        hover.setContents(contents);
+        MarkupContent hoverMarkupContent = new MarkupContent();
+        hoverMarkupContent.setKind(CommonUtil.MARKDOWN_MARKUP_KIND);
+        hoverMarkupContent.setValue("");
+        hover.setContents(hoverMarkupContent);
 
         return hover;
     }
@@ -375,13 +373,23 @@ public class HoverUtil {
             Whitespace[] wsArray = new Whitespace[wsSet.size()];
             wsSet.toArray(wsArray);
             Arrays.sort(wsArray);
-            int functionKeywordLength = wsArray[0].getPrevious().length();
-            int beforeIdentifierWSLength = wsArray[1].getWs().length();
-            if (wsArray[2].getPrevious().equals("::")) {
-                beforeIdentifierWSLength += wsArray[1].getPrevious().length() + "::".length();
+            int lengthToNameStart = 0;
+            if (wsArray[0].getPrevious().equals(UtilSymbolKeys.RESOURCE_KEYWORD_KEY)) {
+                lengthToNameStart += wsArray[0].getPrevious().length()
+                        + wsArray[1].getPrevious().length() + wsArray[1].getWs().length() + wsArray[2].getWs().length();
+            } else {
+                lengthToNameStart += wsArray[0].getPrevious().length() + wsArray[1].getWs().length();
+                if (wsArray[2].getPrevious().equals("::")) {
+                    lengthToNameStart += wsArray[1].getPrevious().length() + "::".length();
+                }
             }
-            position.sCol += (beforeIdentifierWSLength + functionKeywordLength);
+            position.sCol += lengthToNameStart;
             position.eCol = position.sCol + bLangFunction.name.value.length();
+            if (!bLangFunction.annAttachments.isEmpty()) {
+                int lastAnnotationEndline = CommonUtil.getLastItem(bLangFunction.annAttachments).pos.eLine;
+                position.sLine = lastAnnotationEndline +
+                        wsArray[0].getWs().split(CommonUtil.LINE_SEPARATOR_SPLIT).length - 1;
+            }
         }
         return position;
     }
@@ -406,10 +414,11 @@ public class HoverUtil {
                     wsArray[1].getPrevious().length() + wsArray[1].getWs().length() +
                     wsArray[2].getPrevious().length() + wsArray[2].getWs().length() + wsArray[3].getWs().length();
             int serviceTypeLength = 0;
-            Set<Whitespace> ws = serviceNode.getServiceTypeStruct().getWS();
-            for (Whitespace w : ws) {
-                serviceTypeLength += w.getPrevious().length() + w.getWs().length();
-            }
+// TODO: 11/28/18 Fix with the latest Service Changes
+//            Set<Whitespace> ws = serviceNode.getServiceTypeStruct().getWS();
+//            for (Whitespace w : ws) {
+//                serviceTypeLength += w.getPrevious().length() + w.getWs().length();
+//            }
             position.sCol += (serviceTypeLength + serviceKeywordLength);
             position.eCol = position.sCol + serviceNode.name.value.length();
         }
@@ -440,10 +449,10 @@ public class HoverUtil {
     /**
      * Calculate and returns identifier position of this BlangVariable.
      *
-     * @param varNode BLangVariable
+     * @param varNode BLangSimpleVariable
      * @return position
      */
-    public static DiagnosticPos getIdentifierPosition(BLangVariable varNode) {
+    public static DiagnosticPos getIdentifierPosition(BLangSimpleVariable varNode) {
         DiagnosticPos position = varNode.getPosition();
         Set<Whitespace> wsSet = varNode.getWS();
         if (wsSet != null && wsSet.size() > 0) {

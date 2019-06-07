@@ -20,9 +20,12 @@ package org.ballerinalang.stdlib.io.channels;
 import org.ballerinalang.bre.Context;
 import org.ballerinalang.bre.bvm.BlockingNativeCallableUnit;
 import org.ballerinalang.connector.api.BLangConnectorSPIUtil;
+import org.ballerinalang.jvm.BallerinaValues;
+import org.ballerinalang.jvm.values.ObjectValue;
 import org.ballerinalang.model.values.BMap;
 import org.ballerinalang.model.values.BValue;
 import org.ballerinalang.stdlib.io.channels.base.Channel;
+import org.ballerinalang.stdlib.io.nativeimpl.OpenWritableFile;
 import org.ballerinalang.stdlib.io.utils.IOConstants;
 import org.ballerinalang.util.exceptions.BallerinaException;
 
@@ -34,18 +37,21 @@ import org.ballerinalang.util.exceptions.BallerinaException;
  * This will prepare the ByteChannel to perform I/O operations.
  * </p>
  *
- * @see org.ballerinalang.stdlib.io.nativeimpl.OpenFile
+ * @see OpenWritableFile
  */
 public abstract class AbstractNativeChannel extends BlockingNativeCallableUnit {
     /**
      * The package path of the byte channel.
      */
     private static final String BYTE_CHANNEL_PACKAGE = "ballerina/io";
-
     /**
      * The struct type of the byte channel.
      */
-    private static final String STRUCT_TYPE = "ByteChannel";
+    private static final String READ_BYTE_CHANNEL_STRUCT = "ReadableByteChannel";
+    /**
+     * Writable byte channel struct.
+     */
+    private static final String WRITE_BYTE_CHANNEL_STRUCT = "WritableByteChannel";
 
     /**
      * <p>
@@ -55,6 +61,7 @@ public abstract class AbstractNativeChannel extends BlockingNativeCallableUnit {
      * @param context holds the context received from Ballerina.
      * @return the channel which holds the reference.
      */
+    //TODO Remove after migration
     public abstract Channel inFlow(Context context) throws BallerinaException;
 
 
@@ -62,11 +69,29 @@ public abstract class AbstractNativeChannel extends BlockingNativeCallableUnit {
      * {@inheritDoc}
      */
     @Override
+    //TODO Remove after migration
     public void execute(Context context) {
         Channel channel = inFlow(context);
-        BMap<String, BValue> channelStruct =
-                BLangConnectorSPIUtil.createBStruct(context, BYTE_CHANNEL_PACKAGE, STRUCT_TYPE);
+        BMap<String, BValue> channelStruct;
+        if (channel.isReadable()) {
+            channelStruct = BLangConnectorSPIUtil.createBStruct(context, BYTE_CHANNEL_PACKAGE,
+                    READ_BYTE_CHANNEL_STRUCT);
+        } else {
+            channelStruct = BLangConnectorSPIUtil.createBStruct(context, BYTE_CHANNEL_PACKAGE,
+                    WRITE_BYTE_CHANNEL_STRUCT);
+        }
         channelStruct.addNativeData(IOConstants.BYTE_CHANNEL_NAME, channel);
         context.setReturnValues(channelStruct);
+    }
+
+    protected static ObjectValue createChannel(Channel channel) {
+        ObjectValue channelObj;
+        if (channel.isReadable()) {
+            channelObj = BallerinaValues.createObjectValue(BYTE_CHANNEL_PACKAGE, READ_BYTE_CHANNEL_STRUCT);
+        } else {
+            channelObj = BallerinaValues.createObjectValue(BYTE_CHANNEL_PACKAGE, WRITE_BYTE_CHANNEL_STRUCT);
+        }
+        channelObj.addNativeData(IOConstants.BYTE_CHANNEL_NAME, channel);
+        return channelObj;
     }
 }

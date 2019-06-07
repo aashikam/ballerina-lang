@@ -24,14 +24,14 @@ import org.wso2.ballerinalang.util.RepoUtils;
 import org.wso2.ballerinalang.util.TomlParserUtils;
 
 /**
- * This class provides util methods when searching for Ballerina packages in the central.
+ * This class provides util methods when searching for Ballerina modules in the central.
  *
  * @since 0.95.2
  */
 public class SearchUtils {
-
+    
     /**
-     * Search for packages in central.
+     * Search for modules in central.
      *
      * @param argument arguments passed
      */
@@ -39,8 +39,8 @@ public class SearchUtils {
         String query = "?q=" + argument;
         EmbeddedExecutor executor = EmbeddedExecutorProvider.getInstance().getExecutor();
         Proxy proxy = TomlParserUtils.readSettings().getProxy();
-        executor.execute("packaging_search/packaging_search.balx", true, RepoUtils.getRemoteRepoURL(), query,
-                         proxy.getHost(), proxy.getPort(), proxy.getUserName(), proxy.getPassword(),
-                         RepoUtils.getTerminalWidth());
+        executor.executeFunction("packaging_search/packaging_search.balx", RepoUtils.getRemoteRepoURL(),
+                                 query, proxy.getHost(), proxy.getPort(), proxy.getUserName(), proxy.getPassword(),
+                                 RepoUtils.getTerminalWidth());
     }
 }

@@ -18,9 +18,9 @@ import static io.ballerina.plugins.idea.psi.BallerinaTypes.*;
     private boolean inXmlCommentMode = false;
 
     private boolean inStringTemplate = false;
+    private boolean inStringTemplateExpression = false;
 
     private boolean inDeprecatedTemplate = false;
-    private boolean inDocTemplate = false;
 
     private boolean inSiddhi = false;
     private boolean inTableSqlQuery = false;
@@ -30,46 +30,6 @@ import static io.ballerina.plugins.idea.psi.BallerinaTypes.*;
 
     public BallerinaLexer() {
         this((java.io.Reader)null);
-    }
-
-    private IElementType checkExpressionEnd() {
-        if (inXmlMode) {
-            inXmlMode = false;
-            yybegin(XML_MODE);
-            return EXPRESSION_END;
-        } else if (inXmlTagMode) {
-            inXmlTagMode = false;
-            yybegin(XML_TAG_MODE);
-            return EXPRESSION_END;
-        } else if (inDoubleQuotedXmlStringMode) {
-            inDoubleQuotedXmlStringMode = false;
-            yybegin(DOUBLE_QUOTED_XML_STRING_MODE);
-            return EXPRESSION_END;
-        } else if (inSingleQuotedXmlStringMode) {
-            inSingleQuotedXmlStringMode = false;
-            yybegin(SINGLE_QUOTED_XML_STRING_MODE);
-            return EXPRESSION_END;
-        } else if (inXmlPiMode) {
-            inXmlPiMode = false;
-            yybegin(XML_PI_MODE);
-            return EXPRESSION_END;
-        } else if (inXmlCommentMode) {
-            inXmlCommentMode = false;
-            yybegin(XML_COMMENT_MODE);
-            return EXPRESSION_END;
-        } else if (inStringTemplate) {
-            yybegin(STRING_TEMPLATE_MODE);
-            return EXPRESSION_END;
-        } else if (inDocTemplate) {
-            yybegin(DOCUMENTATION_TEMPLATE_MODE);
-            return DOCUMENTATION_TEMPLATE_ATTRIBUTE_END;
-        } else if (inDeprecatedTemplate) {
-            yybegin(DEPRECATED_TEMPLATE_MODE);
-            return DOCUMENTATION_TEMPLATE_ATTRIBUTE_END;
-        } else {
-            yypushback(1);
-            return RIGHT_BRACE;
-        }
     }
 %}
 
@@ -82,8 +42,6 @@ import static io.ballerina.plugins.idea.psi.BallerinaTypes.*;
 
 DECIMAL_INTEGER_LITERAL = {DecimalNumeral}
 HEX_INTEGER_LITERAL = {HexNumeral}
-OCTAL_INTEGER_LITERAL = {OctalNumeral}
-BINARY_INTEGER_LITERAL = {BinaryNumeral}
 
 DecimalNumeral = 0 | {NonZeroDigit} {Digits}?
 Digits = {Digit}+
@@ -91,32 +49,25 @@ Digit = 0 | {NonZeroDigit}
 NonZeroDigit = [1-9]
 
 HexNumeral = 0 [xX] {HexDigits}
+
+DottedHexNumber = {HexDigits} "." {HexDigits} | "." {HexDigits}
+
+DottedDecimalNumber = {DecimalNumeral} "." {Digits} | "." {Digits}
+
 HexDigits = {HexDigit}+
 HexDigit = [0-9a-fA-F]
 
-OctalNumeral = 0 {OctalDigits}
-OctalDigits = {OctalDigit}+
-OctalDigit = [0-7]
+HexadecimalFloatingPointLiteral =  {HexIndicator} {HexFloatingPointNumber}
+HexIndicator = 0 [xX]
 
-BinaryNumeral = 0 [bB] {BinaryDigits}
-BinaryDigits = {BinaryDigit}+
-BinaryDigit = [01]
-
-// §3.10.2 Floating-Point Literals
-
-FLOATING_POINT_LITERAL = {DecimalFloatingPointLiteral} | {HexadecimalFloatingPointLiteral}
-
-DecimalFloatingPointLiteral = {Digits} "." ({Digits} {ExponentPart}? | {Digits}? {ExponentPart})
-    | "." {Digits} {ExponentPart}?
-    | {Digits} {ExponentPart}
-    | {Digits}
+DecimalFloatingPointNumber = {DecimalNumeral} {ExponentPart} | {DottedDecimalNumber} {ExponentPart}?
 ExponentPart = {ExponentIndicator} {SignedInteger}
 ExponentIndicator = [eE]
 SignedInteger = {Sign}? {Digits}
 Sign = [+-]
 
-HexadecimalFloatingPointLiteral = {HexSignificand} {BinaryExponent}
-HexSignificand = {HexNumeral} "."? | '0' [xX] {HexDigits}? "." {HexDigits}
+
+HexFloatingPointNumber = {HexDigits} {BinaryExponent} | {DottedHexNumber} {BinaryExponent}?
 BinaryExponent = {BinaryExponentIndicator} {SignedInteger}
 BinaryExponentIndicator = [pP]
 
@@ -127,10 +78,21 @@ BOOLEAN_LITERAL = "true" | "false"
 // Note - Invalid escaped characters should be annotated at runtime.
 // This is done becuase otherwise the string wont be identified correctly.
 // Also the strings can either be enclosed in single or double quotes or no quotes at all.
-ESCAPE_SEQUENCE = \\ [btnfr\"'\\]
-STRING_CHARACTER =  [^\"] | {ESCAPE_SEQUENCE}
+ESCAPE_SEQUENCE = \\ [btnfr\"'\\] | {UnicodeEscape}
+STRING_CHARACTER =  [^\\\"] | {ESCAPE_SEQUENCE}
 STRING_CHARACTERS = {STRING_CHARACTER}+
-QUOTED_STRING_LITERAL = \" {STRING_CHARACTERS}? \"?
+QUOTED_STRING_LITERAL = \" {STRING_CHARACTERS}? \"
+
+SYMBOLIC_STRING_LITERAL =  \' {UNDELIMETERED_INITIAL_CHAR} {UNDELIMETERED_FOLLOWING_CHAR}*
+
+UNDELIMETERED_INITIAL_CHAR = [a-zA-Z_]
+    // Negates ASCII characters
+    // Negates unicode whitespace characters : 0x200E, 0x200F, 0x2028 and 0x2029
+    // Negates unicode characters with property Pattern_Syntax=True (http://unicode.org/reports/tr31/tr31-2.html#Pattern_Syntax)
+    // Negates unicode characters of category "Private Use" ranging from: 0xE000 .. 0xF8FF | 0xF0000 .. 0xFFFFD | 0x100000 .. 0x10FFFD
+    | [^\u0000-\u007F\uE000-\uF8FF\u200E\u200F\u2028\u2029\u00A1-\u00A7\u00A9\u00AB-\u00AC\u00AE\u00B0-\u00B1\u00B6-\u00B7\u00BB\u00BF\u00D7\u00F7\u2010-\u2027\u2030-\u205E\u2190-\u2BFF\u3001-\u3003\u3008-\u3020\u3030\uFD3E-\uFD3F\uFE45-\uFE46\uDB80-\uDBBF\uDBC0-\uDBFF\uDC00-\uDFFF]
+
+UNDELIMETERED_FOLLOWING_CHAR = {UNDELIMETERED_INITIAL_CHAR} | {DIGIT}
 
 // Blob Literal
 
@@ -169,17 +131,11 @@ XML_LITERAL_START = xml[ \t\n\x0B\f\r]*`
 STRING_TEMPLATE_LITERAL_START = string[ \t\n\x0B\f\r]*`
 STRING_TEMPLATE_LITERAL_END = "`"
 
-DOCUMENTATION = "documentation"
+
 DEPRECATED = "deprecated"
-DOCUMENTATION_TEMPLATE_START = {DOCUMENTATION} {WHITE_SPACE}* {LEFT_BRACE}
 DEPRECATED_TEMPLATE_START = {DEPRECATED} {WHITE_SPACE}* {LEFT_BRACE}
 
-// Todo - Need to add spaces between braces?
-// Note - This is used in checkExpressionEnd() function.
-DOCUMENTATION_TEMPLATE_ATTRIBUTE_END = {RIGHT_BRACE} {RIGHT_BRACE}
-
-EXPRESSION_START = "{{"
-EXPRESSION_END = "}}"
+INTERPOLATION_START = "${"
 
 HEX_DIGITS = {HEX_DIGIT} ({HEX_DIGIT_OR_UNDERSCORE}* {HEX_DIGIT})?
 HEX_DIGIT_OR_UNDERSCORE = {HEX_DIGIT} | "_"
@@ -195,11 +151,11 @@ XML_TAG_OPEN_SLASH = "</"
 XML_TAG_SPECIAL_OPEN = "<?" ({XML_QNAME} {QNAME_SEPARATOR})? {XML_QNAME} {XML_WS} // Todo - Fix
 XML_TAG_OPEN = "<"
 XML_LITERAL_END = "`"
-XML_TEMPLATE_TEXT = {XML_TEXT_SEQUENCE}? {EXPRESSION_START}
-XML_TEXT_SEQUENCE = {XML_BRACES_SEQUENCE}? ({XML_TEXT_CHAR} {XML_BRACES_SEQUENCE}?)+ | {XML_BRACES_SEQUENCE} ({XML_TEXT_CHAR} {XML_BRACES_SEQUENCE}?)*
-XML_TEXT_CHAR = [^<&`{}] | '\\' [`] | {XML_WS} | {XML_ESCAPED_SEQUENCE}
-XML_ESCAPED_SEQUENCE =  \\\\ | \\\{\{ | \\}}
-XML_BRACES_SEQUENCE = (\{})+ | (}\{) | (\{})* \{ | } (\{})*
+XML_TEMPLATE_TEXT = {XML_TEXT_SEQUENCE}? {INTERPOLATION_START}
+XML_TEXT_SEQUENCE = {XML_BRACES_SEQUENCE}? ({XML_TEXT_CHAR} {XML_BRACES_SEQUENCE}?)+ | {XML_BRACES_SEQUENCE} ({XML_TEXT_CHAR} {XML_BRACES_SEQUENCE}?)* | {XML_BRACES_SEQUENCE}+
+XML_TEXT_CHAR = [^<&$`{}] | '\\' [`] | {XML_WS} | {XML_ESCAPED_SEQUENCE}
+XML_ESCAPED_SEQUENCE =  \\\\ | \\\$\{ | \\} | \\\{ | &(gt|lt|amp);
+XML_BRACES_SEQUENCE = (\{})+ (\{)* (})* | (}\{)+ (\{)* (})* | (\{\{)+ (\{)* (})* | (}})+ (\{)* (})* | (\{})* \{ | } (\{})*
 
 // XML_TAG
 XML_TAG_CLOSE = ">"
@@ -212,41 +168,39 @@ DOUBLE_QUOTE = "\""
 SINGLE_QUOTE = "'"
 XML_QNAME = {NAME_START_CHAR} {NAME_CHAR}*
 XML_TAG_WS = [ \t\r\n]
-XML_TAG_EXPRESSION_START = {EXPRESSION_START}
 HEX_DIGIT = [0-9a-fA-F]
-NAME_CHAR = {NAME_START_CHAR} | "-" | "_" | "." | {DIGIT} | \u00B7 | [\u0300-\u036F] | [\u203F-\u2040]
-NAME_START_CHAR = [a-zA-Z] | [\u2070-\u218F] | [\u2C00-\u2FEF] | [\u3001-\uD7FF] | [\uF900-\uFDCF] | [\uFDF0-\uFFFD]
+NAME_CHAR = {NAME_START_CHAR} | "-" | "." | {DIGIT} | \u00B7 | [\u0300-\u036F] | [\u203F-\u2040]
+NAME_START_CHAR = [a-zA-Z_] | [\u2070-\u218F] | [\u2C00-\u2FEF] | [\u3001-\uD7FF] | [\uF900-\uFDCF] | [\uFDF0-\uFFFD]
 
 // DOUBLE_QUOTED_XML_STRING
 DOUBLE_QUOTE_END = "\""
-XML_DOUBLE_QUOTED_TEMPLATE_STRING = {XML_DOUBLE_QUOTED_STRING_SEQUENCE}? {EXPRESSION_START}
+XML_DOUBLE_QUOTED_TEMPLATE_STRING = {XML_DOUBLE_QUOTED_STRING_SEQUENCE}? {INTERPOLATION_START}
 XML_DOUBLE_QUOTED_STRING_SEQUENCE = {XML_BRACES_SEQUENCE}? ({XMLDoubleQuotedStringChar} {XML_BRACES_SEQUENCE}?)+ | {XML_BRACES_SEQUENCE} ({XMLDoubleQuotedStringChar} {XML_BRACES_SEQUENCE}?)*
-XMLDoubleQuotedStringChar = [^<\"{}\\] | {XML_ESCAPED_SEQUENCE}
+XMLDoubleQuotedStringChar = [^$<\"{}\\] | {XML_ESCAPED_SEQUENCE}
 
 // SINGLE_QUOTED_XML_STRING
 SINGLE_QUOTE_END = "'"
-XML_SINGLE_QUOTED_TEMPLATE_STRING = {XML_SINGLE_QUOTED_STRING_SEQUENCE}? {EXPRESSION_START}
+XML_SINGLE_QUOTED_TEMPLATE_STRING = {XML_SINGLE_QUOTED_STRING_SEQUENCE}? {INTERPOLATION_START}
 XML_SINGLE_QUOTED_STRING_SEQUENCE = {XML_BRACES_SEQUENCE}? ({XMLSingleQuotedStringChar} {XML_BRACES_SEQUENCE}?)+ | {XML_BRACES_SEQUENCE} ({XMLSingleQuotedStringChar} {XML_BRACES_SEQUENCE}?)*
-XMLSingleQuotedStringChar = [^<'{}\\] | {XML_ESCAPED_SEQUENCE}
+XMLSingleQuotedStringChar = [^$<'{}\\] | {XML_ESCAPED_SEQUENCE}
 
 // XML_PI
 XML_PI_END = {XML_TAG_SPECIAL_CLOSE}
 XML_PI_TEXT = {XML_PI_TEXT_FRAGMENT} {XML_PI_END}
-XML_PI_TEMPLATE_TEXT = {XML_PI_TEXT_FRAGMENT} {EXPRESSION_START}
+XML_PI_TEMPLATE_TEXT = {XML_PI_TEXT_FRAGMENT} {INTERPOLATION_START}
 XML_PI_TEXT_FRAGMENT = {XML_PI_ALLOWED_SEQUENCE}? ({XML_PI_CHAR} {XML_PI_ALLOWED_SEQUENCE}?)*
-XML_PI_CHAR = [^{}?>] | {XML_ESCAPED_SEQUENCE}
+XML_PI_CHAR = [^${}?>] | {XML_ESCAPED_SEQUENCE}
 XML_PI_ALLOWED_SEQUENCE = {XML_BRACES_SEQUENCE} | {XML_PI_SPECIAL_SEQUENCE} | ({XML_BRACES_SEQUENCE} {XML_PI_SPECIAL_SEQUENCE})+ {XML_BRACES_SEQUENCE}? | ({XML_PI_SPECIAL_SEQUENCE} {XML_BRACES_SEQUENCE})+ {XML_PI_SPECIAL_SEQUENCE}?
 XML_PI_SPECIAL_SEQUENCE = ">"+ | ">"* "?"+
 
 // XML_COMMENT
 XML_COMMENT_END = "-->"
-XML_COMMENT_TEXT = {XML_COMMENT_TEXT_FRAGMENT} {XML_COMMENT_END}
-XML_COMMENT_TEMPLATE_TEXT = {XML_COMMENT_TEXT_FRAGMENT} {EXPRESSION_START}
+XML_COMMENT_TEMPLATE_TEXT = {XML_COMMENT_TEXT_FRAGMENT} {INTERPOLATION_START}
 XML_COMMENT_TEXT_FRAGMENT = {XML_COMMENT_ALLOWED_SEQUENCE}? ({XML_COMMENT_CHAR} {XML_COMMENT_ALLOWED_SEQUENCE}?)*
-XML_COMMENT_CHAR = [^{}>\\-] | {XML_ESCAPED_SEQUENCE}
+XML_COMMENT_CHAR = [^>\\-] | {XML_BRACES_SEQUENCE} | {XML_ESCAPED_SEQUENCE} | '\\'[`] | !\$\{
 XML_COMMENT_ALLOWED_SEQUENCE = {XML_BRACES_SEQUENCE} | {XML_COMMENT_SPECIAL_SEQUENCE} | ({XML_BRACES_SEQUENCE} {XML_COMMENT_SPECIAL_SEQUENCE})+ {XML_BRACES_SEQUENCE}? | ({XML_COMMENT_SPECIAL_SEQUENCE} {XML_BRACES_SEQUENCE})+ {XML_COMMENT_SPECIAL_SEQUENCE}?
-XML_COMMENT_SPECIAL_SEQUENCE = ">"+ | (">"* "-" ">"+)+ | "-"? ">"* "-"+
-
+XML_COMMENT_SPECIAL_SEQUENCE = >+ | >? - [^-]
+XML_COMMENT_TEXT = {XML_COMMENT_ALLOWED_SEQUENCE}? ({XML_COMMENT_CHAR}+ {XML_COMMENT_ALLOWED_SEQUENCE}?)
 
 // MARKDOWN_DOCUMENTATION
 MARKDOWN_DOCUMENTATION_LINE_START =  {HASH} {DOCUMENTATION_SPACE}?
@@ -255,21 +209,10 @@ RETURN_PARAMETER_DOCUMENTATION_START = {HASH} {DOCUMENTATION_SPACE}? {ADD} {DOCU
 DOCUMENTATION_SPACE = [ ]
 
 // MARKDOWN_DOCUMENTATION_MODE
-DEFINITION_REFERERNCE = {REFERENCE_TYPE} {DOCUMENTATION_SPACE}+
-REFERENCE_TYPE = {TYPE}|{ENDPOINT}|{SERVICE}|{VARIABLE}|{VAR}|{ANNOTATION}|{MODULE}|{FUNCTION}|{PARAMETER}
-MARKDOWN_DOCUMENTATION_TEXT = {DOCUMENTATION_TEXT_CHARACTER}+
+MARKDOWN_DOCUMENTATION_TEXT = ({DOCUMENTATION_TEXT_CHARACTER} | {DOCUMENTATION_ESCAPED_CHARACTERS})+
 DOCUMENTATION_TEXT_CHARACTER =  [^`\n] | '\\' {BACKTICK}
 DOCUMENTATION_ESCAPED_CHARACTERS = {DOCUMENTATION_SPACE}
 MARKDOWN_DOCUMENTATION_LINE_END = [\n]
-TYPE = "type"
-ENDPOINT = "endpoint"
-SERVICE = "service"
-VARIABLE = "variable"
-VAR = "var"
-ANNOTATION = "annotation"
-MODULE = "module"
-FUNCTION = "function"
-PARAMETER = "parameter"
 HASH = "#"
 ADD = "+"
 SUB = "-"
@@ -298,19 +241,6 @@ PARAMETER_NAME = {IDENTIFIER}
 DESCRIPTION_SEPARATOR = {DOCUMENTATION_SPACE}* {SUB} {DOCUMENTATION_SPACE}*
 PARAMETER_DOCUMENTATION_END = [\n]
 
-// DOCUMENTATION_TEMPLATE
-DOCUMENTATION_TEMPLATE_END = {RIGHT_BRACE}
-DOCUMENTATION_TEMPLATE_ATTRIBUTE_START = {ATTRIBUTE_PREFIX} {EXPRESSION_START}
-SB_DOC_INLINE_CODE_START = {ATTRIBUTE_PREFIX}? {DOC_BACK_TICK}
-DB_DOC_INLINE_CODE_START = {ATTRIBUTE_PREFIX}? {DOC_BACK_TICK} {DOC_BACK_TICK}
-TB_DOC_INLINE_CODE_START = {ATTRIBUTE_PREFIX}? {DOC_BACK_TICK} {DOC_BACK_TICK} {DOC_BACK_TICK}
-DOCUMENTATION_TEMPLATE_TEXT = {DOCUMENTATION_VALID_CHAR_SEQUENCE}? ({DOCUMENTATION_TEMPLATE_STRING_CHAR} {DOCUMENTATION_VALID_CHAR_SEQUENCE}?)+ | {DOCUMENTATION_VALID_CHAR_SEQUENCE} ({DOCUMENTATION_TEMPLATE_STRING_CHAR} {DOCUMENTATION_VALID_CHAR_SEQUENCE}?)*
-DOCUMENTATION_TEMPLATE_STRING_CHAR = [^`{}\\FPTRVE] | \\ [{}`] | {WHITE_SPACE} | {DOCUMENTATION_ESCAPED_SEQUENCE}
-ATTRIBUTE_PREFIX = [FPTRVE]
-DOC_BACK_TICK = "`"
-DOCUMENTATION_ESCAPED_SEQUENCE = \\\\
-DOCUMENTATION_VALID_CHAR_SEQUENCE = [FPTRVE] [^`{}\\] | [FPTRVE] \\ [{}`] | [FPTRVE] \\ [^{}`] | \\ [^\\]
-
 // TRIPLE_BACKTICK_INLINE_CODE
 TRIPLE_BACK_TICK_INLINE_CODE_END = {BACKTICK} {BACKTICK} {BACKTICK}
 TRIPLE_BACK_TICK_INLINE_CODE = {TRIPLE_BACK_TICK_INLINE_CODE_CHAR}+
@@ -338,12 +268,11 @@ DEPRECATED_ESCAPED_SEQUENCE = '\\\\'
 DEPRECATED_VALID_CHAR_SEQUENCE = '\\' ~'\\'
 
 // STRING_TEMPLATE
-STRING_LITERAL_ESCAPED_SEQUENCE = \\\\ | \\\{\{
-STRING_TEMPLATE_VALID_CHAR_SEQUENCE = "{" | "\\" [^\\]
-STRING_TEMPLATE_STRING_CHAR = [^\`\{\\] | \\ [\`\{] | {WHITE_SPACE} | {STRING_LITERAL_ESCAPED_SEQUENCE}
-STRING_TEMPLATE_EXPRESSION_START = {STRING_TEMPLATE_TEXT}? {EXPRESSION_START}
-STRING_TEMPLATE_TEXT = {STRING_TEMPLATE_VALID_CHAR_SEQUENCE}? ({STRING_TEMPLATE_STRING_CHAR} {STRING_TEMPLATE_VALID_CHAR_SEQUENCE}?)+
-                       | {STRING_TEMPLATE_VALID_CHAR_SEQUENCE} ({STRING_TEMPLATE_STRING_CHAR} {STRING_TEMPLATE_VALID_CHAR_SEQUENCE}?)*
+STRING_LITERAL_ESCAPED_SEQUENCE = {DOLLAR}** \\ [\\'\"bnftr\{`]
+STRING_TEMPLATE_VALID_CHAR_SEQUENCE = [^`$\\] | {DOLLAR}+ [^`$\{\\] | {WHITE_SPACE} | {STRING_LITERAL_ESCAPED_SEQUENCE}
+STRING_TEMPLATE_EXPRESSION_START = {STRING_TEMPLATE_TEXT}? {INTERPOLATION_START}
+STRING_TEMPLATE_TEXT = {STRING_TEMPLATE_VALID_CHAR_SEQUENCE}+ {DOLLAR}* | {DOLLAR}+
+DOLLAR = \$
 
 %state XML_MODE
 %state XML_TAG_MODE
@@ -358,7 +287,6 @@ STRING_TEMPLATE_TEXT = {STRING_TEMPLATE_VALID_CHAR_SEQUENCE}? ({STRING_TEMPLATE_
 %state DOUBLE_BACKTICKED_MARKDOWN_MODE
 %state TRIPLE_BACKTICKED_MARKDOWN_MODE
 
-%state DOCUMENTATION_TEMPLATE_MODE
 %state SINGLE_BACKTICK_INLINE_CODE_MODE
 %state DOUBLE_BACKTICK_INLINE_CODE_MODE
 %state TRIPLE_BACKTICK_INLINE_CODE_MODE
@@ -368,37 +296,44 @@ STRING_TEMPLATE_TEXT = {STRING_TEMPLATE_VALID_CHAR_SEQUENCE}? ({STRING_TEMPLATE_
 
 %%
 <YYINITIAL> {
+    "__init"                                    { return OBJECT_INIT; }
+
     "abort"                                     { return ABORT; }
+    "aborted"                                   { return ABORTED; }
+    "abstract"                                  { return ABSTRACT; }
     "all"                                       { return ALL; }
     "annotation"                                { return ANNOTATION; }
     "any"                                       { return ANY; }
+    "anydata"                                   { return ANYDATA; }
     "as"                                        { return AS; }
     "ascending"                                 { return ASCENDING; }
-    "await"                                     { return AWAIT; }
 
-    "bind"                                      { return BIND; }
     "boolean"                                   { return BOOLEAN; }
     "break"                                     { return BREAK; }
-    "but"                                       { return BUT; }
     "byte"                                      { return BYTE; }
 
     "catch"                                     { return CATCH; }
+    "channel"                                   { return CHANNEL; }
     "check"                                     { return CHECK; }
-    "compensation"                              { return COMPENSATION; }
-    "compensate"                                { return COMPENSATE; }
+    "checkpanic"                                { return CHECKPANIC; }
+    "client"                                    { return CLIENT; }
+    "committed"                                 { return COMMITTED; }
+    "const"                                     { return CONST; }
     "continue"                                  { return CONTINUE; }
 
-    "documentation"                             { return DOCUMENTATION; }
-    "done"                                      { return DONE; }
+    "decimal"                                   { return DECIMAL; }
+    "default"                                   { return DEFAULT; }
     "deprecated"                                { return DEPRECATED; }
     "descending"                                { return DESCENDING; }
 
     "else"                                      { return ELSE; }
-    "endpoint"                                  { return ENDPOINT; }
-    "extern"                                    { return EXTERN; }
+    "error"                                     { return ERROR; }
+    "external"                                  { return EXTERNAL; }
 
+    "final"                                     { return FINAL; }
     "finally"                                   { return FINALLY; }
     "float"                                     { return FLOAT; }
+    "flush"                                     { return FLUSH; }
     "foreach"                                   { return FOREACH; }
     "fork"                                      { return FORK; }
     "function"                                  { return FUNCTION; }
@@ -408,12 +343,13 @@ STRING_TEMPLATE_TEXT = {STRING_TEMPLATE_VALID_CHAR_SEQUENCE}? ({STRING_TEMPLATE_
     "import"                                    { return IMPORT; }
     "in"                                        { return IN; }
     "int"                                       { return INT; }
+    "is"                                        { return IS; }
 
     "join"                                      { return JOIN; }
     "json"                                      { return JSON; }
 
-    "lengthof"                                  { return LENGTHOF; }
     "limit"                                     { return LIMIT; }
+    "listener"                                  { return LISTENER; }
     "lock"                                      { return LOCK; }
 
     "map"                                       { return MAP; }
@@ -422,16 +358,15 @@ STRING_TEMPLATE_TEXT = {STRING_TEMPLATE_VALID_CHAR_SEQUENCE}? ({STRING_TEMPLATE_
     "new"                                       { return NEW; }
 
     "object"                                    { return OBJECT; }
-    "onabort"                                   { return ONABORT; }
-    "oncommit"                                  { return ONCOMMIT; }
     "onretry"                                   { return ONRETRY; }
 
+    "panic"                                     { return PANIC; }
     "parameter"                                 { return TYPE_PARAMETER; }
     "private"                                   { return PRIVATE; }
-    "primarykey"                                { return PRIMARYKEY; }
     "public"                                    { return PUBLIC; }
 
     "record"                                    { return RECORD; }
+    "remote"                                    { return REMOTE; }
     "resource"                                  { return RESOURCE; }
     "retry"                                     { return RETRY; }
     "retries"                                   { return RETRIES; }
@@ -439,15 +374,13 @@ STRING_TEMPLATE_TEXT = {STRING_TEMPLATE_VALID_CHAR_SEQUENCE}? ({STRING_TEMPLATE_
     "returns"                                   { return RETURNS; }
 
     "service"                                   { return SERVICE; }
-    "scope"                                     { return SCOPE; }
-    "some"                                      { return SOME; }
     "start"                                     { return START; }
     "stream"                                    { return STREAM; }
     "string"                                    { return STRING; }
 
     "table"                                     { return TABLE; }
-    "timeout"                                   { return TIMEOUT; }
     "transaction"                               { return TRANSACTION; }
+    "trap"                                      { return TRAP; }
     "try"                                       { return TRY; }
     "type"                                      { return TYPE; }
     "typedesc"                                  { return TYPEDESC; }
@@ -455,6 +388,7 @@ STRING_TEMPLATE_TEXT = {STRING_TEMPLATE_VALID_CHAR_SEQUENCE}? ({STRING_TEMPLATE_
 
     "untaint"                                   { return UNTAINT; }
 
+    "wait"                                      { return WAIT; }
     "while"                                     { return WHILE; }
     "with"                                      { return WITH; }
     "worker"                                    { return WORKER; }
@@ -471,7 +405,7 @@ STRING_TEMPLATE_TEXT = {STRING_TEMPLATE_VALID_CHAR_SEQUENCE}? ({STRING_TEMPLATE_
     "."                                         { return DOT; }
     ","                                         { return COMMA; }
     "{"                                         { return LEFT_BRACE; }
-    "}"                                         { return RIGHT_BRACE; }
+    "}"                                         { if (inStringTemplateExpression) { inStringTemplateExpression = false; inStringTemplate = true; yybegin(STRING_TEMPLATE_MODE); } return RIGHT_BRACE; }
     "("                                         { return LEFT_PARENTHESIS; }
     ")"                                         { return RIGHT_PARENTHESIS; }
     "["                                         { return LEFT_BRACKET; }
@@ -488,6 +422,8 @@ STRING_TEMPLATE_TEXT = {STRING_TEMPLATE_VALID_CHAR_SEQUENCE}? ({STRING_TEMPLATE_
     "!"                                         { return NOT; }
     "=="                                        { return EQUAL; }
     "!="                                        { return NOT_EQUAL; }
+    "==="                                       { return REF_EQUAL; }
+    "!=="                                       { return REF_NOT_EQUAL; }
     ">"                                         { return GT; }
     "<"                                         { return LT; }
     ">="                                        { return GT_EQUAL; }
@@ -498,6 +434,8 @@ STRING_TEMPLATE_TEXT = {STRING_TEMPLATE_VALID_CHAR_SEQUENCE}? ({STRING_TEMPLATE_
     "&"                                         { return BITAND; }
     "^"                                         { return BITXOR; }
 
+    "~"                                         { return BIT_COMPLEMENT; }
+
     "->"                                        { return RARROW; }
     "<-"                                        { return LARROW; }
     "@"                                         { return AT; }
@@ -507,18 +445,24 @@ STRING_TEMPLATE_TEXT = {STRING_TEMPLATE_VALID_CHAR_SEQUENCE}? ({STRING_TEMPLATE_
     "|"                                         { return PIPE; }
     "=>"                                        { return EQUAL_GT; }
     "?:"                                        { return ELVIS; }
+    "->>"                                       { return SYNCRARROW; }
 
     "+="                                        { return COMPOUND_ADD; }
     "-="                                        { return COMPOUND_SUB; }
     "*="                                        { return COMPOUND_MUL; }
     "/="                                        { return COMPOUND_DIV; }
 
-    "++"                                        { return INCREMENT; }
-    "--"                                        { return DECREMENT; }
+    "&="                                        { return COMPOUND_BIT_AND; }
+    "|="                                        { return COMPOUND_BIT_OR; }
+    "^="                                        { return COMPOUND_BIT_XOR; }
+
+    "<<="                                       { return COMPOUND_LEFT_SHIFT; }
+    ">>="                                       { return COMPOUND_RIGHT_SHIFT; }
+    ">>>="                                      { return COMPOUND_LOGICAL_SHIFT; }
 
     "..<"                                       { return HALF_OPEN_RANGE; }
 
-    "from"                                      { inSiddhi = false; inTableSqlQuery = true; inSiddhiInsertQuery = true; inSiddhiOutputRateLimit = true; return FROM; }
+    "from"                                      { inTableSqlQuery = true; inSiddhiInsertQuery = true; inSiddhiOutputRateLimit = true; return FROM; }
     "on"                                        { return ON; }
     "select"                                    { if(inTableSqlQuery) { inTableSqlQuery = false; return SELECT; } return IDENTIFIER; }
     "group"                                     { return GROUP; }
@@ -527,7 +471,6 @@ STRING_TEMPLATE_TEXT = {STRING_TEMPLATE_VALID_CHAR_SEQUENCE}? ({STRING_TEMPLATE_
     "order"                                     { return ORDER; }
     "where"                                     { return WHERE; }
     "followed"                                  { return FOLLOWED; }
-    "set"                                       { return SET; }
     "for"                                       { inSiddhiTimeScaleQuery = true; return FOR; }
     "window"                                    { return WINDOW; }
     "events"                                    { if(inSiddhiInsertQuery) { inSiddhiInsertQuery = false; return EVENTS; } return IDENTIFIER; }
@@ -563,10 +506,12 @@ STRING_TEMPLATE_TEXT = {STRING_TEMPLATE_VALID_CHAR_SEQUENCE}? ({STRING_TEMPLATE_
     {BOOLEAN_LITERAL}                           { return BOOLEAN_LITERAL; }
     {DECIMAL_INTEGER_LITERAL}                   { return DECIMAL_INTEGER_LITERAL; }
     {HEX_INTEGER_LITERAL}                       { return HEX_INTEGER_LITERAL; }
-    {OCTAL_INTEGER_LITERAL}                     { return OCTAL_INTEGER_LITERAL; }
-    {BINARY_INTEGER_LITERAL}                    { return BINARY_INTEGER_LITERAL; }
-    {FLOATING_POINT_LITERAL}                    { return FLOATING_POINT_LITERAL; }
     {QUOTED_STRING_LITERAL}                     { return QUOTED_STRING_LITERAL; }
+    {SYMBOLIC_STRING_LITERAL}                   { return SYMBOLIC_STRING_LITERAL; }
+
+    {DecimalFloatingPointNumber}                { return DECIMAL_FLOATING_POINT_NUMBER; }
+    {HexadecimalFloatingPointLiteral}           { return HEXADECIMAL_FLOATING_POINT_LITERAL; }
+
 
     {BASE_16_BLOB_LITERAL}                      { return BASE_16_BLOB_LITERAL; }
     {BASE_64_BLOB_LITERAL}                      { return BASE_64_BLOB_LITERAL; }
@@ -576,13 +521,11 @@ STRING_TEMPLATE_TEXT = {STRING_TEMPLATE_VALID_CHAR_SEQUENCE}? ({STRING_TEMPLATE_
 
     {XML_LITERAL_START}                         { yybegin(XML_MODE); return XML_LITERAL_START; }
     {STRING_TEMPLATE_LITERAL_START}             { inStringTemplate = true; yybegin(STRING_TEMPLATE_MODE); return STRING_TEMPLATE_LITERAL_START; }
-    {EXPRESSION_END}                            { return checkExpressionEnd(); }
 
     {RETURN_PARAMETER_DOCUMENTATION_START}      { yybegin(MARKDOWN_DOCUMENTATION_MODE); return RETURN_PARAMETER_DOCUMENTATION_START; }
     {PARAMETER_DOCUMENTATION_START}             { yybegin(MARKDOWN_PARAMETER_DOCUMENTATION_MODE); return PARAMETER_DOCUMENTATION_START; }
     {MARKDOWN_DOCUMENTATION_LINE_START}         { yybegin(MARKDOWN_DOCUMENTATION_MODE); return MARKDOWN_DOCUMENTATION_LINE_START; }
 
-    {DOCUMENTATION_TEMPLATE_START}              { inDocTemplate = true; yybegin(DOCUMENTATION_TEMPLATE_MODE); return DOCUMENTATION_TEMPLATE_START; }
     {DEPRECATED_TEMPLATE_START}                 { inDeprecatedTemplate = true; yybegin(DEPRECATED_TEMPLATE_MODE); return DEPRECATED_TEMPLATE_START; }
     .                                           { return BAD_CHARACTER; }
 }
@@ -613,7 +556,6 @@ STRING_TEMPLATE_TEXT = {STRING_TEMPLATE_VALID_CHAR_SEQUENCE}? ({STRING_TEMPLATE_
     {SINGLE_QUOTE}                              { yybegin(SINGLE_QUOTED_XML_STRING_MODE); return SINGLE_QUOTE; }
     {XML_QNAME}                                 { return XML_QNAME; }
     {XML_TAG_WS}                                { } // Todo - Need to return a value?
-    {XML_TAG_EXPRESSION_START}                  { inXmlTagMode = true; yybegin(YYINITIAL); return XML_TAG_EXPRESSION_START; }
     .                                           { return BAD_CHARACTER; }
 }
 
@@ -638,44 +580,35 @@ STRING_TEMPLATE_TEXT = {STRING_TEMPLATE_VALID_CHAR_SEQUENCE}? ({STRING_TEMPLATE_
 }
 
 <XML_COMMENT_MODE>{
-    {XML_COMMENT_TEXT}                          { yybegin(XML_MODE); return XML_COMMENT_TEXT; }
+    {XML_COMMENT_END}                           { yybegin(XML_MODE); return XML_COMMENT_END; }
     {XML_COMMENT_TEMPLATE_TEXT}                 { inXmlCommentMode = true; yybegin(YYINITIAL); return XML_COMMENT_TEMPLATE_TEXT; }
+    {XML_COMMENT_TEXT}                          { return XML_COMMENT_TEXT; }
     .                                           { return BAD_CHARACTER; }
 }
 
 <STRING_TEMPLATE_MODE>{
     {STRING_TEMPLATE_LITERAL_END}               { inStringTemplate = false; yybegin(YYINITIAL); return STRING_TEMPLATE_LITERAL_END; }
-    {STRING_TEMPLATE_EXPRESSION_START}          { yybegin(YYINITIAL); return STRING_TEMPLATE_EXPRESSION_START; }
+    {STRING_TEMPLATE_EXPRESSION_START}          { inStringTemplate = false; inStringTemplateExpression = true; yybegin(YYINITIAL); return STRING_TEMPLATE_EXPRESSION_START; }
     {STRING_TEMPLATE_TEXT}                      { return STRING_TEMPLATE_TEXT; }
     .                                           { inStringTemplate = false; yybegin(YYINITIAL); return BAD_CHARACTER; }
 }
 
-<DOCUMENTATION_TEMPLATE_MODE>{
-    {DOCUMENTATION_TEMPLATE_END}                { inDocTemplate = false; yybegin(YYINITIAL); return DOCUMENTATION_TEMPLATE_END; }
-    {SB_DOC_INLINE_CODE_START}                  { yybegin(SINGLE_BACKTICK_INLINE_CODE_MODE); return SB_DOC_INLINE_CODE_START; }
-    {DB_DOC_INLINE_CODE_START}                  { yybegin(DOUBLE_BACKTICK_INLINE_CODE_MODE); return DB_DOC_INLINE_CODE_START; }
-    {TB_DOC_INLINE_CODE_START}                  { yybegin(TRIPLE_BACKTICK_INLINE_CODE_MODE); return TB_DOC_INLINE_CODE_START; }
-    {DOCUMENTATION_TEMPLATE_ATTRIBUTE_START}    { yybegin(YYINITIAL); return DOCUMENTATION_TEMPLATE_ATTRIBUTE_START; }
-    {DOCUMENTATION_TEMPLATE_TEXT}               { return DOCUMENTATION_TEMPLATE_TEXT; }
-    .                                           { yybegin(YYINITIAL); return BAD_CHARACTER; }
-}
-
 <SINGLE_BACKTICK_INLINE_CODE_MODE>{
-    {SINGLE_BACK_TICK_INLINE_CODE_END}          { if(inDocTemplate) { yybegin(DOCUMENTATION_TEMPLATE_MODE); } else if(inDeprecatedTemplate) { yybegin(DEPRECATED_TEMPLATE_MODE); } return SINGLE_BACK_TICK_INLINE_CODE_END; }
+    {SINGLE_BACK_TICK_INLINE_CODE_END}          { yybegin(DEPRECATED_TEMPLATE_MODE); return SINGLE_BACK_TICK_INLINE_CODE_END; }
     {SINGLE_BACK_TICK_INLINE_CODE}              { return SINGLE_BACK_TICK_INLINE_CODE; }
-     .                                          { if(inDocTemplate) { yybegin(DOCUMENTATION_TEMPLATE_MODE); } else if(inDeprecatedTemplate) { yybegin(DEPRECATED_TEMPLATE_MODE); } return BAD_CHARACTER; }
+     .                                          { yybegin(DEPRECATED_TEMPLATE_MODE); return BAD_CHARACTER; }
 }
 
 <DOUBLE_BACKTICK_INLINE_CODE_MODE>{
-    {DOUBLE_BACK_TICK_INLINE_CODE_END}          { if(inDocTemplate) { yybegin(DOCUMENTATION_TEMPLATE_MODE); } else if(inDeprecatedTemplate) { yybegin(DEPRECATED_TEMPLATE_MODE); } return DOUBLE_BACK_TICK_INLINE_CODE_END; }
+    {DOUBLE_BACK_TICK_INLINE_CODE_END}          { yybegin(DEPRECATED_TEMPLATE_MODE); return DOUBLE_BACK_TICK_INLINE_CODE_END; }
     {DOUBLE_BACK_TICK_INLINE_CODE}              { return DOUBLE_BACK_TICK_INLINE_CODE; }
-     .                                          { if(inDocTemplate) { yybegin(DOCUMENTATION_TEMPLATE_MODE); } else if(inDeprecatedTemplate) { yybegin(DEPRECATED_TEMPLATE_MODE); } return BAD_CHARACTER; }
+     .                                          { yybegin(DEPRECATED_TEMPLATE_MODE); return BAD_CHARACTER; }
 }
 
 <TRIPLE_BACKTICK_INLINE_CODE_MODE>{
-    {TRIPLE_BACK_TICK_INLINE_CODE_END}          { if(inDocTemplate) { yybegin(DOCUMENTATION_TEMPLATE_MODE); } else if(inDeprecatedTemplate) { yybegin(DEPRECATED_TEMPLATE_MODE); } return TRIPLE_BACK_TICK_INLINE_CODE_END; }
+    {TRIPLE_BACK_TICK_INLINE_CODE_END}          { yybegin(DEPRECATED_TEMPLATE_MODE); return TRIPLE_BACK_TICK_INLINE_CODE_END; }
     {TRIPLE_BACK_TICK_INLINE_CODE}              { return TRIPLE_BACK_TICK_INLINE_CODE; }
-     .                                          { if(inDocTemplate) { yybegin(DOCUMENTATION_TEMPLATE_MODE); } else if(inDeprecatedTemplate) { yybegin(DEPRECATED_TEMPLATE_MODE); } return BAD_CHARACTER; }
+     .                                          { yybegin(DEPRECATED_TEMPLATE_MODE); return BAD_CHARACTER; }
 }
 
 <DEPRECATED_TEMPLATE_MODE>{

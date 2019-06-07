@@ -17,10 +17,9 @@
 */
 package org.ballerinalang.langserver.completions.util.sorters;
 
-import org.ballerinalang.langserver.compiler.LSServiceOperationContext;
+import org.ballerinalang.langserver.compiler.LSContext;
 import org.ballerinalang.langserver.completions.util.ItemResolverConstants;
 import org.ballerinalang.langserver.completions.util.Priority;
-import org.ballerinalang.langserver.completions.util.Snippet;
 import org.eclipse.lsp4j.CompletionItem;
 
 import java.util.List;
@@ -35,7 +34,7 @@ public abstract class CompletionItemSorter {
      * @param ctx               Completion context
      * @param completionItems   List of initial completion items
      */
-    public abstract void sortItems(LSServiceOperationContext ctx, List<CompletionItem> completionItems);
+    public abstract void sortItems(LSContext ctx, List<CompletionItem> completionItems);
 
     /**
      * Set the priorities in the default order.
@@ -44,14 +43,6 @@ public abstract class CompletionItemSorter {
      */
     void setPriorities(List<CompletionItem> completionItems) {
         completionItems.forEach(this::setPriority);
-    }
-
-    CompletionItem getEndpointSnippet(boolean snippetCapability) {
-        CompletionItem endpointItem = new CompletionItem();
-        Snippet.DEF_ENDPOINT.getBlock().populateCompletionItem(endpointItem, snippetCapability);
-        endpointItem.setLabel(ItemResolverConstants.ENDPOINT);
-        endpointItem.setDetail(ItemResolverConstants.SNIPPET_TYPE);
-        return endpointItem;
     }
 
     /**

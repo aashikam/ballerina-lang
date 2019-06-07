@@ -24,10 +24,13 @@ import org.ballerinalang.langserver.BallerinaLanguageServer;
 import org.eclipse.lsp4j.ClientCapabilities;
 import org.eclipse.lsp4j.CodeActionContext;
 import org.eclipse.lsp4j.CodeActionParams;
+import org.eclipse.lsp4j.CodeLensParams;
 import org.eclipse.lsp4j.CompletionCapabilities;
 import org.eclipse.lsp4j.CompletionItemCapabilities;
+import org.eclipse.lsp4j.CompletionParams;
 import org.eclipse.lsp4j.DidCloseTextDocumentParams;
 import org.eclipse.lsp4j.DidOpenTextDocumentParams;
+import org.eclipse.lsp4j.DocumentFormattingParams;
 import org.eclipse.lsp4j.DocumentSymbolParams;
 import org.eclipse.lsp4j.ExecuteCommandParams;
 import org.eclipse.lsp4j.InitializeParams;
@@ -36,6 +39,8 @@ import org.eclipse.lsp4j.Range;
 import org.eclipse.lsp4j.ReferenceContext;
 import org.eclipse.lsp4j.ReferenceParams;
 import org.eclipse.lsp4j.RenameParams;
+import org.eclipse.lsp4j.SignatureHelpCapabilities;
+import org.eclipse.lsp4j.SignatureInformationCapabilities;
 import org.eclipse.lsp4j.TextDocumentClientCapabilities;
 import org.eclipse.lsp4j.TextDocumentIdentifier;
 import org.eclipse.lsp4j.TextDocumentItem;
@@ -50,6 +55,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.Arrays;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 
@@ -59,6 +65,8 @@ import java.util.concurrent.ExecutionException;
 public class TestUtil {
 
     private static final String HOVER = "textDocument/hover";
+
+    private static final String CODELENS = "textDocument/codeLens";
 
     private static final String COMPLETION = "textDocument/completion";
 
@@ -74,8 +82,12 @@ public class TestUtil {
 
     private static final String CODE_ACTION = "textDocument/codeAction";
 
+    private static final String FORMATTING = "textDocument/formatting";
+
+    private static final String IMPLEMENTATION = "textDocument/implementation";
+
     private static final String DOCUMENT_SYMBOL = "textDocument/documentSymbol";
-    
+
     private static final String WORKSPACE_SYMBOL_COMMAND = "workspace/symbol";
 
     private static final Gson GSON = new Gson();
@@ -86,13 +98,27 @@ public class TestUtil {
     /**
      * Get the textDocument/hover response.
      *
-     * @param filePath          Path of the Bal file
-     * @param position          Cursor Position
-     * @param serviceEndpoint   Service Endpoint to Language Server
+     * @param filePath        Path of the Bal file
+     * @param position        Cursor Position
+     * @param serviceEndpoint Service Endpoint to Language Server
      * @return {@link String}   Response as String
      */
     public static String getHoverResponse(String filePath, Position position, Endpoint serviceEndpoint) {
         CompletableFuture result = serviceEndpoint.request(HOVER, getTextDocumentPositionParams(filePath, position));
+        return getResponseString(result);
+    }
+
+    /**
+     * Get the textDocument/codeLens response.
+     *
+     * @param filePath        Path of the Bal file
+     * @param serviceEndpoint Service Endpoint to Language Server
+     * @return {@link String}   Response as String
+     */
+    public static String getCodeLensesResponse(String filePath, Endpoint serviceEndpoint) {
+        TextDocumentIdentifier identifier = getTextDocumentIdentifier(filePath);
+        CodeLensParams codeLensParams = new CodeLensParams(identifier);
+        CompletableFuture result = serviceEndpoint.request(CODELENS, codeLensParams);
         return getResponseString(result);
     }
 
@@ -105,16 +131,16 @@ public class TestUtil {
      * @return {@link String}   Response as String
      */
     public static String getCompletionResponse(String filePath, Position position, Endpoint endpoint) {
-        CompletableFuture result = endpoint.request(COMPLETION, getTextDocumentPositionParams(filePath, position));
+        CompletableFuture result = endpoint.request(COMPLETION, getCompletionParams(filePath, position));
         return getResponseString(result);
     }
 
     /**
      * Get the textDocument/signatureHelp response.
      *
-     * @param filePath          Path of the Bal file
-     * @param position          Cursor Position
-     * @param serviceEndpoint   Service Endpoint to Language Server
+     * @param filePath        Path of the Bal file
+     * @param position        Cursor Position
+     * @param serviceEndpoint Service Endpoint to Language Server
      * @return {@link String}   Response as String
      */
     public static String getSignatureHelpResponse(String filePath, Position position, Endpoint serviceEndpoint) {
@@ -126,9 +152,9 @@ public class TestUtil {
     /**
      * Get the textDocument/definition response.
      *
-     * @param filePath          Path of the Bal file
-     * @param position          Cursor Position
-     * @param serviceEndpoint   Service Endpoint to Language Server
+     * @param filePath        Path of the Bal file
+     * @param position        Cursor Position
+     * @param serviceEndpoint Service Endpoint to Language Server
      * @return {@link String}   Response as String
      */
     public static String getDefinitionResponse(String filePath, Position position, Endpoint serviceEndpoint) {
@@ -140,9 +166,9 @@ public class TestUtil {
     /**
      * Get the textDocument/reference response.
      *
-     * @param filePath          Path of the Bal file
-     * @param position          Cursor Position
-     * @param serviceEndpoint   Service Endpoint to Language Server
+     * @param filePath        Path of the Bal file
+     * @param position        Cursor Position
+     * @param serviceEndpoint Service Endpoint to Language Server
      * @return {@link String}   Response as String
      */
     public static String getReferencesResponse(String filePath, Position position, Endpoint serviceEndpoint) {
@@ -183,10 +209,10 @@ public class TestUtil {
     /**
      * Get Code Action Response as String.
      *
-     * @param serviceEndpoint       Language Server Service endpoint
-     * @param filePath              File path for the current file
-     * @param range                 Cursor range
-     * @param context               Code Action Context
+     * @param serviceEndpoint Language Server Service endpoint
+     * @param filePath        File path for the current file
+     * @param range           Cursor range
+     * @param context         Code Action Context
      * @return {@link String}       code action response as a string
      */
     public static String getCodeActionResponse(Endpoint serviceEndpoint, String filePath, Range range,
@@ -200,8 +226,8 @@ public class TestUtil {
     /**
      * Get the workspace/executeCommand response.
      *
-     * @param params            Execute command parameters
-     * @param serviceEndpoint   Service endpoint to language server
+     * @param params          Execute command parameters
+     * @param serviceEndpoint Service endpoint to language server
      * @return {@link String}   Lang server Response as String
      */
     public static String getExecuteCommandResponse(ExecuteCommandParams params, Endpoint serviceEndpoint) {
@@ -223,11 +249,37 @@ public class TestUtil {
     }
 
     /**
+     * Get formatting response.
+     *
+     * @param params Document formatting parameters
+     * @param serviceEndpoint Service endpoint to language server
+     * @return {@link String} Language server response as String
+     */
+    public static String getFormattingResponse(DocumentFormattingParams params, Endpoint serviceEndpoint) {
+        CompletableFuture result = serviceEndpoint.request(FORMATTING, params);
+        return getResponseString(result);
+    }
+
+    /**
+     * Get the Goto implementation response.
+     *
+     * @param serviceEndpoint   Language Server Service endpoint
+     * @param filePath          File path to evaluate
+     * @param position          Cursor position
+     * @return {@link CompletableFuture}    Response completable future
+     */
+    public static String getGotoImplementationResponse(Endpoint serviceEndpoint, String filePath, Position position) {
+        TextDocumentPositionParams positionParams = getTextDocumentPositionParams(filePath, position);
+        CompletableFuture completableFuture = serviceEndpoint.request(IMPLEMENTATION, positionParams);
+        return getResponseString(completableFuture);
+    }
+
+    /**
      * Open a document.
-     * 
-     * @param serviceEndpoint   Language Server Service Endpoint
-     * @param filePath          Path of the document to open
-     * @throws IOException      Exception while reading the file content
+     *
+     * @param serviceEndpoint Language Server Service Endpoint
+     * @param filePath        Path of the document to open
+     * @throws IOException Exception while reading the file content
      */
     public static void openDocument(Endpoint serviceEndpoint, Path filePath) throws IOException {
         DidOpenTextDocumentParams documentParams = new DidOpenTextDocumentParams();
@@ -239,15 +291,15 @@ public class TestUtil {
         textDocumentItem.setUri(identifier.getUri());
         textDocumentItem.setText(new String(encodedContent));
         documentParams.setTextDocument(textDocumentItem);
-        
+
         serviceEndpoint.notify("textDocument/didOpen", documentParams);
     }
 
     /**
      * Close an already opened document.
      *
-     * @param serviceEndpoint   Service Endpoint to Language Server
-     * @param filePath          File path of the file to be closed
+     * @param serviceEndpoint Service Endpoint to Language Server
+     * @param filePath        File path of the file to be closed
      */
     public static void closeDocument(Endpoint serviceEndpoint, Path filePath) {
         TextDocumentIdentifier documentIdentifier = new TextDocumentIdentifier();
@@ -257,7 +309,7 @@ public class TestUtil {
 
     /**
      * Initialize the language server instance to use.
-     * 
+     *
      * @return {@link Endpoint}     Service Endpoint
      */
     public static Endpoint initializeLanguageSever() {
@@ -266,8 +318,16 @@ public class TestUtil {
         ClientCapabilities capabilities = new ClientCapabilities();
         TextDocumentClientCapabilities textDocumentClientCapabilities = new TextDocumentClientCapabilities();
         CompletionCapabilities completionCapabilities = new CompletionCapabilities();
+        SignatureHelpCapabilities signatureHelpCapabilities = new SignatureHelpCapabilities();
+        SignatureInformationCapabilities sigInfoCapabilities =
+                new SignatureInformationCapabilities(Arrays.asList("markdown", "plaintext"));
+
+        signatureHelpCapabilities.setSignatureInformation(sigInfoCapabilities);
         completionCapabilities.setCompletionItem(new CompletionItemCapabilities(true));
+
         textDocumentClientCapabilities.setCompletion(completionCapabilities);
+        textDocumentClientCapabilities.setSignatureHelp(signatureHelpCapabilities);
+
         capabilities.setTextDocument(textDocumentClientCapabilities);
         params.setCapabilities(capabilities);
         endpoint.request("initialize", params);
@@ -278,7 +338,7 @@ public class TestUtil {
     /**
      * Shutdown an already running language server.
      *
-     * @param serviceEndpoint   Language server Service Endpoint
+     * @param serviceEndpoint Language server Service Endpoint
      */
     public static void shutdownLanguageServer(Endpoint serviceEndpoint) {
         serviceEndpoint.notify("shutdown", null);
@@ -326,6 +386,14 @@ public class TestUtil {
         positionParams.setPosition(new Position(position.getLine(), position.getCharacter()));
 
         return positionParams;
+    }
+
+    private static CompletionParams getCompletionParams(String filePath, Position position) {
+        CompletionParams completionParams = new CompletionParams();
+        completionParams.setTextDocument(getTextDocumentIdentifier(filePath));
+        completionParams.setPosition(new Position(position.getLine(), position.getCharacter()));
+
+        return completionParams;
     }
 
     private static String getResponseString(CompletableFuture completableFuture) {

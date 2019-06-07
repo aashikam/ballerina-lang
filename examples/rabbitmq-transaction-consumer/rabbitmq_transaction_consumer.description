@@ -1,0 +1,5 @@
+// In this example, the messages are consumed from an
+// already existing queue using the Ballerina RabbitMQ message listener
+// and ballerina transactions.
+// Upon successful execution of the transaction block,
+// the channel will commit and rollback in-case of any error.

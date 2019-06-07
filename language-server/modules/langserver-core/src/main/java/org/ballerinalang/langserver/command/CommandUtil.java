@@ -15,61 +15,90 @@
  */
 package org.ballerinalang.langserver.command;
 
+import org.apache.commons.lang3.tuple.ImmutablePair;
+import org.apache.commons.lang3.tuple.Pair;
+import org.ballerinalang.langserver.command.executors.AddAllDocumentationExecutor;
+import org.ballerinalang.langserver.command.executors.AddDocumentationExecutor;
+import org.ballerinalang.langserver.command.executors.CreateFunctionExecutor;
+import org.ballerinalang.langserver.command.executors.CreateObjectInitializerExecutor;
+import org.ballerinalang.langserver.command.executors.CreateTestExecutor;
+import org.ballerinalang.langserver.command.executors.CreateVariableExecutor;
+import org.ballerinalang.langserver.command.executors.IgnoreReturnExecutor;
+import org.ballerinalang.langserver.command.executors.ImportModuleExecutor;
+import org.ballerinalang.langserver.command.executors.PullModuleExecutor;
 import org.ballerinalang.langserver.common.UtilSymbolKeys;
 import org.ballerinalang.langserver.common.constants.CommandConstants;
 import org.ballerinalang.langserver.common.constants.NodeContextKeys;
 import org.ballerinalang.langserver.common.position.PositionTreeVisitor;
 import org.ballerinalang.langserver.common.utils.CommonUtil;
-import org.ballerinalang.langserver.common.utils.CommonUtil.FunctionGenerator;
 import org.ballerinalang.langserver.compiler.DocumentServiceKeys;
 import org.ballerinalang.langserver.compiler.LSCompiler;
 import org.ballerinalang.langserver.compiler.LSCompilerUtil;
+import org.ballerinalang.langserver.compiler.LSContext;
 import org.ballerinalang.langserver.compiler.LSPackageLoader;
 import org.ballerinalang.langserver.compiler.LSServiceOperationContext;
 import org.ballerinalang.langserver.compiler.common.LSCustomErrorStrategy;
 import org.ballerinalang.langserver.compiler.common.LSDocument;
 import org.ballerinalang.langserver.compiler.common.modal.BallerinaPackage;
+import org.ballerinalang.langserver.compiler.workspace.WorkspaceDocumentException;
 import org.ballerinalang.langserver.compiler.workspace.WorkspaceDocumentManager;
-import org.ballerinalang.model.elements.Flag;
-import org.ballerinalang.model.symbols.SymbolKind;
-import org.ballerinalang.model.tree.FunctionNode;
+import org.ballerinalang.langserver.diagnostic.DiagnosticsHelper;
+import org.ballerinalang.model.elements.PackageID;
+import org.ballerinalang.model.tree.Node;
 import org.ballerinalang.model.tree.TopLevelNode;
-import org.ballerinalang.model.tree.VariableNode;
 import org.ballerinalang.model.types.TypeKind;
+import org.ballerinalang.util.BLangConstants;
+import org.eclipse.lsp4j.ApplyWorkspaceEditParams;
+import org.eclipse.lsp4j.CodeAction;
+import org.eclipse.lsp4j.CodeActionKind;
 import org.eclipse.lsp4j.CodeActionParams;
 import org.eclipse.lsp4j.Command;
 import org.eclipse.lsp4j.Diagnostic;
+import org.eclipse.lsp4j.MessageParams;
+import org.eclipse.lsp4j.MessageType;
 import org.eclipse.lsp4j.Position;
+import org.eclipse.lsp4j.Range;
+import org.eclipse.lsp4j.ResourceOperation;
+import org.eclipse.lsp4j.TextDocumentEdit;
+import org.eclipse.lsp4j.TextDocumentIdentifier;
 import org.eclipse.lsp4j.TextDocumentPositionParams;
-import org.wso2.ballerinalang.compiler.semantics.model.Scope;
-import org.wso2.ballerinalang.compiler.tree.BLangAnnotationAttachment;
-import org.wso2.ballerinalang.compiler.tree.BLangEndpoint;
+import org.eclipse.lsp4j.TextEdit;
+import org.eclipse.lsp4j.VersionedTextDocumentIdentifier;
+import org.eclipse.lsp4j.WorkspaceEdit;
+import org.eclipse.lsp4j.jsonrpc.messages.Either;
+import org.eclipse.lsp4j.services.LanguageClient;
+import org.wso2.ballerinalang.compiler.tree.BLangCompilationUnit;
 import org.wso2.ballerinalang.compiler.tree.BLangFunction;
 import org.wso2.ballerinalang.compiler.tree.BLangNode;
 import org.wso2.ballerinalang.compiler.tree.BLangPackage;
-import org.wso2.ballerinalang.compiler.tree.BLangResource;
-import org.wso2.ballerinalang.compiler.tree.BLangService;
-import org.wso2.ballerinalang.compiler.tree.BLangTypeDefinition;
-import org.wso2.ballerinalang.compiler.tree.BLangVariable;
+import org.wso2.ballerinalang.compiler.tree.BLangSimpleVariable;
 import org.wso2.ballerinalang.compiler.tree.expressions.BLangInvocation;
-import org.wso2.ballerinalang.compiler.tree.types.BLangObjectTypeNode;
-import org.wso2.ballerinalang.compiler.tree.types.BLangRecordTypeNode;
-import org.wso2.ballerinalang.compiler.util.Name;
-import org.wso2.ballerinalang.compiler.util.diagnotic.DiagnosticPos;
+import org.wso2.ballerinalang.compiler.tree.statements.BLangBlockStmt;
+import org.wso2.ballerinalang.compiler.tree.statements.BLangReturn;
+import org.wso2.ballerinalang.compiler.tree.statements.BLangStatement;
+import org.wso2.ballerinalang.compiler.tree.types.BLangValueType;
 import org.wso2.ballerinalang.util.Flags;
 
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.IOException;
+import java.io.StringReader;
+import java.lang.reflect.Field;
+import java.net.URI;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
-import java.util.Set;
-import java.util.stream.Collectors;
+import java.util.StringJoiner;
+import java.util.regex.Matcher;
 import java.util.stream.Stream;
 
-import static org.ballerinalang.langserver.common.utils.CommonUtil.generateName;
+import static org.ballerinalang.langserver.common.utils.CommonUtil.FunctionGenerator.generateTypeDefinition;
+import static org.ballerinalang.langserver.compiler.LSCompilerUtil.getUntitledFilePath;
 
 /**
  * Utilities for the command related operations.
@@ -80,78 +109,105 @@ public class CommandUtil {
     }
 
     /**
-     * Get the command for auto documentation Generation.
-     * @param nodeType          Type of the node on which the documentation generated
-     * @param docUri            Document Uri
-     * @param line              Line of the command being executed
-     * @return {@link Command}  Document Generation command
-     */
-    private static Command getDocGenerationCommand(String nodeType, String docUri, int line) {
-        CommandArgument nodeTypeArg = new CommandArgument(CommandConstants.ARG_KEY_NODE_TYPE, nodeType);
-        CommandArgument docUriArg = new CommandArgument(CommandConstants.ARG_KEY_DOC_URI, docUri);
-        CommandArgument lineStart = new CommandArgument(CommandConstants.ARG_KEY_NODE_LINE,
-                String.valueOf(line));
-
-        return new Command(CommandConstants.ADD_DOCUMENTATION_TITLE, CommandConstants.CMD_ADD_DOCUMENTATION,
-                new ArrayList<>(Arrays.asList(nodeTypeArg, docUriArg, lineStart)));
-    }
-
-    /**
-     * Get the command for generate all documentation.
-     * @param docUri            Document Uri
-     * @return {@link Command}  All Document Generation command
-     */
-    private static Command getAllDocGenerationCommand(String docUri) {
-        CommandArgument docUriArg = new CommandArgument(CommandConstants.ARG_KEY_DOC_URI, docUri);
-        return new Command(CommandConstants.ADD_ALL_DOC_TITLE, CommandConstants.CMD_ADD_ALL_DOC,
-                new ArrayList<>(Collections.singletonList(docUriArg)));
-    }
-
-    private static Command getConstructorGenerationCommand(String docUri, int line) {
-        CommandArgument docUriArg = new CommandArgument(CommandConstants.ARG_KEY_DOC_URI, docUri);
-        CommandArgument startLineArg = new CommandArgument(CommandConstants.ARG_KEY_NODE_LINE, String.valueOf(line));
-        return new Command(CommandConstants.CREATE_CONSTRUCTOR_TITLE, CommandConstants.CMD_CREATE_CONSTRUCTOR,
-                new ArrayList<>(Arrays.asList(docUriArg, startLineArg)));
-    }
-
-    /**
      * Get the commands for the given node type.
      *
-     * @param nodeType          Node Type
-     * @param docUri            Document URI
-     * @param line              Node line
-     * @return {@link List}     List of commands for the line
+     * @param topLevelNodeType Node Type
+     * @param docUri           Document URI
+     * @param line             Node line
+     * @return {@link List}    List of commands for the line
      */
-    public static List<Command> getCommandForNodeType(String nodeType, String docUri, int line) {
-        List<Command> commands = new ArrayList<>();
-        
-        if (UtilSymbolKeys.OBJECT_KEYWORD_KEY.equals(nodeType)) {
-            commands.add(getConstructorGenerationCommand(docUri, line));
+    public static List<CodeAction> getCommandForNodeType(String topLevelNodeType, String docUri,
+                                                                          int line) {
+        List<CodeAction> actions = new ArrayList<>();
+        if (UtilSymbolKeys.OBJECT_KEYWORD_KEY.equals(topLevelNodeType)) {
+            actions.add(getInitializerGenerationCommand(docUri, line));
         }
-        commands.add(getDocGenerationCommand(nodeType, docUri, line));
-        commands.add(getAllDocGenerationCommand(docUri));
-        
-        return commands;
+        actions.add(getDocGenerationCommand(topLevelNodeType, docUri, line));
+        actions.add(getAllDocGenerationCommand(docUri));
+        return actions;
+    }
+
+    /**
+     * Get the command for generate test class.
+     *
+     * @param topLevelNodeType top level node
+     * @param docUri           Document Uri
+     * @param params           Code action parameters
+     * @param documentManager  Document manager
+     * @param lsCompiler       LS Compiler
+     * @return {@link Command}  Test Generation command
+     */
+    public static List<CodeAction> getTestGenerationCommand(String topLevelNodeType, String docUri,
+                                                         CodeActionParams params,
+                                                         WorkspaceDocumentManager documentManager,
+                                                         LSCompiler lsCompiler) {
+        LSServiceOperationContext context = new LSServiceOperationContext();
+        List<CodeAction> actions = new ArrayList<>();
+        List<Object> args = new ArrayList<>();
+        args.add(new CommandArgument(CommandConstants.ARG_KEY_DOC_URI, docUri));
+        Position position = params.getRange().getStart();
+        args.add(new CommandArgument(CommandConstants.ARG_KEY_NODE_LINE, "" + position.getLine()));
+        args.add(new CommandArgument(CommandConstants.ARG_KEY_NODE_COLUMN, "" + position.getCharacter()));
+
+        boolean isService = UtilSymbolKeys.SERVICE_KEYWORD_KEY.equals(topLevelNodeType);
+        boolean isFunction = UtilSymbolKeys.FUNCTION_KEYWORD_KEY.equals(topLevelNodeType);
+        if ((isService || isFunction) && !isTopLevelNode(docUri, documentManager, lsCompiler, context, position)) {
+            return actions;
+        }
+
+        if (isService) {
+            CodeAction action = new CodeAction(CommandConstants.CREATE_TEST_SERVICE_TITLE);
+            action.setKind(CodeActionKind.Source);
+            action.setCommand(new Command(CommandConstants.CREATE_TEST_SERVICE_TITLE,
+                                          CreateTestExecutor.COMMAND, args));
+            actions.add(action);
+        } else if (isFunction) {
+            CodeAction action = new CodeAction(CommandConstants.CREATE_TEST_FUNC_TITLE);
+            action.setKind(CodeActionKind.Source);
+            action.setCommand(new Command(CommandConstants.CREATE_TEST_FUNC_TITLE,
+                                          CreateTestExecutor.COMMAND, args));
+            actions.add(action);
+        }
+        return actions;
+    }
+
+    private static boolean isTopLevelNode(String docUri, WorkspaceDocumentManager documentManager,
+                                          LSCompiler lsCompiler, LSServiceOperationContext context, Position position) {
+        Pair<BLangNode, Object> bLangNode = getBLangNode(position.getLine(), position.getCharacter(), docUri,
+                                                         documentManager, lsCompiler, context);
+        // Only supported for top-level nodes
+        return (bLangNode.getLeft().parent instanceof BLangPackage);
     }
 
     /**
      * Get the command instances for a given diagnostic.
      *
-     * @param diagnostic        Diagnostic to get the command against
-     * @param params            Code Action parameters
-     * @param documentManager   Document manager
-     * @param lsCompiler        LSCompiler Instance
+     * @param diagnostic Diagnostic to get the command against
+     * @param params     Code Action parameters
+     * @param context    context
      * @return {@link List}     List of commands related to the given diagnostic
      */
-    public static List<Command> getCommandsByDiagnostic(Diagnostic diagnostic, CodeActionParams params,
-                                                        WorkspaceDocumentManager documentManager,
-                                                        LSCompiler lsCompiler) {
+    public static List<CodeAction> getCommandsByDiagnostic(Diagnostic diagnostic, CodeActionParams params,
+                                                           LSContext context) {
         String diagnosticMessage = diagnostic.getMessage();
-        List<Command> commands = new ArrayList<>();
+        List<CodeAction> actions = new ArrayList<>();
+        Position position = diagnostic.getRange().getStart();
+        int line = position.getLine();
+        int column = position.getCharacter();
+        String uri = params.getTextDocument().getUri();
+        CommandArgument lineArg = new CommandArgument(CommandConstants.ARG_KEY_NODE_LINE,
+                                                      "" + line);
+        CommandArgument colArg = new CommandArgument(CommandConstants.ARG_KEY_NODE_COLUMN,
+                                                     "" + column);
+        CommandArgument uriArg = new CommandArgument(CommandConstants.ARG_KEY_DOC_URI,
+                                                     uri);
+        List<Diagnostic> diagnostics = new ArrayList<>();
+        diagnostics.add(diagnostic);
+
         if (isUndefinedPackage(diagnosticMessage)) {
             String packageAlias = diagnosticMessage.substring(diagnosticMessage.indexOf("'") + 1,
                                                               diagnosticMessage.lastIndexOf("'"));
-            LSDocument sourceDocument = new LSDocument(params.getTextDocument().getUri());
+            LSDocument sourceDocument = new LSDocument(uri);
             String sourceRoot = LSCompilerUtil.getSourceRoot(sourceDocument.getPath());
             sourceDocument.setSourceRoot(sourceRoot);
             List<BallerinaPackage> packagesList = new ArrayList<>();
@@ -163,270 +219,406 @@ public class CommandUtil {
                         return fullPkgName.endsWith("." + packageAlias) || fullPkgName.endsWith("/" + packageAlias);
                     })
                     .forEach(pkgEntry -> {
-                        String commandTitle = CommandConstants.IMPORT_PKG_TITLE + " "
+                        String commandTitle = CommandConstants.IMPORT_MODULE_TITLE + " "
                                 + pkgEntry.getFullPackageNameAlias();
-                        CommandArgument pkgArgument = new CommandArgument(CommandConstants.ARG_KEY_PKG_NAME,
+                        CommandArgument pkgArgument = new CommandArgument(CommandConstants.ARG_KEY_MODULE_NAME,
                                                                           pkgEntry.getFullPackageNameAlias());
-                        CommandArgument docUriArgument = new CommandArgument(CommandConstants.ARG_KEY_DOC_URI,
-                                                                             params.getTextDocument().getUri());
-                        commands.add(new Command(commandTitle, CommandConstants.CMD_IMPORT_PACKAGE,
-                                                 new ArrayList<>(Arrays.asList(pkgArgument, docUriArgument))));
+                        CodeAction action = new CodeAction(commandTitle);
+                        action.setKind(CodeActionKind.QuickFix);
+                        action.setCommand(new Command(commandTitle, ImportModuleExecutor.COMMAND,
+                                                      new ArrayList<>(Arrays.asList(pkgArgument, uriArg))));
+                        action.setDiagnostics(diagnostics);
+                        actions.add(action);
                     });
         } else if (isUndefinedFunction(diagnosticMessage)) {
-            BLangInvocation functionNode = getFunctionNode(params, documentManager, lsCompiler);
-            String functionName = functionNode.name.getValue();
-            List<Object> args = new ArrayList<>();
-            BLangNode parent = functionNode.parent;
-            if (parent != null) {
-                String returnSignature = FunctionGenerator.getFuncReturnSignature(parent);
-                if (returnSignature != null) {
-                    args.add(new CommandArgument(CommandConstants.ARG_KEY_RETURN_TYPE, returnSignature));
-                }
-                String returnStatement = FunctionGenerator.getFuncReturnDefaultStatement(parent, "    return {%1};");
-                if (returnStatement != null) {
-                    args.add(new CommandArgument(CommandConstants.ARG_KEY_RETURN_DEFAULT_VAL, returnStatement));
-                }
-                List<String> arguments = FunctionGenerator.getFuncArguments(functionNode);
-                if (arguments != null) {
-                    args.add(new CommandArgument(CommandConstants.ARG_KEY_FUNC_ARGS, String.join(", ", arguments)));
+            List<Object> args = Arrays.asList(lineArg, colArg, uriArg);
+            String functionName = "";
+            Matcher matcher = CommandConstants.UNDEFINED_FUNCTION_PATTERN.matcher(diagnosticMessage);
+            if (matcher.find() && matcher.groupCount() > 0) {
+                functionName = matcher.group(1) + "(...)";
+            }
+            String commandTitle = CommandConstants.CREATE_FUNCTION_TITLE + functionName;
+            CodeAction action = new CodeAction(commandTitle);
+            action.setKind(CodeActionKind.QuickFix);
+            action.setCommand(new Command(commandTitle, CreateFunctionExecutor.COMMAND, args));
+            action.setDiagnostics(diagnostics);
+            actions.add(action);
+        } else if (isVariableAssignmentRequired(diagnosticMessage)) {
+            List<Object> args = Arrays.asList(lineArg, colArg, uriArg);
+            String commandTitle = CommandConstants.CREATE_VARIABLE_TITLE;
+            CodeAction action = new CodeAction(commandTitle);
+            action.setKind(CodeActionKind.QuickFix);
+            action.setCommand(new Command(commandTitle, CreateVariableExecutor.COMMAND, args));
+            action.setDiagnostics(diagnostics);
+            actions.add(action);
+
+            commandTitle = CommandConstants.IGNORE_RETURN_TITLE;
+            action = new CodeAction(commandTitle);
+            action.setKind(CodeActionKind.QuickFix);
+            action.setCommand(new Command(commandTitle, IgnoreReturnExecutor.COMMAND, args));
+            action.setDiagnostics(diagnostics);
+            actions.add(action);
+        } else if (isUnresolvedPackage(diagnosticMessage)) {
+            Matcher matcher = CommandConstants.UNRESOLVED_MODULE_PATTERN.matcher(
+                    diagnosticMessage.toLowerCase(Locale.ROOT)
+            );
+            if (matcher.find() && matcher.groupCount() > 0) {
+                List<Object> args = new ArrayList<>();
+                String pkgName = matcher.group(1);
+                args.add(new CommandArgument(CommandConstants.ARG_KEY_MODULE_NAME, pkgName));
+                args.add(uriArg);
+                String commandTitle = CommandConstants.PULL_MOD_TITLE;
+                CodeAction action = new CodeAction(commandTitle);
+                action.setKind(CodeActionKind.QuickFix);
+                action.setCommand(new Command(commandTitle, PullModuleExecutor.COMMAND, args));
+                action.setDiagnostics(diagnostics);
+                actions.add(action);
+            }
+        } else if (isIncompatibleTypes(diagnosticMessage)) {
+            Matcher matcher = CommandConstants.INCOMPATIBLE_TYPE_PATTERN.matcher(diagnosticMessage);
+            if (matcher.find() && matcher.groupCount() > 1) {
+                String foundType = matcher.group(2);
+                WorkspaceDocumentManager documentManager = context.get(ExecuteCommandKeys.DOCUMENT_MANAGER_KEY);
+                LSCompiler lsCompiler = context.get(ExecuteCommandKeys.LS_COMPILER_KEY);
+                Node bLangNode = CommandUtil.getBLangNodeByPosition(line, column,
+                                                                    uri, documentManager, lsCompiler, context);
+                if (bLangNode instanceof BLangFunction &&
+                        !BLangConstants.MAIN_FUNCTION_NAME.equals(((BLangFunction) bLangNode).name.value)) {
+                    BLangStatement statement = CommandUtil.getStatementByLocation(
+                            ((BLangFunction) bLangNode).getBody().getStatements(), line + 1, column + 1);
+                    if (statement instanceof BLangReturn) {
+                        // Process full-qualified BType name  eg. ballerina/http:Client and if required; add auto-import
+                        matcher = CommandConstants.FQ_TYPE_PATTERN.matcher(foundType);
+                        List<TextEdit> edits = new ArrayList<>();
+                        String editText = extractTypeName(context, matcher, foundType, edits);
+
+                        // Process function node
+                        Position start;
+                        Position end;
+                        BLangFunction func = (BLangFunction) bLangNode;
+                        if (func.returnTypeNode instanceof BLangValueType
+                                && TypeKind.NIL.equals(((BLangValueType) func.returnTypeNode).getTypeKind())
+                                && func.returnTypeNode.getWS() == null) {
+                            // eg. function test() {...}
+                            start = new Position(func.returnTypeNode.pos.sLine - 1, func.returnTypeNode.pos.eCol - 1);
+                            end = new Position(func.returnTypeNode.pos.eLine - 1, func.returnTypeNode.pos.eCol - 1);
+                            editText = " returns (" + editText + ")";
+                        } else {
+                            // eg. function test() returns () {...}
+                            start = new Position(func.returnTypeNode.pos.sLine - 1, func.returnTypeNode.pos.sCol - 1);
+                            end = new Position(func.returnTypeNode.pos.eLine - 1, func.returnTypeNode.pos.eCol - 1);
+                        }
+                        edits.add(new TextEdit(new Range(start, end), editText));
+
+                        // Add code action
+                        String commandTitle = CommandConstants.CHANGE_RETURN_TYPE_TITLE + foundType + "'";
+                        CodeAction action = new CodeAction(commandTitle);
+                        action.setKind(CodeActionKind.QuickFix);
+                        action.setDiagnostics(diagnostics);
+                        action.setEdit(new WorkspaceEdit(Collections.singletonList(
+                                Either.forLeft(
+                                        new TextDocumentEdit(new VersionedTextDocumentIdentifier(uri, null), edits)))));
+                        actions.add(action);
+                    }
                 }
             }
-            args.add(new CommandArgument(CommandConstants.ARG_KEY_FUNC_NAME, functionName));
-            args.add(new CommandArgument(CommandConstants.ARG_KEY_DOC_URI, params.getTextDocument().getUri()));
-            String commandTitle = CommandConstants.CREATE_FUNCTION_TITLE + " " + functionName + "(...)";
-            commands.add(new Command(commandTitle, CommandConstants.CMD_CREATE_FUNCTION, args));
-        } else if (isVariableAssignmentRequired(diagnosticMessage)) {
-            BLangInvocation functionNode = getFunctionNode(params, documentManager, lsCompiler);
-            List<Object> args = new ArrayList<>();
-            String varName = generateName(1, getAllEntries(functionNode));
-            args.add(new CommandArgument(CommandConstants.ARG_KEY_VAR_NAME, varName));
-            String returnSignature = FunctionGenerator.getFuncReturnSignature(functionNode.type);
-            args.add(new CommandArgument(CommandConstants.ARG_KEY_RETURN_TYPE, returnSignature));
-            String funcLocation = functionNode.pos.sLine + "," + functionNode.pos.sCol;
-            args.add(new CommandArgument(CommandConstants.ARG_KEY_FUNC_LOCATION, funcLocation));
-            args.add(new CommandArgument(CommandConstants.ARG_KEY_DOC_URI, params.getTextDocument().getUri()));
-            String commandTitle = CommandConstants.CREATE_VARIABLE_TITLE;
-            commands.add(new Command(commandTitle, CommandConstants.CMD_CREATE_VARIABLE, args));
+        } else if (isTaintedParamPassed(diagnosticMessage)) {
+            try {
+                Matcher matcher = CommandConstants.TAINTED_PARAM_PATTERN.matcher(diagnosticMessage);
+                if (matcher.find() && matcher.groupCount() > 0) {
+                    String param = matcher.group(1);
+                    String commandTitle = String.format(CommandConstants.MARK_UNTAINTED_TITLE, param);
+                    CodeAction action = new CodeAction(commandTitle);
+                    action.setKind(CodeActionKind.QuickFix);
+                    action.setDiagnostics(diagnostics);
+                    // Extract specific content range
+                    Range range = diagnostic.getRange();
+                    WorkspaceDocumentManager documentManager = context.get(ExecuteCommandKeys.DOCUMENT_MANAGER_KEY);
+                    String content = getContentOfRange(documentManager, uri, range);
+                    // Add `untaint` keyword
+                    matcher = CommandConstants.NO_CONCAT_PATTERN.matcher(content);
+                    String editText = matcher.find() ? "untaint " + content : "untaint (" + content + ")";
+                    // Create text-edit
+                    List<TextEdit> edits = new ArrayList<>();
+                    edits.add(new TextEdit(range, editText));
+                    VersionedTextDocumentIdentifier identifier = new VersionedTextDocumentIdentifier(uri, null);
+                    action.setEdit(new WorkspaceEdit(Collections.singletonList(
+                            Either.forLeft(new TextDocumentEdit(identifier, edits)))));
+                    actions.add(action);
+                }
+            } catch (WorkspaceDocumentException | IOException e) {
+                //do nothing
+            }
         }
-        return commands;
+        return actions;
+    }
+
+    private static String extractTypeName(LSContext context, Matcher matcher, String foundType, List<TextEdit> edits) {
+        if (matcher.find() && matcher.groupCount() > 2) {
+            String orgName = matcher.group(1);
+            String alias = matcher.group(2);
+            String typeName = matcher.group(3);
+            String pkgId = orgName + "/" + alias;
+            PackageID currentPkgId = context.get(
+                    DocumentServiceKeys.CURRENT_BLANG_PACKAGE_CONTEXT_KEY).packageID;
+            if (pkgId.equals(currentPkgId.toString()) || ("ballerina".equals(orgName) &&
+                    "builtin".equals(alias))) {
+                foundType = typeName;
+            } else {
+                edits.addAll(CommonUtil.getAutoImportTextEdits(context, orgName, alias));
+                foundType = alias + UtilSymbolKeys.PKG_DELIMITER_KEYWORD + typeName;
+            }
+        }
+        return foundType;
     }
 
     /**
      * Get the object constructor snippet generated from public object fields.
      *
-     * @param fields            List of Fields
-     * @param baseOffset        Offset of snippet                         
+     * @param fields     List of Fields
+     * @param baseOffset Offset of snippet
      * @return {@link String}   Constructor snippet as String
      */
-    static String getObjectConstructorSnippet(List<BLangVariable> fields, int baseOffset) {
-        List<String> fieldNames = fields.stream()
-                .filter(bField -> ((bField.symbol.flags & Flags.PUBLIC) == Flags.PUBLIC))
-                .map(bField -> bField.getName().getValue())
-                .collect(Collectors.toList());
+    public static String getObjectConstructorSnippet(List<BLangSimpleVariable> fields, int baseOffset) {
+        StringJoiner funcFields = new StringJoiner(", ");
+        StringJoiner funcBody = new StringJoiner(CommonUtil.LINE_SEPARATOR);
         String offsetStr = String.join("", Collections.nCopies(baseOffset, " "));
+        fields.stream()
+                .filter(bField -> ((bField.symbol.flags & Flags.PUBLIC) != Flags.PUBLIC))
+                .forEach(var -> {
+                    funcFields.add(generateTypeDefinition(null, null, var) + " " + var.name.value);
+                    funcBody.add(offsetStr + "    self." + var.name.value + " = " + var.name.value + ";");
+                });
 
-        return "new(" + String.join(", ", fieldNames) + ") {" + CommonUtil.LINE_SEPARATOR
-                + CommonUtil.LINE_SEPARATOR + offsetStr + "}" + CommonUtil.LINE_SEPARATOR + offsetStr;
-    }
-
-    private static Set<String> getAllEntries(BLangInvocation functionNode) {
-        Set<String> strings = new HashSet<>();
-        BLangPackage packageNode = getPackageNode(functionNode);
-        if (packageNode != null) {
-            packageNode.getGlobalVariables().forEach(globalVar -> strings.add(globalVar.name.value));
-            packageNode.getGlobalEndpoints().forEach(endpoint -> strings.add(endpoint.getName().getValue()));
-            packageNode.getServices().forEach(service -> strings.add(service.name.value));
-            packageNode.getFunctions().forEach(func -> strings.add(func.name.value));
-        }
-        Map<Name, Scope.ScopeEntry> entries = functionNode.symbol.scope.entries;
-        entries.forEach((name, scopeEntry) -> strings.add(name.value));
-        return strings;
-    }
-
-    private static BLangPackage getPackageNode(BLangNode bLangNode) {
-        BLangNode parent = bLangNode.parent;
-        if (parent != null) {
-            return (parent instanceof BLangPackage) ? (BLangPackage) parent : getPackageNode(parent);
-        }
-        return null;
+        return offsetStr + "public function __init(" + funcFields.toString() + ") {" + CommonUtil.LINE_SEPARATOR +
+                funcBody.toString() + CommonUtil.LINE_SEPARATOR + offsetStr + "}" + CommonUtil.LINE_SEPARATOR;
     }
 
     /**
-     * Get the Documentation attachment for the function.
-     * @param bLangPackage      BLangPackage built
-     * @param line              Start line of the function in the source
-     * @return {@link DocAttachmentInfo}   Documentation attachment for the function
+     * Sends a message to the language server client.
+     *
+     * @param client      Language Server client
+     * @param messageType message type
+     * @param message     message
      */
-    static DocAttachmentInfo getFunctionDocumentationByPosition(BLangPackage bLangPackage, int line) {
-        List<FunctionNode> filteredFunctions = new ArrayList<>();
-        for (TopLevelNode topLevelNode : bLangPackage.topLevelNodes) {
-            
-            if (topLevelNode instanceof BLangFunction) {
-                filteredFunctions.add((BLangFunction) topLevelNode);
-            } else if (topLevelNode instanceof BLangTypeDefinition
-                    && ((BLangTypeDefinition) topLevelNode).typeNode instanceof BLangObjectTypeNode) {
-                filteredFunctions
-                        .addAll(((BLangObjectTypeNode) (((BLangTypeDefinition) topLevelNode).typeNode)).getFunctions());
-            }
-        }
-
-        for (FunctionNode filteredFunction : filteredFunctions) {
-            DiagnosticPos functionPos =
-                    CommonUtil.toZeroBasedPosition((DiagnosticPos) filteredFunction.getPosition());
-            int functionStart = functionPos.getStartLine();
-            if (functionStart == line) {
-                return getFunctionNodeDocumentation(filteredFunction, line);
-            }
-        }
-
-        return null;
-    }
-
-    static DocAttachmentInfo getFunctionNodeDocumentation(FunctionNode bLangFunction, int replaceFrom) {
-        DiagnosticPos functionPos =  CommonUtil.toZeroBasedPosition((DiagnosticPos) bLangFunction.getPosition());
-        int offset = functionPos.getStartColumn();
-        List<String> attributes = new ArrayList<>();
-        bLangFunction.getParameters().forEach(bLangVariable ->
-                        attributes.add(getDocAttributeFromBLangVariable((BLangVariable) bLangVariable, offset)));
-        if (((BLangFunction) bLangFunction).symbol.retType.getKind() != TypeKind.NIL) {
-            attributes.add(getReturnFieldDescription(offset));
-        }
-
-        return new DocAttachmentInfo(getDocumentationAttachment(attributes, functionPos.getStartColumn()), replaceFrom);
-    }
-
-    static DocAttachmentInfo getRecordOrObjectDocumentation(BLangTypeDefinition typeDef, int replaceFrom) {
-        List<String> attributes = new ArrayList<>();
-        List<BLangVariable> fields = new ArrayList<>();
-        DiagnosticPos structPos = CommonUtil.toZeroBasedPosition(typeDef.getPosition());
-        if (typeDef.typeNode instanceof BLangObjectTypeNode) {
-            fields.addAll(((BLangObjectTypeNode) typeDef.typeNode).fields);
-        } else if (typeDef.typeNode instanceof BLangRecordTypeNode) {
-            fields.addAll(((BLangRecordTypeNode) typeDef.typeNode).fields);
-        }
-        int offset = structPos.getStartColumn();
-        fields.forEach(bLangVariable ->
-                attributes.add(getDocAttributeFromBLangVariable(bLangVariable, offset)));
-        return new DocAttachmentInfo(getDocumentationAttachment(attributes, structPos.getStartColumn()), replaceFrom);
+    public static void notifyClient(LanguageClient client, MessageType messageType, String message) {
+        client.showMessage(new MessageParams(messageType, message));
     }
 
     /**
-     * Get the Documentation attachment for the endpoint.
-     * @param bLangPackage      BLangPackage built
-     * @param line              Start line of the enum in the source
-     * @return {@link DocAttachmentInfo}   Documentation attachment for the enum
+     * Clears diagnostics of the client by sending an text edit event.
+     *
+     * @param client            Language Server client
+     * @param lsCompiler        Language Server Compiler instance
+     * @param diagnosticsHelper diagnostics helper
+     * @param documentUri       Current text document URI
      */
-    static DocAttachmentInfo getEndpointDocumentationByPosition(BLangPackage bLangPackage, int line) {
-        for (TopLevelNode topLevelNode : bLangPackage.topLevelNodes) {
-            if (topLevelNode instanceof BLangEndpoint) {
-                BLangEndpoint endpointNode = (BLangEndpoint) topLevelNode;
-                DiagnosticPos enumPos = CommonUtil.toZeroBasedPosition(endpointNode.getPosition());
-                int endpointStart = enumPos.getStartLine();
-                if (endpointStart == line) {
-                    return getEndpointNodeDocumentation(endpointNode, line);
-                }
-            }
-        }
-
-        return null;
-    }
-
-    static DocAttachmentInfo getEndpointNodeDocumentation(BLangEndpoint bLangEndpoint, int replaceFrom) {
-        DiagnosticPos endpointPos = CommonUtil.toZeroBasedPosition(bLangEndpoint.getPosition());
-
-        return new DocAttachmentInfo(getDocumentationAttachment(null, endpointPos.getStartColumn()), replaceFrom);
-    }
-
-    static DocAttachmentInfo getResourceNodeDocumentation(BLangResource bLangResource, int replaceFrom) {
-        List<String> attributes = new ArrayList<>();
-        DiagnosticPos resourcePos = CommonUtil.toZeroBasedPosition(bLangResource.getPosition());
-        bLangResource.getParameters().forEach(bLangVariable ->
-                attributes.add(getDocAttributeFromBLangVariable(bLangVariable, resourcePos.getStartColumn())));
-        return new DocAttachmentInfo(getDocumentationAttachment(attributes, resourcePos.getStartColumn()), replaceFrom);
+    public static void clearDiagnostics(LanguageClient client, LSCompiler lsCompiler,
+                                        DiagnosticsHelper diagnosticsHelper, String documentUri) {
+        Path filePath = Paths.get(URI.create(documentUri));
+        Path compilationPath = getUntitledFilePath(filePath.toString()).orElse(filePath);
+        diagnosticsHelper.compileAndSendDiagnostics(client, lsCompiler, filePath, compilationPath);
     }
 
     /**
-     * Get the Documentation attachment for the service.
-     * @param bLangPackage      BLangPackage built
-     * @param line              Start line of the service in the source
-     * @return {@link DocAttachmentInfo}   Documentation attachment for the service
+     * Apply a given single text edit.
+     *
+     * @param editText   Edit text to be inserted
+     * @param range      Line Range to be processed
+     * @param identifier Document identifier
+     * @param client     Language Client
+     * @return {@link ApplyWorkspaceEditParams}     Workspace edit params
      */
-    static DocAttachmentInfo getServiceDocumentationByPosition(BLangPackage bLangPackage, int line) {
-        // TODO: Currently resource position is invalid and we use the annotation attachment positions.
-        for (TopLevelNode topLevelNode : bLangPackage.topLevelNodes) {
-            if (topLevelNode instanceof BLangService) {
-                BLangService serviceNode = (BLangService) topLevelNode;
-                DiagnosticPos servicePos = CommonUtil.toZeroBasedPosition(serviceNode.getPosition());
-                List<BLangAnnotationAttachment> annotationAttachments = serviceNode.getAnnotationAttachments();
-                if (!annotationAttachments.isEmpty()) {
-                    DiagnosticPos lastAttachmentPos = CommonUtil.toZeroBasedPosition(
-                            CommonUtil.getLastItem(annotationAttachments).getPosition());
-                    if (lastAttachmentPos.getEndLine() < line && line < servicePos.getEndLine()) {
-                        return getServiceNodeDocumentation(serviceNode, lastAttachmentPos.getEndLine() + 1);
+    public static ApplyWorkspaceEditParams applySingleTextEdit(String editText, Range range,
+                                                               VersionedTextDocumentIdentifier identifier,
+                                                               LanguageClient client) {
+
+        ApplyWorkspaceEditParams applyWorkspaceEditParams = new ApplyWorkspaceEditParams();
+        TextEdit textEdit = new TextEdit(range, editText);
+        TextDocumentEdit textDocumentEdit = new TextDocumentEdit(identifier,
+                                                                 Collections.singletonList(textEdit));
+        Either<TextDocumentEdit, ResourceOperation> documentChange = Either.forLeft(textDocumentEdit);
+        WorkspaceEdit workspaceEdit = new WorkspaceEdit(Collections.singletonList(documentChange));
+        applyWorkspaceEditParams.setEdit(workspaceEdit);
+        if (client != null) {
+            client.applyEdit(applyWorkspaceEditParams);
+        }
+        return applyWorkspaceEditParams;
+    }
+
+    /**
+     * Apply a workspace edit for the current instance.
+     *
+     * @param documentChanges   List of either document edits or set of resource changes for current session
+     * @param client            Language Client
+     * @return {@link Object}   workspace edit parameters
+     */
+    public static Object applyWorkspaceEdit(List<Either<TextDocumentEdit, ResourceOperation>> documentChanges,
+                                            LanguageClient client) {
+        WorkspaceEdit workspaceEdit = new WorkspaceEdit(documentChanges);
+        ApplyWorkspaceEditParams applyWorkspaceEditParams = new ApplyWorkspaceEditParams(workspaceEdit);
+        if (client != null) {
+            client.applyEdit(applyWorkspaceEditParams);
+        }
+        return applyWorkspaceEditParams;
+    }
+
+    public static BLangInvocation getFunctionNode(int line, int column, String uri,
+                                                  WorkspaceDocumentManager documentManager, LSCompiler lsCompiler,
+                                                  LSContext context) {
+        Pair<BLangNode, Object> bLangNode = getBLangNode(line, column, uri, documentManager, lsCompiler, context);
+        if (bLangNode.getLeft() instanceof BLangInvocation) {
+            return (BLangInvocation) bLangNode.getLeft();
+        } else if (bLangNode.getRight() instanceof BLangInvocation) {
+            return (BLangInvocation) bLangNode.getRight();
+        } else {
+            return null;
+        }
+    }
+
+    public static Node getBLangNodeByPosition(int line, int column, String uri,
+                                              WorkspaceDocumentManager documentManager, LSCompiler lsCompiler,
+                                              LSContext context) {
+        Position position = new Position();
+        position.setLine(line);
+        position.setCharacter(column + 1);
+        context.put(DocumentServiceKeys.FILE_URI_KEY, uri);
+        TextDocumentIdentifier identifier = new TextDocumentIdentifier(uri);
+        context.put(DocumentServiceKeys.POSITION_KEY, new TextDocumentPositionParams(identifier, position));
+        List<BLangPackage> bLangPackages = lsCompiler.getBLangPackages(context, documentManager, false,
+                                                                       LSCustomErrorStrategy.class, true);
+
+        // Get the current package.
+        BLangPackage currentPackage = CommonUtil.getCurrentPackageByFileName(bLangPackages, uri);
+
+        if (currentPackage == null) {
+            return null;
+        }
+        context.put(DocumentServiceKeys.CURRENT_BLANG_PACKAGE_CONTEXT_KEY, currentPackage);
+
+        // If package is testable package process as tests
+        // else process normally
+        String relativeFilePath = context.get(DocumentServiceKeys.RELATIVE_FILE_PATH_KEY);
+        BLangCompilationUnit compilationUnit;
+        if (relativeFilePath.startsWith("tests" + File.separator)) {
+            compilationUnit = currentPackage.getTestablePkg().getCompilationUnits().stream().
+                    filter(compUnit -> (relativeFilePath).equals(compUnit.getName()))
+                    .findFirst().orElse(null);
+        } else {
+            compilationUnit = currentPackage.getCompilationUnits().stream().
+                    filter(compUnit -> relativeFilePath.equals(compUnit.getName())).findFirst().orElse(null);
+        }
+        if (compilationUnit == null) {
+            return null;
+        }
+        Iterator<TopLevelNode> nodeIterator = compilationUnit.getTopLevelNodes().iterator();
+        Node result = null;
+        TopLevelNode next = (nodeIterator.hasNext()) ? nodeIterator.next() : null;
+        while (next != null) {
+            int sLine = next.getPosition().getStartLine();
+            int eLine = next.getPosition().getEndLine();
+            int sCol = next.getPosition().getStartColumn();
+            int eCol = next.getPosition().getEndColumn();
+            if ((line > sLine || (line == sLine && column >= sCol)) &&
+                    (line < eLine || (line == eLine && column <= eCol))) {
+                result = next;
+                break;
+            }
+            //TODO: visit functions inside objects as well
+            next = (nodeIterator.hasNext()) ? nodeIterator.next() : null;
+        }
+        return result;
+    }
+
+    /**
+     * Find statement by location.
+     *
+     * @param statements list of statements
+     * @param line       line
+     * @param column     column
+     * @return {@link BLangStatement} if found, NULL otherwise
+     */
+    public static BLangStatement getStatementByLocation(List<BLangStatement> statements, int line, int column) {
+        BLangStatement node = null;
+        for (BLangStatement statement : statements) {
+            BLangStatement rv;
+            if ((rv = getStatementByLocation(statement, line, column)) != null) {
+                return rv;
+            }
+        }
+        return node;
+    }
+
+    /**
+     * Find statements by location.
+     *
+     * @param node   lookup {@link BLangNode}
+     * @param line   line
+     * @param column column
+     * @return {@link BLangStatement} if found, NULL otherwise
+     */
+    public static BLangStatement getStatementByLocation(BLangNode node, int line, int column) {
+        try {
+            if (checkNodeWithin(node, line, column) && node instanceof BLangStatement) {
+                return (BLangStatement) node;
+            }
+            for (Field field : node.getClass().getDeclaredFields()) {
+                Object obj = field.get(node);
+                if (obj instanceof BLangBlockStmt) {
+                    // Found a block-statement field, drilling down further
+                    BLangStatement rv;
+                    if ((rv = getStatementByLocation(((BLangBlockStmt) obj).getStatements(), line, column)) != null) {
+                        return rv;
                     }
-                } else if (servicePos.getStartLine() == line) {
-                    return getServiceNodeDocumentation(serviceNode, line);
+                } else if (obj instanceof BLangStatement) {
+                    if (checkNodeWithin((BLangStatement) obj, line, column)) {
+                        return (BLangStatement) obj;
+                    }
+                    // Found a statement field, drilling down further
+                    BLangStatement rv;
+                    if ((rv = getStatementByLocation((BLangStatement) obj, line, column)) != null) {
+                        return rv;
+                    }
                 }
             }
+        } catch (IllegalArgumentException | IllegalAccessException e) {
+            return null;
         }
-
         return null;
     }
-    
-    /**
-     * Get the Documentation attachment for the type nodes.
-     * @param bLangPackage      BLangPackage built
-     * @param line              Start line of the type node in the source
-     * @return {@link DocAttachmentInfo}   Documentation attachment for the type node
-     */
-    static DocAttachmentInfo getTypeNodeDocumentationByPosition(BLangPackage bLangPackage, int line) {
-        for (TopLevelNode topLevelNode : bLangPackage.topLevelNodes) {
-            DiagnosticPos typeNodePos;
-            typeNodePos = (DiagnosticPos) topLevelNode.getPosition();
-            if ((topLevelNode instanceof BLangTypeDefinition &&
-                    (((BLangTypeDefinition) topLevelNode).symbol.kind == SymbolKind.OBJECT
-                            || ((BLangTypeDefinition) topLevelNode).symbol.kind == SymbolKind.RECORD))
-                    && typeNodePos.getStartLine() - 1 == line) {
-                return getTypeNodeDocumentation(topLevelNode, line);
-            }
-        }
-        
-        return null;
-    }
-    
-    static DocAttachmentInfo getTypeNodeDocumentation(TopLevelNode typeNode, int replaceFrom) {
-        List<String> attributes = new ArrayList<>();
-        DiagnosticPos typeNodePos = CommonUtil.toZeroBasedPosition((DiagnosticPos) typeNode.getPosition());
-        int offset = typeNodePos.getStartColumn();
-        List<VariableNode> publicFields = new ArrayList<>();
-        if (typeNode instanceof BLangTypeDefinition &&
-                ((BLangTypeDefinition) typeNode).symbol.kind == SymbolKind.OBJECT) {
-            publicFields.addAll(((BLangObjectTypeNode) ((BLangTypeDefinition) typeNode).typeNode).getFields().stream()
-                    .filter(field -> field.getFlags().contains(Flag.PUBLIC)).collect(Collectors.toList()));
-            
-        } else if (typeNode instanceof BLangTypeDefinition &&
-                ((BLangTypeDefinition) typeNode).symbol.kind == SymbolKind.RECORD) {
-            publicFields.addAll(((BLangRecordTypeNode) ((BLangTypeDefinition) typeNode).typeNode).getFields());
-        }
-        
-        publicFields.forEach(variableNode -> {
-            attributes.add(getDocAttributeFromBLangVariable((BLangVariable) variableNode, offset));
-        });
-        
-        return new DocAttachmentInfo(getDocumentationAttachment(attributes, offset), replaceFrom);
+
+    public static Pair<BLangNode, Object> getBLangNode(int line, int column, String uri,
+                                                       WorkspaceDocumentManager documentManager, LSCompiler lsCompiler,
+                                                       LSContext context) {
+        Position position = new Position();
+        position.setLine(line);
+        position.setCharacter(column + 1);
+        context.put(DocumentServiceKeys.FILE_URI_KEY, uri);
+        TextDocumentIdentifier identifier = new TextDocumentIdentifier(uri);
+        context.put(DocumentServiceKeys.POSITION_KEY, new TextDocumentPositionParams(identifier, position));
+        List<BLangPackage> bLangPackages = lsCompiler.getBLangPackages(context, documentManager, false,
+                                                                       LSCustomErrorStrategy.class, true);
+
+        // Get the current package.
+        BLangPackage currentBLangPackage = CommonUtil.getCurrentPackageByFileName(bLangPackages, uri);
+        // Run the position calculator for the current package.
+        PositionTreeVisitor positionTreeVisitor = new PositionTreeVisitor(context);
+        currentBLangPackage.accept(positionTreeVisitor);
+        return new ImmutablePair<>(context.get(NodeContextKeys.NODE_KEY),
+                                   context.get(NodeContextKeys.PREVIOUSLY_VISITED_NODE_KEY));
     }
 
-    static DocAttachmentInfo getServiceNodeDocumentation(BLangService bLangService, int replaceFrom) {
-        DiagnosticPos servicePos = CommonUtil.toZeroBasedPosition(bLangService.getPosition());
-        return new DocAttachmentInfo(getDocumentationAttachment(null, servicePos.getStartColumn()), replaceFrom);
-    }
-
-    private static String getDocAttributeFromBLangVariable(BLangVariable bLangVariable, int offset) {
-        return getDocumentationAttribute(bLangVariable.getName().getValue(), offset);
+    private static boolean checkNodeWithin(BLangNode node, int line, int column) {
+        int sLine = node.getPosition().getStartLine();
+        int eLine = node.getPosition().getEndLine();
+        int sCol = node.getPosition().getStartColumn();
+        int eCol = node.getPosition().getEndColumn();
+        return (line > sLine || (line == sLine && column >= sCol)) &&
+                (line < eLine || (line == eLine && column <= eCol));
     }
 
     private static boolean isUndefinedPackage(String diagnosticMessage) {
-        return diagnosticMessage.toLowerCase(Locale.ROOT).contains(CommandConstants.UNDEFINED_PACKAGE);
+        return diagnosticMessage.toLowerCase(Locale.ROOT).contains(CommandConstants.UNDEFINED_MODULE);
     }
 
     private static boolean isUndefinedFunction(String diagnosticMessage) {
@@ -437,31 +629,91 @@ public class CommandUtil {
         return diagnosticMessage.toLowerCase(Locale.ROOT).contains(CommandConstants.VAR_ASSIGNMENT_REQUIRED);
     }
 
-    private static BLangInvocation getFunctionNode(CodeActionParams params,
-                                                   WorkspaceDocumentManager documentManager,
-                                                   LSCompiler lsCompiler) {
-        LSServiceOperationContext context = new LSServiceOperationContext();
-        Position position = new Position();
-        position.setLine(params.getRange().getStart().getLine());
-        position.setCharacter(params.getRange().getStart().getCharacter() + 1);
-        context.put(DocumentServiceKeys.FILE_URI_KEY, params.getTextDocument().getUri());
-        context.put(DocumentServiceKeys.POSITION_KEY,
-                          new TextDocumentPositionParams(params.getTextDocument(), position));
-        List<BLangPackage> bLangPackages = lsCompiler.getBLangPackage(context, documentManager, false,
-                                                                      LSCustomErrorStrategy.class, true).getLeft();
-        // Get the current package.
-        BLangPackage currentBLangPackage = CommonUtil.getCurrentPackageByFileName(bLangPackages,
-                                                                                  params.getTextDocument().getUri());
-
-        context.put(DocumentServiceKeys.CURRENT_PACKAGE_NAME_KEY,
-                          currentBLangPackage.symbol.getName().getValue());
-
-        // Run the position calculator for the current package.
-        PositionTreeVisitor positionTreeVisitor = new PositionTreeVisitor(context);
-        currentBLangPackage.accept(positionTreeVisitor);
-        return (BLangInvocation) context.get(NodeContextKeys.NODE_KEY);
+    private static boolean isUnresolvedPackage(String diagnosticMessage) {
+        return diagnosticMessage.toLowerCase(Locale.ROOT).contains(CommandConstants.UNRESOLVED_MODULE);
     }
 
+    private static boolean isIncompatibleTypes(String diagnosticMessage) {
+        return diagnosticMessage.toLowerCase(Locale.ROOT).contains(CommandConstants.INCOMPATIBLE_TYPES);
+    }
+
+    private static boolean isTaintedParamPassed(String diagnosticMessage) {
+        return diagnosticMessage.toLowerCase(Locale.ROOT).contains(CommandConstants.TAINTED_PARAM_PASSED);
+    }
+
+    private static CodeAction getDocGenerationCommand(String nodeType, String docUri, int line) {
+        CommandArgument nodeTypeArg = new CommandArgument(CommandConstants.ARG_KEY_NODE_TYPE, nodeType);
+        CommandArgument docUriArg = new CommandArgument(CommandConstants.ARG_KEY_DOC_URI, docUri);
+        CommandArgument lineStart = new CommandArgument(CommandConstants.ARG_KEY_NODE_LINE, String.valueOf(line));
+        List<Object> args = new ArrayList<>(Arrays.asList(nodeTypeArg, docUriArg, lineStart));
+        CodeAction action = new CodeAction(CommandConstants.ADD_DOCUMENTATION_TITLE);
+        action.setCommand(new Command(CommandConstants.ADD_DOCUMENTATION_TITLE,
+                                      AddDocumentationExecutor.COMMAND, args));
+        action.setKind(CodeActionKind.Source);
+        return action;
+    }
+
+    private static CodeAction getAllDocGenerationCommand(String docUri) {
+        CommandArgument docUriArg = new CommandArgument(CommandConstants.ARG_KEY_DOC_URI, docUri);
+        List<Object> args = new ArrayList<>(Collections.singletonList(docUriArg));
+        CodeAction action = new CodeAction(CommandConstants.ADD_ALL_DOC_TITLE);
+        action.setCommand(new Command(CommandConstants.ADD_ALL_DOC_TITLE, AddAllDocumentationExecutor.COMMAND, args));
+        action.setKind(CodeActionKind.Source);
+        return action;
+    }
+
+    private static CodeAction getInitializerGenerationCommand(String docUri, int line) {
+        CommandArgument docUriArg = new CommandArgument(CommandConstants.ARG_KEY_DOC_URI, docUri);
+        CommandArgument startLineArg = new CommandArgument(CommandConstants.ARG_KEY_NODE_LINE, String.valueOf(line));
+        List<Object> args = new ArrayList<>(Arrays.asList(docUriArg, startLineArg));
+        CodeAction codeAction = new CodeAction(CommandConstants.CREATE_INITIALIZER_TITLE);
+        codeAction.setCommand(new Command(CommandConstants.CREATE_INITIALIZER_TITLE,
+                                          CreateObjectInitializerExecutor.COMMAND, args));
+        codeAction.setKind(CodeActionKind.Source);
+        return codeAction;
+    }
+
+    private static String getContentOfRange(WorkspaceDocumentManager documentManager, String uri, Range range)
+            throws WorkspaceDocumentException, IOException {
+        LSDocument document = new LSDocument(uri);
+        Path filePath = document.getPath();
+        Path compilationPath = getUntitledFilePath(filePath.toString()).orElse(filePath);
+        String fileContent = documentManager.getFileContent(compilationPath);
+
+        BufferedReader reader = new BufferedReader(new StringReader(fileContent));
+        StringBuilder capture = new StringBuilder();
+        int lineNum = 1;
+        int sLine = range.getStart().getLine() + 1;
+        int eLine = range.getEnd().getLine() + 1;
+        int sChar = range.getStart().getCharacter();
+        int eChar = range.getEnd().getCharacter();
+        String line;
+        while ((line = reader.readLine()) != null && lineNum <= eLine) {
+            if (lineNum >= sLine) {
+                if (sLine == eLine) {
+                    // single line range
+                    capture.append(line, sChar, eChar);
+                    if (line.length() == eChar) {
+                        capture.append(System.lineSeparator());
+                    }
+                } else if (lineNum == sLine) {
+                    // range start line
+                    capture.append(line.substring(sChar)).append(System.lineSeparator());
+                } else if (lineNum == eLine) {
+                    // range end line
+                    capture.append(line, 0, eChar);
+                    if (line.length() == eChar) {
+                        capture.append(System.lineSeparator());
+                    }
+                } else {
+                    // range middle line
+                    capture.append(line).append(System.lineSeparator());
+                }
+            }
+            lineNum++;
+        }
+        return capture.toString();
+    }
 
     /**
      * Inner class for the command argument holding argument key and argument value.
@@ -471,7 +723,7 @@ public class CommandUtil {
 
         private String argumentV;
 
-        CommandArgument(String argumentK, String argumentV) {
+        public CommandArgument(String argumentK, String argumentV) {
             this.argumentK = argumentK;
             this.argumentV = argumentV;
         }
@@ -482,49 +734,6 @@ public class CommandUtil {
 
         public String getArgumentV() {
             return argumentV;
-        }
-    }
-
-    private static String getDocumentationAttribute(String field, int offset) {
-        String offsetStr = String.join("", Collections.nCopies(offset, " "));
-        return String.format("%s# + %s - %s Parameter Description", offsetStr, field, field);
-    }
-
-    private static String getReturnFieldDescription(int offset) {
-        String offsetStr = String.join("", Collections.nCopies(offset, " "));
-        return String.format("%s# + return - Return Value Description", offsetStr);
-    }
-
-    private static String getDocumentationAttachment(List<String> attributes, int offset) {
-        String offsetStr = String.join("", Collections.nCopies(offset, " "));
-        if (attributes == null || attributes.isEmpty()) {
-            return String.format("%s# Description", offsetStr);
-        }
-
-        String joinedList = String.join(" \r\n", attributes);
-        return String.format("%s# Description%n%s#%n%s", offsetStr, offsetStr, joinedList);
-    }
-
-    /**
-     * Holds the meta information required for the documentation attachment.
-     */
-    static class DocAttachmentInfo {
-
-        DocAttachmentInfo(String docAttachment, int replaceStartFrom) {
-            this.docAttachment = docAttachment;
-            this.replaceStartFrom = replaceStartFrom;
-        }
-
-        private String docAttachment;
-
-        private int replaceStartFrom;
-
-        String getDocAttachment() {
-            return docAttachment;
-        }
-
-        int getReplaceStartFrom() {
-            return replaceStartFrom;
         }
     }
 }

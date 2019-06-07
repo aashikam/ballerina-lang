@@ -1,20 +1,20 @@
 /*
-*   Copyright (c) 2017, WSO2 Inc. (http://www.wso2.org) All Rights Reserved.
-*
-*  WSO2 Inc. licenses this file to you under the Apache License,
-*  Version 2.0 (the "License"); you may not use this file except
-*  in compliance with the License.
-*  You may obtain a copy of the License at
-*
-*    http://www.apache.org/licenses/LICENSE-2.0
-*
-* Unless required by applicable law or agreed to in writing,
-* software distributed under the License is distributed on an
-* "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
-* KIND, either express or implied.  See the License for the
-* specific language governing permissions and limitations
-* under the License.
-*/
+ *   Copyright (c) 2017, WSO2 Inc. (http://www.wso2.org) All Rights Reserved.
+ *
+ *  WSO2 Inc. licenses this file to you under the Apache License,
+ *  Version 2.0 (the "License"); you may not use this file except
+ *  in compliance with the License.
+ *  You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
 package org.ballerinalang.bre.bvm;
 
 import org.ballerinalang.model.types.BField;
@@ -23,6 +23,7 @@ import org.ballerinalang.model.types.BType;
 import org.ballerinalang.model.types.TypeTags;
 import org.ballerinalang.model.values.BBoolean;
 import org.ballerinalang.model.values.BByte;
+import org.ballerinalang.model.values.BDecimal;
 import org.ballerinalang.model.values.BFloat;
 import org.ballerinalang.model.values.BInteger;
 import org.ballerinalang.model.values.BMap;
@@ -31,7 +32,14 @@ import org.ballerinalang.model.values.BString;
 import org.ballerinalang.model.values.BValue;
 import org.ballerinalang.util.codegen.ObjectTypeInfo;
 import org.ballerinalang.util.codegen.StructureTypeInfo;
-import org.ballerinalang.util.program.BLangFunctions;
+import org.ballerinalang.util.exceptions.BallerinaErrorReasons;
+import org.ballerinalang.util.exceptions.BallerinaException;
+
+import java.math.BigDecimal;
+import java.math.MathContext;
+import java.util.Map;
+
+import static org.ballerinalang.bre.bvm.BVM.isByteLiteral;
 
 /**
  * Util Class for handling structs in Ballerina VM.
@@ -51,15 +59,17 @@ public class BLangVMStructs {
         BStructureType structType = structInfo.getType();
         BMap<String, BValue> bStruct = new BMap<>(structType);
 
-        BField[] structFields = structType.getFields();
-        for (int i = 0; i < structFields.length; i++) {
+        Map<String, BField> structFields = structType.getFields();
+        int valCount = 0;
+        for (BField field : structFields.values()) {
             BValue value;
-            if (values.length >= i + 1) {
-                value = getBValue(structFields[i].fieldType, values[i]);
+            if (values.length >= valCount + 1) {
+                value = getBValue(field.fieldType, values[valCount]);
             } else {
-                value = structFields[i].fieldType.getEmptyValue();
+                value = field.fieldType.getEmptyValue();
             }
-            bStruct.put(structFields[i].fieldName, value);
+            bStruct.put(field.fieldName, value);
+            valCount++;
         }
         return bStruct;
     }
@@ -80,7 +90,8 @@ public class BLangVMStructs {
         BValue[] vals = new BValue[values.length + 1];
         vals[0] = bStruct;
         System.arraycopy(values, 0, vals, 1, values.length);
-        BLangFunctions.invokeCallable(objectInfo.initializer.functionInfo, vals);
+        BVMExecutor.executeFunction(objectInfo.initializer.getPackageInfo().getProgramFile(),
+                objectInfo.initializer, vals);
         return bStruct;
     }
 
@@ -90,16 +101,20 @@ public class BLangVMStructs {
                 if (value instanceof Integer) {
                     return new BInteger(((Integer) value).longValue());
                 } else if (value instanceof Long) {
-                    return new BInteger(((Long) value).longValue());
+                    return new BInteger((Long) value);
                 } else if (value instanceof BInteger) {
                     return (BInteger) value;
                 }
                 break;
             case TypeTags.BYTE_TAG:
-                if (value instanceof Byte) {
-                    return new BByte(((Byte) value));
-                } else if (value instanceof Integer) {
-                    return new BByte(((Integer) value).byteValue());
+                long longValue;
+                if (value instanceof Byte || value instanceof Integer || value instanceof Long) {
+                    longValue = ((Number) value).longValue();
+                    if (!isByteLiteral(longValue)) {
+                        throw new BallerinaException(BallerinaErrorReasons.NUMBER_CONVERSION_ERROR,
+                                "'int' value '" + value + "' cannot be converted to 'byte'");
+                    }
+                    return new BByte(longValue);
                 } else if (value instanceof BByte) {
                     return (BByte) value;
                 }
@@ -107,11 +122,22 @@ public class BLangVMStructs {
             case TypeTags.FLOAT_TAG:
                 if (value != null) {
                     if (value instanceof Float) {
-                        return new BFloat(((Float) value).floatValue());
+                        return new BFloat((Float) value);
                     } else if (value instanceof Double) {
-                        return new BFloat(((Double) value).doubleValue());
+                        return new BFloat((Double) value);
                     } else if (value instanceof BFloat) {
                         return (BFloat) value;
+                    }
+                }
+                break;
+            case TypeTags.DECIMAL_TAG:
+                if (value != null) {
+                    if (value instanceof String) {
+                        return new BDecimal(new BigDecimal((String) value, MathContext.DECIMAL128));
+                    } else if (value instanceof BigDecimal) {
+                        return new BDecimal((BigDecimal) value);
+                    } else if (value instanceof BDecimal) {
+                        return (BDecimal) value;
                     }
                 }
                 break;

@@ -2,24 +2,24 @@
   "range": {
     "start": {
       "line": 3,
-      "character": 8
+      "character": 3
     },
     "end": {
       "line": 3,
-      "character": 8
+      "character": 3
     }
   },
   "expected": {
-    "title":"Create Function  addTwoIntegers(...)",
+    "title":"Create Function addTwoIntegers(...)",
     "command":"CREATE_FUNC",
     "arguments":[
       {
-        "argumentK":"function.arguments",
-        "argumentV":"int a, int b"
+        "argumentK":"node.line",
+        "argumentV":"3"
       },
       {
-        "argumentK":"function.name",
-        "argumentV":"addTwoIntegers"
+        "argumentK":"node.column",
+        "argumentV":"3"
       }
     ]
   }

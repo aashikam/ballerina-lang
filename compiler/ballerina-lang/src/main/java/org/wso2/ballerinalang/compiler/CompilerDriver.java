@@ -24,30 +24,24 @@ import org.wso2.ballerinalang.compiler.codegen.CodeGenerator;
 import org.wso2.ballerinalang.compiler.desugar.Desugar;
 import org.wso2.ballerinalang.compiler.semantics.analyzer.CodeAnalyzer;
 import org.wso2.ballerinalang.compiler.semantics.analyzer.CompilerPluginRunner;
+import org.wso2.ballerinalang.compiler.semantics.analyzer.DataflowAnalyzer;
 import org.wso2.ballerinalang.compiler.semantics.analyzer.DocumentationAnalyzer;
 import org.wso2.ballerinalang.compiler.semantics.analyzer.SemanticAnalyzer;
 import org.wso2.ballerinalang.compiler.semantics.analyzer.SymbolEnter;
-import org.wso2.ballerinalang.compiler.semantics.analyzer.SymbolResolver;
 import org.wso2.ballerinalang.compiler.semantics.analyzer.TaintAnalyzer;
 import org.wso2.ballerinalang.compiler.semantics.model.SymbolTable;
 import org.wso2.ballerinalang.compiler.semantics.model.symbols.BPackageSymbol;
-import org.wso2.ballerinalang.compiler.semantics.model.symbols.BSymbol;
-import org.wso2.ballerinalang.compiler.semantics.model.symbols.BTypeSymbol;
-import org.wso2.ballerinalang.compiler.semantics.model.symbols.SymTag;
-import org.wso2.ballerinalang.compiler.semantics.model.types.BField;
-import org.wso2.ballerinalang.compiler.semantics.model.types.BStructureType;
-import org.wso2.ballerinalang.compiler.semantics.model.types.BType;
-import org.wso2.ballerinalang.compiler.semantics.model.types.BUnionType;
+import org.wso2.ballerinalang.compiler.tree.BLangImportPackage;
 import org.wso2.ballerinalang.compiler.tree.BLangPackage;
 import org.wso2.ballerinalang.compiler.util.CompilerContext;
 import org.wso2.ballerinalang.compiler.util.CompilerOptions;
-import org.wso2.ballerinalang.compiler.util.Names;
+import org.wso2.ballerinalang.compiler.util.Constants;
 import org.wso2.ballerinalang.compiler.util.diagnotic.BLangDiagnosticLog;
 
 import java.util.HashSet;
-import java.util.Set;
 
 import static org.wso2.ballerinalang.compiler.semantics.model.SymbolTable.BUILTIN;
+import static org.wso2.ballerinalang.compiler.semantics.model.SymbolTable.UTILS;
 import static org.wso2.ballerinalang.util.RepoUtils.LOAD_BUILTIN_FROM_SOURCE;
 
 /**
@@ -77,7 +71,8 @@ public class CompilerDriver {
     private final CodeGenerator codeGenerator;
     private final BIRGen birGenerator;
     private final CompilerPhase compilerPhase;
-    private final SymbolResolver symResolver;
+    private final DataflowAnalyzer dataflowAnalyzer;
+
 
     public static CompilerDriver getInstance(CompilerContext context) {
         CompilerDriver compilerDriver = context.get(COMPILER_DRIVER_KEY);
@@ -104,8 +99,8 @@ public class CompilerDriver {
         this.desugar = Desugar.getInstance(context);
         this.codeGenerator = CodeGenerator.getInstance(context);
         this.birGenerator = BIRGen.getInstance(context);
-        this.compilerPhase = getCompilerPhase();
-        this.symResolver = SymbolResolver.getInstance(context);
+        this.compilerPhase = this.options.getCompilerPhase();
+        this.dataflowAnalyzer = DataflowAnalyzer.getInstance(context);
     }
 
     public BLangPackage compilePackage(BLangPackage packageNode) {
@@ -122,8 +117,11 @@ public class CompilerDriver {
             symbolTable.builtInPackageSymbol = pkgLoader.loadPackageSymbol(BUILTIN, null, null);
         }
 
-        // Update the error symbol
-        updateErrorSymbol();
+    }
+
+    void loadUtilsPackage() {
+        // Load utils package.
+        symbolTable.utilsPackageSymbol = pkgLoader.loadPackageSymbol(UTILS, null, null);
     }
 
     // Private methods
@@ -139,7 +137,14 @@ public class CompilerDriver {
             return;
         }
 
-        pkgNode.imports.stream()
+        HashSet<BLangImportPackage> importPkgList = new HashSet<>();
+        importPkgList.addAll(pkgNode.imports);
+        // If tests are enabled then get the imports of the testable package as well.
+        String testsEnabled = this.options.get(CompilerOptionName.SKIP_TESTS);
+        if (testsEnabled != null && testsEnabled.equals(Constants.SKIP_TESTS)) {
+            pkgNode.getTestablePkgs().forEach(testablePackage -> importPkgList.addAll(testablePackage.imports));
+        }
+        importPkgList.stream()
                 .filter(pkg -> pkg.symbol != null)
                 .forEach(importPkgNode -> this.compilePackageSymbol(importPkgNode.symbol));
         compile(pkgNode);
@@ -156,6 +161,11 @@ public class CompilerDriver {
         }
 
         codeAnalyze(pkgNode);
+        if (this.stopCompilation(pkgNode, CompilerPhase.DATAFLOW_ANALYZE)) {
+            return;
+        }
+
+        dataflowAnalyze(pkgNode);
         if (this.stopCompilation(pkgNode, CompilerPhase.DOCUMENTATION_ANALYZE)) {
             return;
         }
@@ -199,6 +209,10 @@ public class CompilerDriver {
         return this.codeAnalyzer.analyze(pkgNode);
     }
 
+    private BLangPackage dataflowAnalyze(BLangPackage pkgNode) {
+        return this.dataflowAnalyzer.analyze(pkgNode);
+    }
+
     private BLangPackage taintAnalyze(BLangPackage pkgNode) {
         return this.taintAnalyzer.analyze(pkgNode);
     }
@@ -212,31 +226,27 @@ public class CompilerDriver {
     }
 
     public BLangPackage codegen(BLangPackage pkgNode) {
-        if (this.compilerPhase == CompilerPhase.BIR_GEN) {
-            return this.birGenerator.genBIR(pkgNode);
+        if (this.compilerPhase == CompilerPhase.BIR_GEN) { //TODO temp fix, remove this - rajith
+            String orgName = pkgNode.packageID.getOrgName().getValue();
+            if (!"ballerina".equals(orgName)) { // TODO temporary fix, remove this - rajith
+                return this.birGenerator.genBIR(pkgNode);
+            }
+            this.birGenerator.genBIR(pkgNode);
         }
-
         return this.codeGenerator.generateBALO(pkgNode);
-    }
-
-    private CompilerPhase getCompilerPhase() {
-        String phaseName = options.get(CompilerOptionName.COMPILER_PHASE);
-        if (phaseName == null || phaseName.isEmpty()) {
-            return CompilerPhase.CODE_GEN;
-        }
-
-        return CompilerPhase.fromValue(phaseName);
     }
 
     private boolean stopCompilation(BLangPackage pkgNode, CompilerPhase nextPhase) {
         if (compilerPhase.compareTo(nextPhase) < 0) {
             return true;
         }
+        return (checkNextPhase(nextPhase) && dlog.errorCount > 0);
+    }
 
-        return (nextPhase == CompilerPhase.TAINT_ANALYZE ||
+    private boolean checkNextPhase(CompilerPhase nextPhase) {
+        return nextPhase == CompilerPhase.TAINT_ANALYZE ||
                 nextPhase == CompilerPhase.COMPILER_PLUGIN ||
-                nextPhase == CompilerPhase.DESUGAR)
-                && (dlog.errorCount > 0 || pkgNode.getCompilationUnits().isEmpty());
+                nextPhase == CompilerPhase.DESUGAR;
     }
 
     private BLangPackage getBuiltInPackage() {
@@ -244,24 +254,4 @@ public class CompilerDriver {
                 pkgLoader.loadAndDefinePackage(SymbolTable.BUILTIN))))));
     }
 
-    private void updateErrorSymbol() {
-        BSymbol errorStructSymbol = symResolver
-                .lookupSymbol(symbolTable.pkgEnvMap.get(symbolTable.builtInPackageSymbol), Names.ERROR, SymTag.RECORD);
-        symbolTable.errStructType.fields = ((BStructureType) errorStructSymbol.type).fields;
-
-        // change type of the 'cause' field
-        BField cause = symbolTable.errStructType.fields.get(1);
-        BUnionType causeType = (BUnionType) cause.type;
-        Set<BType> memberTypes = new HashSet<BType>() {{
-            add(symbolTable.errStructType);
-            add(symbolTable.nilType);
-        }};
-        BType newCauseType = new BUnionType(causeType.tsymbol, memberTypes, true);
-        cause.type = newCauseType;
-        cause.symbol.type = newCauseType;
-
-        // change the type of the error symbol
-        errorStructSymbol.type = symbolTable.errStructType;
-        errorStructSymbol.type.tsymbol = (BTypeSymbol) errorStructSymbol;
-    }
 }

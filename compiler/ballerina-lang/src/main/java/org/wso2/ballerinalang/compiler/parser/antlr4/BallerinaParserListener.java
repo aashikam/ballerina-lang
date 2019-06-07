@@ -78,16 +78,6 @@ public interface BallerinaParserListener extends ParseTreeListener {
 	 */
 	void exitServiceDefinition(BallerinaParser.ServiceDefinitionContext ctx);
 	/**
-	 * Enter a parse tree produced by {@link BallerinaParser#serviceEndpointAttachments}.
-	 * @param ctx the parse tree
-	 */
-	void enterServiceEndpointAttachments(BallerinaParser.ServiceEndpointAttachmentsContext ctx);
-	/**
-	 * Exit a parse tree produced by {@link BallerinaParser#serviceEndpointAttachments}.
-	 * @param ctx the parse tree
-	 */
-	void exitServiceEndpointAttachments(BallerinaParser.ServiceEndpointAttachmentsContext ctx);
-	/**
 	 * Enter a parse tree produced by {@link BallerinaParser#serviceBody}.
 	 * @param ctx the parse tree
 	 */
@@ -98,25 +88,15 @@ public interface BallerinaParserListener extends ParseTreeListener {
 	 */
 	void exitServiceBody(BallerinaParser.ServiceBodyContext ctx);
 	/**
-	 * Enter a parse tree produced by {@link BallerinaParser#resourceDefinition}.
+	 * Enter a parse tree produced by {@link BallerinaParser#serviceBodyMember}.
 	 * @param ctx the parse tree
 	 */
-	void enterResourceDefinition(BallerinaParser.ResourceDefinitionContext ctx);
+	void enterServiceBodyMember(BallerinaParser.ServiceBodyMemberContext ctx);
 	/**
-	 * Exit a parse tree produced by {@link BallerinaParser#resourceDefinition}.
+	 * Exit a parse tree produced by {@link BallerinaParser#serviceBodyMember}.
 	 * @param ctx the parse tree
 	 */
-	void exitResourceDefinition(BallerinaParser.ResourceDefinitionContext ctx);
-	/**
-	 * Enter a parse tree produced by {@link BallerinaParser#resourceParameterList}.
-	 * @param ctx the parse tree
-	 */
-	void enterResourceParameterList(BallerinaParser.ResourceParameterListContext ctx);
-	/**
-	 * Exit a parse tree produced by {@link BallerinaParser#resourceParameterList}.
-	 * @param ctx the parse tree
-	 */
-	void exitResourceParameterList(BallerinaParser.ResourceParameterListContext ctx);
+	void exitServiceBodyMember(BallerinaParser.ServiceBodyMemberContext ctx);
 	/**
 	 * Enter a parse tree produced by {@link BallerinaParser#callableUnitBody}.
 	 * @param ctx the parse tree
@@ -198,35 +178,15 @@ public interface BallerinaParserListener extends ParseTreeListener {
 	 */
 	void exitObjectBody(BallerinaParser.ObjectBodyContext ctx);
 	/**
-	 * Enter a parse tree produced by {@link BallerinaParser#objectMember}.
+	 * Enter a parse tree produced by {@link BallerinaParser#typeReference}.
 	 * @param ctx the parse tree
 	 */
-	void enterObjectMember(BallerinaParser.ObjectMemberContext ctx);
+	void enterTypeReference(BallerinaParser.TypeReferenceContext ctx);
 	/**
-	 * Exit a parse tree produced by {@link BallerinaParser#objectMember}.
+	 * Exit a parse tree produced by {@link BallerinaParser#typeReference}.
 	 * @param ctx the parse tree
 	 */
-	void exitObjectMember(BallerinaParser.ObjectMemberContext ctx);
-	/**
-	 * Enter a parse tree produced by {@link BallerinaParser#objectInitializer}.
-	 * @param ctx the parse tree
-	 */
-	void enterObjectInitializer(BallerinaParser.ObjectInitializerContext ctx);
-	/**
-	 * Exit a parse tree produced by {@link BallerinaParser#objectInitializer}.
-	 * @param ctx the parse tree
-	 */
-	void exitObjectInitializer(BallerinaParser.ObjectInitializerContext ctx);
-	/**
-	 * Enter a parse tree produced by {@link BallerinaParser#objectInitializerParameterList}.
-	 * @param ctx the parse tree
-	 */
-	void enterObjectInitializerParameterList(BallerinaParser.ObjectInitializerParameterListContext ctx);
-	/**
-	 * Exit a parse tree produced by {@link BallerinaParser#objectInitializerParameterList}.
-	 * @param ctx the parse tree
-	 */
-	void exitObjectInitializerParameterList(BallerinaParser.ObjectInitializerParameterListContext ctx);
+	void exitTypeReference(BallerinaParser.TypeReferenceContext ctx);
 	/**
 	 * Enter a parse tree produced by {@link BallerinaParser#objectFieldDefinition}.
 	 * @param ctx the parse tree
@@ -278,36 +238,6 @@ public interface BallerinaParserListener extends ParseTreeListener {
 	 */
 	void exitRestDescriptorPredicate(BallerinaParser.RestDescriptorPredicateContext ctx);
 	/**
-	 * Enter a parse tree produced by {@link BallerinaParser#objectParameterList}.
-	 * @param ctx the parse tree
-	 */
-	void enterObjectParameterList(BallerinaParser.ObjectParameterListContext ctx);
-	/**
-	 * Exit a parse tree produced by {@link BallerinaParser#objectParameterList}.
-	 * @param ctx the parse tree
-	 */
-	void exitObjectParameterList(BallerinaParser.ObjectParameterListContext ctx);
-	/**
-	 * Enter a parse tree produced by {@link BallerinaParser#objectParameter}.
-	 * @param ctx the parse tree
-	 */
-	void enterObjectParameter(BallerinaParser.ObjectParameterContext ctx);
-	/**
-	 * Exit a parse tree produced by {@link BallerinaParser#objectParameter}.
-	 * @param ctx the parse tree
-	 */
-	void exitObjectParameter(BallerinaParser.ObjectParameterContext ctx);
-	/**
-	 * Enter a parse tree produced by {@link BallerinaParser#objectDefaultableParameter}.
-	 * @param ctx the parse tree
-	 */
-	void enterObjectDefaultableParameter(BallerinaParser.ObjectDefaultableParameterContext ctx);
-	/**
-	 * Exit a parse tree produced by {@link BallerinaParser#objectDefaultableParameter}.
-	 * @param ctx the parse tree
-	 */
-	void exitObjectDefaultableParameter(BallerinaParser.ObjectDefaultableParameterContext ctx);
-	/**
 	 * Enter a parse tree produced by {@link BallerinaParser#objectFunctionDefinition}.
 	 * @param ctx the parse tree
 	 */
@@ -327,6 +257,16 @@ public interface BallerinaParserListener extends ParseTreeListener {
 	 * @param ctx the parse tree
 	 */
 	void exitAnnotationDefinition(BallerinaParser.AnnotationDefinitionContext ctx);
+	/**
+	 * Enter a parse tree produced by {@link BallerinaParser#constantDefinition}.
+	 * @param ctx the parse tree
+	 */
+	void enterConstantDefinition(BallerinaParser.ConstantDefinitionContext ctx);
+	/**
+	 * Exit a parse tree produced by {@link BallerinaParser#constantDefinition}.
+	 * @param ctx the parse tree
+	 */
+	void exitConstantDefinition(BallerinaParser.ConstantDefinitionContext ctx);
 	/**
 	 * Enter a parse tree produced by {@link BallerinaParser#globalVariableDefinition}.
 	 * @param ctx the parse tree
@@ -378,46 +318,6 @@ public interface BallerinaParserListener extends ParseTreeListener {
 	 */
 	void exitWorkerDefinition(BallerinaParser.WorkerDefinitionContext ctx);
 	/**
-	 * Enter a parse tree produced by {@link BallerinaParser#globalEndpointDefinition}.
-	 * @param ctx the parse tree
-	 */
-	void enterGlobalEndpointDefinition(BallerinaParser.GlobalEndpointDefinitionContext ctx);
-	/**
-	 * Exit a parse tree produced by {@link BallerinaParser#globalEndpointDefinition}.
-	 * @param ctx the parse tree
-	 */
-	void exitGlobalEndpointDefinition(BallerinaParser.GlobalEndpointDefinitionContext ctx);
-	/**
-	 * Enter a parse tree produced by {@link BallerinaParser#endpointDeclaration}.
-	 * @param ctx the parse tree
-	 */
-	void enterEndpointDeclaration(BallerinaParser.EndpointDeclarationContext ctx);
-	/**
-	 * Exit a parse tree produced by {@link BallerinaParser#endpointDeclaration}.
-	 * @param ctx the parse tree
-	 */
-	void exitEndpointDeclaration(BallerinaParser.EndpointDeclarationContext ctx);
-	/**
-	 * Enter a parse tree produced by {@link BallerinaParser#endpointType}.
-	 * @param ctx the parse tree
-	 */
-	void enterEndpointType(BallerinaParser.EndpointTypeContext ctx);
-	/**
-	 * Exit a parse tree produced by {@link BallerinaParser#endpointType}.
-	 * @param ctx the parse tree
-	 */
-	void exitEndpointType(BallerinaParser.EndpointTypeContext ctx);
-	/**
-	 * Enter a parse tree produced by {@link BallerinaParser#endpointInitlization}.
-	 * @param ctx the parse tree
-	 */
-	void enterEndpointInitlization(BallerinaParser.EndpointInitlizationContext ctx);
-	/**
-	 * Exit a parse tree produced by {@link BallerinaParser#endpointInitlization}.
-	 * @param ctx the parse tree
-	 */
-	void exitEndpointInitlization(BallerinaParser.EndpointInitlizationContext ctx);
-	/**
 	 * Enter a parse tree produced by {@link BallerinaParser#finiteType}.
 	 * @param ctx the parse tree
 	 */
@@ -450,18 +350,6 @@ public interface BallerinaParserListener extends ParseTreeListener {
 	 */
 	void exitTupleTypeNameLabel(BallerinaParser.TupleTypeNameLabelContext ctx);
 	/**
-	 * Enter a parse tree produced by the {@code recordTypeNameLabel}
-	 * labeled alternative in {@link BallerinaParser#typeName}.
-	 * @param ctx the parse tree
-	 */
-	void enterRecordTypeNameLabel(BallerinaParser.RecordTypeNameLabelContext ctx);
-	/**
-	 * Exit a parse tree produced by the {@code recordTypeNameLabel}
-	 * labeled alternative in {@link BallerinaParser#typeName}.
-	 * @param ctx the parse tree
-	 */
-	void exitRecordTypeNameLabel(BallerinaParser.RecordTypeNameLabelContext ctx);
-	/**
 	 * Enter a parse tree produced by the {@code unionTypeNameLabel}
 	 * labeled alternative in {@link BallerinaParser#typeName}.
 	 * @param ctx the parse tree
@@ -473,6 +361,18 @@ public interface BallerinaParserListener extends ParseTreeListener {
 	 * @param ctx the parse tree
 	 */
 	void exitUnionTypeNameLabel(BallerinaParser.UnionTypeNameLabelContext ctx);
+	/**
+	 * Enter a parse tree produced by the {@code exclusiveRecordTypeNameLabel}
+	 * labeled alternative in {@link BallerinaParser#typeName}.
+	 * @param ctx the parse tree
+	 */
+	void enterExclusiveRecordTypeNameLabel(BallerinaParser.ExclusiveRecordTypeNameLabelContext ctx);
+	/**
+	 * Exit a parse tree produced by the {@code exclusiveRecordTypeNameLabel}
+	 * labeled alternative in {@link BallerinaParser#typeName}.
+	 * @param ctx the parse tree
+	 */
+	void exitExclusiveRecordTypeNameLabel(BallerinaParser.ExclusiveRecordTypeNameLabelContext ctx);
 	/**
 	 * Enter a parse tree produced by the {@code simpleTypeNameLabel}
 	 * labeled alternative in {@link BallerinaParser#typeName}.
@@ -534,15 +434,47 @@ public interface BallerinaParserListener extends ParseTreeListener {
 	 */
 	void exitGroupTypeNameLabel(BallerinaParser.GroupTypeNameLabelContext ctx);
 	/**
-	 * Enter a parse tree produced by {@link BallerinaParser#recordFieldDefinitionList}.
+	 * Enter a parse tree produced by the {@code inclusiveRecordTypeNameLabel}
+	 * labeled alternative in {@link BallerinaParser#typeName}.
 	 * @param ctx the parse tree
 	 */
-	void enterRecordFieldDefinitionList(BallerinaParser.RecordFieldDefinitionListContext ctx);
+	void enterInclusiveRecordTypeNameLabel(BallerinaParser.InclusiveRecordTypeNameLabelContext ctx);
 	/**
-	 * Exit a parse tree produced by {@link BallerinaParser#recordFieldDefinitionList}.
+	 * Exit a parse tree produced by the {@code inclusiveRecordTypeNameLabel}
+	 * labeled alternative in {@link BallerinaParser#typeName}.
 	 * @param ctx the parse tree
 	 */
-	void exitRecordFieldDefinitionList(BallerinaParser.RecordFieldDefinitionListContext ctx);
+	void exitInclusiveRecordTypeNameLabel(BallerinaParser.InclusiveRecordTypeNameLabelContext ctx);
+	/**
+	 * Enter a parse tree produced by {@link BallerinaParser#inclusiveRecordTypeDescriptor}.
+	 * @param ctx the parse tree
+	 */
+	void enterInclusiveRecordTypeDescriptor(BallerinaParser.InclusiveRecordTypeDescriptorContext ctx);
+	/**
+	 * Exit a parse tree produced by {@link BallerinaParser#inclusiveRecordTypeDescriptor}.
+	 * @param ctx the parse tree
+	 */
+	void exitInclusiveRecordTypeDescriptor(BallerinaParser.InclusiveRecordTypeDescriptorContext ctx);
+	/**
+	 * Enter a parse tree produced by {@link BallerinaParser#exclusiveRecordTypeDescriptor}.
+	 * @param ctx the parse tree
+	 */
+	void enterExclusiveRecordTypeDescriptor(BallerinaParser.ExclusiveRecordTypeDescriptorContext ctx);
+	/**
+	 * Exit a parse tree produced by {@link BallerinaParser#exclusiveRecordTypeDescriptor}.
+	 * @param ctx the parse tree
+	 */
+	void exitExclusiveRecordTypeDescriptor(BallerinaParser.ExclusiveRecordTypeDescriptorContext ctx);
+	/**
+	 * Enter a parse tree produced by {@link BallerinaParser#fieldDescriptor}.
+	 * @param ctx the parse tree
+	 */
+	void enterFieldDescriptor(BallerinaParser.FieldDescriptorContext ctx);
+	/**
+	 * Exit a parse tree produced by {@link BallerinaParser#fieldDescriptor}.
+	 * @param ctx the parse tree
+	 */
+	void exitFieldDescriptor(BallerinaParser.FieldDescriptorContext ctx);
 	/**
 	 * Enter a parse tree produced by {@link BallerinaParser#simpleTypeName}.
 	 * @param ctx the parse tree
@@ -604,6 +536,16 @@ public interface BallerinaParserListener extends ParseTreeListener {
 	 */
 	void exitFunctionTypeName(BallerinaParser.FunctionTypeNameContext ctx);
 	/**
+	 * Enter a parse tree produced by {@link BallerinaParser#errorTypeName}.
+	 * @param ctx the parse tree
+	 */
+	void enterErrorTypeName(BallerinaParser.ErrorTypeNameContext ctx);
+	/**
+	 * Exit a parse tree produced by {@link BallerinaParser#errorTypeName}.
+	 * @param ctx the parse tree
+	 */
+	void exitErrorTypeName(BallerinaParser.ErrorTypeNameContext ctx);
+	/**
 	 * Enter a parse tree produced by {@link BallerinaParser#xmlNamespaceName}.
 	 * @param ctx the parse tree
 	 */
@@ -663,6 +605,76 @@ public interface BallerinaParserListener extends ParseTreeListener {
 	 * @param ctx the parse tree
 	 */
 	void exitRecordLiteral(BallerinaParser.RecordLiteralContext ctx);
+	/**
+	 * Enter a parse tree produced by the {@code staticMatchRecordLiteral}
+	 * labeled alternative in {@link BallerinaParser#staticMatchLiterals}.
+	 * @param ctx the parse tree
+	 */
+	void enterStaticMatchRecordLiteral(BallerinaParser.StaticMatchRecordLiteralContext ctx);
+	/**
+	 * Exit a parse tree produced by the {@code staticMatchRecordLiteral}
+	 * labeled alternative in {@link BallerinaParser#staticMatchLiterals}.
+	 * @param ctx the parse tree
+	 */
+	void exitStaticMatchRecordLiteral(BallerinaParser.StaticMatchRecordLiteralContext ctx);
+	/**
+	 * Enter a parse tree produced by the {@code staticMatchTupleLiteral}
+	 * labeled alternative in {@link BallerinaParser#staticMatchLiterals}.
+	 * @param ctx the parse tree
+	 */
+	void enterStaticMatchTupleLiteral(BallerinaParser.StaticMatchTupleLiteralContext ctx);
+	/**
+	 * Exit a parse tree produced by the {@code staticMatchTupleLiteral}
+	 * labeled alternative in {@link BallerinaParser#staticMatchLiterals}.
+	 * @param ctx the parse tree
+	 */
+	void exitStaticMatchTupleLiteral(BallerinaParser.StaticMatchTupleLiteralContext ctx);
+	/**
+	 * Enter a parse tree produced by the {@code staticMatchIdentifierLiteral}
+	 * labeled alternative in {@link BallerinaParser#staticMatchLiterals}.
+	 * @param ctx the parse tree
+	 */
+	void enterStaticMatchIdentifierLiteral(BallerinaParser.StaticMatchIdentifierLiteralContext ctx);
+	/**
+	 * Exit a parse tree produced by the {@code staticMatchIdentifierLiteral}
+	 * labeled alternative in {@link BallerinaParser#staticMatchLiterals}.
+	 * @param ctx the parse tree
+	 */
+	void exitStaticMatchIdentifierLiteral(BallerinaParser.StaticMatchIdentifierLiteralContext ctx);
+	/**
+	 * Enter a parse tree produced by the {@code staticMatchOrExpression}
+	 * labeled alternative in {@link BallerinaParser#staticMatchLiterals}.
+	 * @param ctx the parse tree
+	 */
+	void enterStaticMatchOrExpression(BallerinaParser.StaticMatchOrExpressionContext ctx);
+	/**
+	 * Exit a parse tree produced by the {@code staticMatchOrExpression}
+	 * labeled alternative in {@link BallerinaParser#staticMatchLiterals}.
+	 * @param ctx the parse tree
+	 */
+	void exitStaticMatchOrExpression(BallerinaParser.StaticMatchOrExpressionContext ctx);
+	/**
+	 * Enter a parse tree produced by the {@code staticMatchSimpleLiteral}
+	 * labeled alternative in {@link BallerinaParser#staticMatchLiterals}.
+	 * @param ctx the parse tree
+	 */
+	void enterStaticMatchSimpleLiteral(BallerinaParser.StaticMatchSimpleLiteralContext ctx);
+	/**
+	 * Exit a parse tree produced by the {@code staticMatchSimpleLiteral}
+	 * labeled alternative in {@link BallerinaParser#staticMatchLiterals}.
+	 * @param ctx the parse tree
+	 */
+	void exitStaticMatchSimpleLiteral(BallerinaParser.StaticMatchSimpleLiteralContext ctx);
+	/**
+	 * Enter a parse tree produced by {@link BallerinaParser#tupleLiteral}.
+	 * @param ctx the parse tree
+	 */
+	void enterTupleLiteral(BallerinaParser.TupleLiteralContext ctx);
+	/**
+	 * Exit a parse tree produced by {@link BallerinaParser#tupleLiteral}.
+	 * @param ctx the parse tree
+	 */
+	void exitTupleLiteral(BallerinaParser.TupleLiteralContext ctx);
 	/**
 	 * Enter a parse tree produced by {@link BallerinaParser#recordKeyValue}.
 	 * @param ctx the parse tree
@@ -754,16 +766,6 @@ public interface BallerinaParserListener extends ParseTreeListener {
 	 */
 	void exitArrayLiteral(BallerinaParser.ArrayLiteralContext ctx);
 	/**
-	 * Enter a parse tree produced by {@link BallerinaParser#typeInitExpr}.
-	 * @param ctx the parse tree
-	 */
-	void enterTypeInitExpr(BallerinaParser.TypeInitExprContext ctx);
-	/**
-	 * Exit a parse tree produced by {@link BallerinaParser#typeInitExpr}.
-	 * @param ctx the parse tree
-	 */
-	void exitTypeInitExpr(BallerinaParser.TypeInitExprContext ctx);
-	/**
 	 * Enter a parse tree produced by {@link BallerinaParser#assignmentStatement}.
 	 * @param ctx the parse tree
 	 */
@@ -784,6 +786,26 @@ public interface BallerinaParserListener extends ParseTreeListener {
 	 */
 	void exitTupleDestructuringStatement(BallerinaParser.TupleDestructuringStatementContext ctx);
 	/**
+	 * Enter a parse tree produced by {@link BallerinaParser#recordDestructuringStatement}.
+	 * @param ctx the parse tree
+	 */
+	void enterRecordDestructuringStatement(BallerinaParser.RecordDestructuringStatementContext ctx);
+	/**
+	 * Exit a parse tree produced by {@link BallerinaParser#recordDestructuringStatement}.
+	 * @param ctx the parse tree
+	 */
+	void exitRecordDestructuringStatement(BallerinaParser.RecordDestructuringStatementContext ctx);
+	/**
+	 * Enter a parse tree produced by {@link BallerinaParser#errorDestructuringStatement}.
+	 * @param ctx the parse tree
+	 */
+	void enterErrorDestructuringStatement(BallerinaParser.ErrorDestructuringStatementContext ctx);
+	/**
+	 * Exit a parse tree produced by {@link BallerinaParser#errorDestructuringStatement}.
+	 * @param ctx the parse tree
+	 */
+	void exitErrorDestructuringStatement(BallerinaParser.ErrorDestructuringStatementContext ctx);
+	/**
 	 * Enter a parse tree produced by {@link BallerinaParser#compoundAssignmentStatement}.
 	 * @param ctx the parse tree
 	 */
@@ -803,26 +825,6 @@ public interface BallerinaParserListener extends ParseTreeListener {
 	 * @param ctx the parse tree
 	 */
 	void exitCompoundOperator(BallerinaParser.CompoundOperatorContext ctx);
-	/**
-	 * Enter a parse tree produced by {@link BallerinaParser#postIncrementStatement}.
-	 * @param ctx the parse tree
-	 */
-	void enterPostIncrementStatement(BallerinaParser.PostIncrementStatementContext ctx);
-	/**
-	 * Exit a parse tree produced by {@link BallerinaParser#postIncrementStatement}.
-	 * @param ctx the parse tree
-	 */
-	void exitPostIncrementStatement(BallerinaParser.PostIncrementStatementContext ctx);
-	/**
-	 * Enter a parse tree produced by {@link BallerinaParser#postArithmeticOperator}.
-	 * @param ctx the parse tree
-	 */
-	void enterPostArithmeticOperator(BallerinaParser.PostArithmeticOperatorContext ctx);
-	/**
-	 * Exit a parse tree produced by {@link BallerinaParser#postArithmeticOperator}.
-	 * @param ctx the parse tree
-	 */
-	void exitPostArithmeticOperator(BallerinaParser.PostArithmeticOperatorContext ctx);
 	/**
 	 * Enter a parse tree produced by {@link BallerinaParser#variableReferenceList}.
 	 * @param ctx the parse tree
@@ -894,6 +896,206 @@ public interface BallerinaParserListener extends ParseTreeListener {
 	 */
 	void exitMatchPatternClause(BallerinaParser.MatchPatternClauseContext ctx);
 	/**
+	 * Enter a parse tree produced by {@link BallerinaParser#bindingPattern}.
+	 * @param ctx the parse tree
+	 */
+	void enterBindingPattern(BallerinaParser.BindingPatternContext ctx);
+	/**
+	 * Exit a parse tree produced by {@link BallerinaParser#bindingPattern}.
+	 * @param ctx the parse tree
+	 */
+	void exitBindingPattern(BallerinaParser.BindingPatternContext ctx);
+	/**
+	 * Enter a parse tree produced by {@link BallerinaParser#structuredBindingPattern}.
+	 * @param ctx the parse tree
+	 */
+	void enterStructuredBindingPattern(BallerinaParser.StructuredBindingPatternContext ctx);
+	/**
+	 * Exit a parse tree produced by {@link BallerinaParser#structuredBindingPattern}.
+	 * @param ctx the parse tree
+	 */
+	void exitStructuredBindingPattern(BallerinaParser.StructuredBindingPatternContext ctx);
+	/**
+	 * Enter a parse tree produced by {@link BallerinaParser#errorBindingPattern}.
+	 * @param ctx the parse tree
+	 */
+	void enterErrorBindingPattern(BallerinaParser.ErrorBindingPatternContext ctx);
+	/**
+	 * Exit a parse tree produced by {@link BallerinaParser#errorBindingPattern}.
+	 * @param ctx the parse tree
+	 */
+	void exitErrorBindingPattern(BallerinaParser.ErrorBindingPatternContext ctx);
+	/**
+	 * Enter a parse tree produced by {@link BallerinaParser#tupleBindingPattern}.
+	 * @param ctx the parse tree
+	 */
+	void enterTupleBindingPattern(BallerinaParser.TupleBindingPatternContext ctx);
+	/**
+	 * Exit a parse tree produced by {@link BallerinaParser#tupleBindingPattern}.
+	 * @param ctx the parse tree
+	 */
+	void exitTupleBindingPattern(BallerinaParser.TupleBindingPatternContext ctx);
+	/**
+	 * Enter a parse tree produced by {@link BallerinaParser#recordBindingPattern}.
+	 * @param ctx the parse tree
+	 */
+	void enterRecordBindingPattern(BallerinaParser.RecordBindingPatternContext ctx);
+	/**
+	 * Exit a parse tree produced by {@link BallerinaParser#recordBindingPattern}.
+	 * @param ctx the parse tree
+	 */
+	void exitRecordBindingPattern(BallerinaParser.RecordBindingPatternContext ctx);
+	/**
+	 * Enter a parse tree produced by {@link BallerinaParser#openRecordBindingPattern}.
+	 * @param ctx the parse tree
+	 */
+	void enterOpenRecordBindingPattern(BallerinaParser.OpenRecordBindingPatternContext ctx);
+	/**
+	 * Exit a parse tree produced by {@link BallerinaParser#openRecordBindingPattern}.
+	 * @param ctx the parse tree
+	 */
+	void exitOpenRecordBindingPattern(BallerinaParser.OpenRecordBindingPatternContext ctx);
+	/**
+	 * Enter a parse tree produced by {@link BallerinaParser#closedRecordBindingPattern}.
+	 * @param ctx the parse tree
+	 */
+	void enterClosedRecordBindingPattern(BallerinaParser.ClosedRecordBindingPatternContext ctx);
+	/**
+	 * Exit a parse tree produced by {@link BallerinaParser#closedRecordBindingPattern}.
+	 * @param ctx the parse tree
+	 */
+	void exitClosedRecordBindingPattern(BallerinaParser.ClosedRecordBindingPatternContext ctx);
+	/**
+	 * Enter a parse tree produced by {@link BallerinaParser#entryBindingPattern}.
+	 * @param ctx the parse tree
+	 */
+	void enterEntryBindingPattern(BallerinaParser.EntryBindingPatternContext ctx);
+	/**
+	 * Exit a parse tree produced by {@link BallerinaParser#entryBindingPattern}.
+	 * @param ctx the parse tree
+	 */
+	void exitEntryBindingPattern(BallerinaParser.EntryBindingPatternContext ctx);
+	/**
+	 * Enter a parse tree produced by {@link BallerinaParser#fieldBindingPattern}.
+	 * @param ctx the parse tree
+	 */
+	void enterFieldBindingPattern(BallerinaParser.FieldBindingPatternContext ctx);
+	/**
+	 * Exit a parse tree produced by {@link BallerinaParser#fieldBindingPattern}.
+	 * @param ctx the parse tree
+	 */
+	void exitFieldBindingPattern(BallerinaParser.FieldBindingPatternContext ctx);
+	/**
+	 * Enter a parse tree produced by {@link BallerinaParser#restBindingPattern}.
+	 * @param ctx the parse tree
+	 */
+	void enterRestBindingPattern(BallerinaParser.RestBindingPatternContext ctx);
+	/**
+	 * Exit a parse tree produced by {@link BallerinaParser#restBindingPattern}.
+	 * @param ctx the parse tree
+	 */
+	void exitRestBindingPattern(BallerinaParser.RestBindingPatternContext ctx);
+	/**
+	 * Enter a parse tree produced by {@link BallerinaParser#bindingRefPattern}.
+	 * @param ctx the parse tree
+	 */
+	void enterBindingRefPattern(BallerinaParser.BindingRefPatternContext ctx);
+	/**
+	 * Exit a parse tree produced by {@link BallerinaParser#bindingRefPattern}.
+	 * @param ctx the parse tree
+	 */
+	void exitBindingRefPattern(BallerinaParser.BindingRefPatternContext ctx);
+	/**
+	 * Enter a parse tree produced by {@link BallerinaParser#structuredRefBindingPattern}.
+	 * @param ctx the parse tree
+	 */
+	void enterStructuredRefBindingPattern(BallerinaParser.StructuredRefBindingPatternContext ctx);
+	/**
+	 * Exit a parse tree produced by {@link BallerinaParser#structuredRefBindingPattern}.
+	 * @param ctx the parse tree
+	 */
+	void exitStructuredRefBindingPattern(BallerinaParser.StructuredRefBindingPatternContext ctx);
+	/**
+	 * Enter a parse tree produced by {@link BallerinaParser#tupleRefBindingPattern}.
+	 * @param ctx the parse tree
+	 */
+	void enterTupleRefBindingPattern(BallerinaParser.TupleRefBindingPatternContext ctx);
+	/**
+	 * Exit a parse tree produced by {@link BallerinaParser#tupleRefBindingPattern}.
+	 * @param ctx the parse tree
+	 */
+	void exitTupleRefBindingPattern(BallerinaParser.TupleRefBindingPatternContext ctx);
+	/**
+	 * Enter a parse tree produced by {@link BallerinaParser#recordRefBindingPattern}.
+	 * @param ctx the parse tree
+	 */
+	void enterRecordRefBindingPattern(BallerinaParser.RecordRefBindingPatternContext ctx);
+	/**
+	 * Exit a parse tree produced by {@link BallerinaParser#recordRefBindingPattern}.
+	 * @param ctx the parse tree
+	 */
+	void exitRecordRefBindingPattern(BallerinaParser.RecordRefBindingPatternContext ctx);
+	/**
+	 * Enter a parse tree produced by {@link BallerinaParser#openRecordRefBindingPattern}.
+	 * @param ctx the parse tree
+	 */
+	void enterOpenRecordRefBindingPattern(BallerinaParser.OpenRecordRefBindingPatternContext ctx);
+	/**
+	 * Exit a parse tree produced by {@link BallerinaParser#openRecordRefBindingPattern}.
+	 * @param ctx the parse tree
+	 */
+	void exitOpenRecordRefBindingPattern(BallerinaParser.OpenRecordRefBindingPatternContext ctx);
+	/**
+	 * Enter a parse tree produced by {@link BallerinaParser#closedRecordRefBindingPattern}.
+	 * @param ctx the parse tree
+	 */
+	void enterClosedRecordRefBindingPattern(BallerinaParser.ClosedRecordRefBindingPatternContext ctx);
+	/**
+	 * Exit a parse tree produced by {@link BallerinaParser#closedRecordRefBindingPattern}.
+	 * @param ctx the parse tree
+	 */
+	void exitClosedRecordRefBindingPattern(BallerinaParser.ClosedRecordRefBindingPatternContext ctx);
+	/**
+	 * Enter a parse tree produced by {@link BallerinaParser#errorRefBindingPattern}.
+	 * @param ctx the parse tree
+	 */
+	void enterErrorRefBindingPattern(BallerinaParser.ErrorRefBindingPatternContext ctx);
+	/**
+	 * Exit a parse tree produced by {@link BallerinaParser#errorRefBindingPattern}.
+	 * @param ctx the parse tree
+	 */
+	void exitErrorRefBindingPattern(BallerinaParser.ErrorRefBindingPatternContext ctx);
+	/**
+	 * Enter a parse tree produced by {@link BallerinaParser#entryRefBindingPattern}.
+	 * @param ctx the parse tree
+	 */
+	void enterEntryRefBindingPattern(BallerinaParser.EntryRefBindingPatternContext ctx);
+	/**
+	 * Exit a parse tree produced by {@link BallerinaParser#entryRefBindingPattern}.
+	 * @param ctx the parse tree
+	 */
+	void exitEntryRefBindingPattern(BallerinaParser.EntryRefBindingPatternContext ctx);
+	/**
+	 * Enter a parse tree produced by {@link BallerinaParser#fieldRefBindingPattern}.
+	 * @param ctx the parse tree
+	 */
+	void enterFieldRefBindingPattern(BallerinaParser.FieldRefBindingPatternContext ctx);
+	/**
+	 * Exit a parse tree produced by {@link BallerinaParser#fieldRefBindingPattern}.
+	 * @param ctx the parse tree
+	 */
+	void exitFieldRefBindingPattern(BallerinaParser.FieldRefBindingPatternContext ctx);
+	/**
+	 * Enter a parse tree produced by {@link BallerinaParser#restRefBindingPattern}.
+	 * @param ctx the parse tree
+	 */
+	void enterRestRefBindingPattern(BallerinaParser.RestRefBindingPatternContext ctx);
+	/**
+	 * Exit a parse tree produced by {@link BallerinaParser#restRefBindingPattern}.
+	 * @param ctx the parse tree
+	 */
+	void exitRestRefBindingPattern(BallerinaParser.RestRefBindingPatternContext ctx);
+	/**
 	 * Enter a parse tree produced by {@link BallerinaParser#foreachStatement}.
 	 * @param ctx the parse tree
 	 */
@@ -944,46 +1146,6 @@ public interface BallerinaParserListener extends ParseTreeListener {
 	 */
 	void exitBreakStatement(BallerinaParser.BreakStatementContext ctx);
 	/**
-	 * Enter a parse tree produced by {@link BallerinaParser#scopeStatement}.
-	 * @param ctx the parse tree
-	 */
-	void enterScopeStatement(BallerinaParser.ScopeStatementContext ctx);
-	/**
-	 * Exit a parse tree produced by {@link BallerinaParser#scopeStatement}.
-	 * @param ctx the parse tree
-	 */
-	void exitScopeStatement(BallerinaParser.ScopeStatementContext ctx);
-	/**
-	 * Enter a parse tree produced by {@link BallerinaParser#scopeClause}.
-	 * @param ctx the parse tree
-	 */
-	void enterScopeClause(BallerinaParser.ScopeClauseContext ctx);
-	/**
-	 * Exit a parse tree produced by {@link BallerinaParser#scopeClause}.
-	 * @param ctx the parse tree
-	 */
-	void exitScopeClause(BallerinaParser.ScopeClauseContext ctx);
-	/**
-	 * Enter a parse tree produced by {@link BallerinaParser#compensationClause}.
-	 * @param ctx the parse tree
-	 */
-	void enterCompensationClause(BallerinaParser.CompensationClauseContext ctx);
-	/**
-	 * Exit a parse tree produced by {@link BallerinaParser#compensationClause}.
-	 * @param ctx the parse tree
-	 */
-	void exitCompensationClause(BallerinaParser.CompensationClauseContext ctx);
-	/**
-	 * Enter a parse tree produced by {@link BallerinaParser#compensateStatement}.
-	 * @param ctx the parse tree
-	 */
-	void enterCompensateStatement(BallerinaParser.CompensateStatementContext ctx);
-	/**
-	 * Exit a parse tree produced by {@link BallerinaParser#compensateStatement}.
-	 * @param ctx the parse tree
-	 */
-	void exitCompensateStatement(BallerinaParser.CompensateStatementContext ctx);
-	/**
 	 * Enter a parse tree produced by {@link BallerinaParser#forkJoinStatement}.
 	 * @param ctx the parse tree
 	 */
@@ -993,50 +1155,6 @@ public interface BallerinaParserListener extends ParseTreeListener {
 	 * @param ctx the parse tree
 	 */
 	void exitForkJoinStatement(BallerinaParser.ForkJoinStatementContext ctx);
-	/**
-	 * Enter a parse tree produced by {@link BallerinaParser#joinClause}.
-	 * @param ctx the parse tree
-	 */
-	void enterJoinClause(BallerinaParser.JoinClauseContext ctx);
-	/**
-	 * Exit a parse tree produced by {@link BallerinaParser#joinClause}.
-	 * @param ctx the parse tree
-	 */
-	void exitJoinClause(BallerinaParser.JoinClauseContext ctx);
-	/**
-	 * Enter a parse tree produced by the {@code anyJoinCondition}
-	 * labeled alternative in {@link BallerinaParser#joinConditions}.
-	 * @param ctx the parse tree
-	 */
-	void enterAnyJoinCondition(BallerinaParser.AnyJoinConditionContext ctx);
-	/**
-	 * Exit a parse tree produced by the {@code anyJoinCondition}
-	 * labeled alternative in {@link BallerinaParser#joinConditions}.
-	 * @param ctx the parse tree
-	 */
-	void exitAnyJoinCondition(BallerinaParser.AnyJoinConditionContext ctx);
-	/**
-	 * Enter a parse tree produced by the {@code allJoinCondition}
-	 * labeled alternative in {@link BallerinaParser#joinConditions}.
-	 * @param ctx the parse tree
-	 */
-	void enterAllJoinCondition(BallerinaParser.AllJoinConditionContext ctx);
-	/**
-	 * Exit a parse tree produced by the {@code allJoinCondition}
-	 * labeled alternative in {@link BallerinaParser#joinConditions}.
-	 * @param ctx the parse tree
-	 */
-	void exitAllJoinCondition(BallerinaParser.AllJoinConditionContext ctx);
-	/**
-	 * Enter a parse tree produced by {@link BallerinaParser#timeoutClause}.
-	 * @param ctx the parse tree
-	 */
-	void enterTimeoutClause(BallerinaParser.TimeoutClauseContext ctx);
-	/**
-	 * Exit a parse tree produced by {@link BallerinaParser#timeoutClause}.
-	 * @param ctx the parse tree
-	 */
-	void exitTimeoutClause(BallerinaParser.TimeoutClauseContext ctx);
 	/**
 	 * Enter a parse tree produced by {@link BallerinaParser#tryCatchStatement}.
 	 * @param ctx the parse tree
@@ -1088,6 +1206,16 @@ public interface BallerinaParserListener extends ParseTreeListener {
 	 */
 	void exitThrowStatement(BallerinaParser.ThrowStatementContext ctx);
 	/**
+	 * Enter a parse tree produced by {@link BallerinaParser#panicStatement}.
+	 * @param ctx the parse tree
+	 */
+	void enterPanicStatement(BallerinaParser.PanicStatementContext ctx);
+	/**
+	 * Exit a parse tree produced by {@link BallerinaParser#panicStatement}.
+	 * @param ctx the parse tree
+	 */
+	void exitPanicStatement(BallerinaParser.PanicStatementContext ctx);
+	/**
 	 * Enter a parse tree produced by {@link BallerinaParser#returnStatement}.
 	 * @param ctx the parse tree
 	 */
@@ -1098,49 +1226,65 @@ public interface BallerinaParserListener extends ParseTreeListener {
 	 */
 	void exitReturnStatement(BallerinaParser.ReturnStatementContext ctx);
 	/**
-	 * Enter a parse tree produced by {@link BallerinaParser#workerInteractionStatement}.
+	 * Enter a parse tree produced by {@link BallerinaParser#workerSendAsyncStatement}.
 	 * @param ctx the parse tree
 	 */
-	void enterWorkerInteractionStatement(BallerinaParser.WorkerInteractionStatementContext ctx);
+	void enterWorkerSendAsyncStatement(BallerinaParser.WorkerSendAsyncStatementContext ctx);
 	/**
-	 * Exit a parse tree produced by {@link BallerinaParser#workerInteractionStatement}.
+	 * Exit a parse tree produced by {@link BallerinaParser#workerSendAsyncStatement}.
 	 * @param ctx the parse tree
 	 */
-	void exitWorkerInteractionStatement(BallerinaParser.WorkerInteractionStatementContext ctx);
+	void exitWorkerSendAsyncStatement(BallerinaParser.WorkerSendAsyncStatementContext ctx);
 	/**
-	 * Enter a parse tree produced by the {@code invokeWorker}
-	 * labeled alternative in {@link BallerinaParser#triggerWorker}.
+	 * Enter a parse tree produced by {@link BallerinaParser#peerWorker}.
 	 * @param ctx the parse tree
 	 */
-	void enterInvokeWorker(BallerinaParser.InvokeWorkerContext ctx);
+	void enterPeerWorker(BallerinaParser.PeerWorkerContext ctx);
 	/**
-	 * Exit a parse tree produced by the {@code invokeWorker}
-	 * labeled alternative in {@link BallerinaParser#triggerWorker}.
+	 * Exit a parse tree produced by {@link BallerinaParser#peerWorker}.
 	 * @param ctx the parse tree
 	 */
-	void exitInvokeWorker(BallerinaParser.InvokeWorkerContext ctx);
+	void exitPeerWorker(BallerinaParser.PeerWorkerContext ctx);
 	/**
-	 * Enter a parse tree produced by the {@code invokeFork}
-	 * labeled alternative in {@link BallerinaParser#triggerWorker}.
+	 * Enter a parse tree produced by {@link BallerinaParser#workerName}.
 	 * @param ctx the parse tree
 	 */
-	void enterInvokeFork(BallerinaParser.InvokeForkContext ctx);
+	void enterWorkerName(BallerinaParser.WorkerNameContext ctx);
 	/**
-	 * Exit a parse tree produced by the {@code invokeFork}
-	 * labeled alternative in {@link BallerinaParser#triggerWorker}.
+	 * Exit a parse tree produced by {@link BallerinaParser#workerName}.
 	 * @param ctx the parse tree
 	 */
-	void exitInvokeFork(BallerinaParser.InvokeForkContext ctx);
+	void exitWorkerName(BallerinaParser.WorkerNameContext ctx);
 	/**
-	 * Enter a parse tree produced by {@link BallerinaParser#workerReply}.
+	 * Enter a parse tree produced by {@link BallerinaParser#flushWorker}.
 	 * @param ctx the parse tree
 	 */
-	void enterWorkerReply(BallerinaParser.WorkerReplyContext ctx);
+	void enterFlushWorker(BallerinaParser.FlushWorkerContext ctx);
 	/**
-	 * Exit a parse tree produced by {@link BallerinaParser#workerReply}.
+	 * Exit a parse tree produced by {@link BallerinaParser#flushWorker}.
 	 * @param ctx the parse tree
 	 */
-	void exitWorkerReply(BallerinaParser.WorkerReplyContext ctx);
+	void exitFlushWorker(BallerinaParser.FlushWorkerContext ctx);
+	/**
+	 * Enter a parse tree produced by {@link BallerinaParser#waitForCollection}.
+	 * @param ctx the parse tree
+	 */
+	void enterWaitForCollection(BallerinaParser.WaitForCollectionContext ctx);
+	/**
+	 * Exit a parse tree produced by {@link BallerinaParser#waitForCollection}.
+	 * @param ctx the parse tree
+	 */
+	void exitWaitForCollection(BallerinaParser.WaitForCollectionContext ctx);
+	/**
+	 * Enter a parse tree produced by {@link BallerinaParser#waitKeyValue}.
+	 * @param ctx the parse tree
+	 */
+	void enterWaitKeyValue(BallerinaParser.WaitKeyValueContext ctx);
+	/**
+	 * Exit a parse tree produced by {@link BallerinaParser#waitKeyValue}.
+	 * @param ctx the parse tree
+	 */
+	void exitWaitKeyValue(BallerinaParser.WaitKeyValueContext ctx);
 	/**
 	 * Enter a parse tree produced by the {@code xmlAttribVariableReference}
 	 * labeled alternative in {@link BallerinaParser#variableReference}.
@@ -1190,6 +1334,18 @@ public interface BallerinaParserListener extends ParseTreeListener {
 	 */
 	void exitFunctionInvocationReference(BallerinaParser.FunctionInvocationReferenceContext ctx);
 	/**
+	 * Enter a parse tree produced by the {@code typeDescExprInvocationReference}
+	 * labeled alternative in {@link BallerinaParser#variableReference}.
+	 * @param ctx the parse tree
+	 */
+	void enterTypeDescExprInvocationReference(BallerinaParser.TypeDescExprInvocationReferenceContext ctx);
+	/**
+	 * Exit a parse tree produced by the {@code typeDescExprInvocationReference}
+	 * labeled alternative in {@link BallerinaParser#variableReference}.
+	 * @param ctx the parse tree
+	 */
+	void exitTypeDescExprInvocationReference(BallerinaParser.TypeDescExprInvocationReferenceContext ctx);
+	/**
 	 * Enter a parse tree produced by the {@code fieldVariableReference}
 	 * labeled alternative in {@link BallerinaParser#variableReference}.
 	 * @param ctx the parse tree
@@ -1213,6 +1369,18 @@ public interface BallerinaParserListener extends ParseTreeListener {
 	 * @param ctx the parse tree
 	 */
 	void exitMapArrayVariableReference(BallerinaParser.MapArrayVariableReferenceContext ctx);
+	/**
+	 * Enter a parse tree produced by the {@code stringFunctionInvocationReference}
+	 * labeled alternative in {@link BallerinaParser#variableReference}.
+	 * @param ctx the parse tree
+	 */
+	void enterStringFunctionInvocationReference(BallerinaParser.StringFunctionInvocationReferenceContext ctx);
+	/**
+	 * Exit a parse tree produced by the {@code stringFunctionInvocationReference}
+	 * labeled alternative in {@link BallerinaParser#variableReference}.
+	 * @param ctx the parse tree
+	 */
+	void exitStringFunctionInvocationReference(BallerinaParser.StringFunctionInvocationReferenceContext ctx);
 	/**
 	 * Enter a parse tree produced by {@link BallerinaParser#field}.
 	 * @param ctx the parse tree
@@ -1324,6 +1492,16 @@ public interface BallerinaParserListener extends ParseTreeListener {
 	 */
 	void exitTransactionStatement(BallerinaParser.TransactionStatementContext ctx);
 	/**
+	 * Enter a parse tree produced by {@link BallerinaParser#committedAbortedClauses}.
+	 * @param ctx the parse tree
+	 */
+	void enterCommittedAbortedClauses(BallerinaParser.CommittedAbortedClausesContext ctx);
+	/**
+	 * Exit a parse tree produced by {@link BallerinaParser#committedAbortedClauses}.
+	 * @param ctx the parse tree
+	 */
+	void exitCommittedAbortedClauses(BallerinaParser.CommittedAbortedClausesContext ctx);
+	/**
 	 * Enter a parse tree produced by {@link BallerinaParser#transactionClause}.
 	 * @param ctx the parse tree
 	 */
@@ -1374,6 +1552,26 @@ public interface BallerinaParserListener extends ParseTreeListener {
 	 */
 	void exitOnretryClause(BallerinaParser.OnretryClauseContext ctx);
 	/**
+	 * Enter a parse tree produced by {@link BallerinaParser#committedClause}.
+	 * @param ctx the parse tree
+	 */
+	void enterCommittedClause(BallerinaParser.CommittedClauseContext ctx);
+	/**
+	 * Exit a parse tree produced by {@link BallerinaParser#committedClause}.
+	 * @param ctx the parse tree
+	 */
+	void exitCommittedClause(BallerinaParser.CommittedClauseContext ctx);
+	/**
+	 * Enter a parse tree produced by {@link BallerinaParser#abortedClause}.
+	 * @param ctx the parse tree
+	 */
+	void enterAbortedClause(BallerinaParser.AbortedClauseContext ctx);
+	/**
+	 * Exit a parse tree produced by {@link BallerinaParser#abortedClause}.
+	 * @param ctx the parse tree
+	 */
+	void exitAbortedClause(BallerinaParser.AbortedClauseContext ctx);
+	/**
 	 * Enter a parse tree produced by {@link BallerinaParser#abortStatement}.
 	 * @param ctx the parse tree
 	 */
@@ -1403,26 +1601,6 @@ public interface BallerinaParserListener extends ParseTreeListener {
 	 * @param ctx the parse tree
 	 */
 	void exitRetriesStatement(BallerinaParser.RetriesStatementContext ctx);
-	/**
-	 * Enter a parse tree produced by {@link BallerinaParser#oncommitStatement}.
-	 * @param ctx the parse tree
-	 */
-	void enterOncommitStatement(BallerinaParser.OncommitStatementContext ctx);
-	/**
-	 * Exit a parse tree produced by {@link BallerinaParser#oncommitStatement}.
-	 * @param ctx the parse tree
-	 */
-	void exitOncommitStatement(BallerinaParser.OncommitStatementContext ctx);
-	/**
-	 * Enter a parse tree produced by {@link BallerinaParser#onabortStatement}.
-	 * @param ctx the parse tree
-	 */
-	void enterOnabortStatement(BallerinaParser.OnabortStatementContext ctx);
-	/**
-	 * Exit a parse tree produced by {@link BallerinaParser#onabortStatement}.
-	 * @param ctx the parse tree
-	 */
-	void exitOnabortStatement(BallerinaParser.OnabortStatementContext ctx);
 	/**
 	 * Enter a parse tree produced by {@link BallerinaParser#namespaceDeclarationStatement}.
 	 * @param ctx the parse tree
@@ -1480,6 +1658,30 @@ public interface BallerinaParserListener extends ParseTreeListener {
 	 */
 	void exitXmlLiteralExpression(BallerinaParser.XmlLiteralExpressionContext ctx);
 	/**
+	 * Enter a parse tree produced by the {@code flushWorkerExpression}
+	 * labeled alternative in {@link BallerinaParser#expression}.
+	 * @param ctx the parse tree
+	 */
+	void enterFlushWorkerExpression(BallerinaParser.FlushWorkerExpressionContext ctx);
+	/**
+	 * Exit a parse tree produced by the {@code flushWorkerExpression}
+	 * labeled alternative in {@link BallerinaParser#expression}.
+	 * @param ctx the parse tree
+	 */
+	void exitFlushWorkerExpression(BallerinaParser.FlushWorkerExpressionContext ctx);
+	/**
+	 * Enter a parse tree produced by the {@code serviceConstructorExpression}
+	 * labeled alternative in {@link BallerinaParser#expression}.
+	 * @param ctx the parse tree
+	 */
+	void enterServiceConstructorExpression(BallerinaParser.ServiceConstructorExpressionContext ctx);
+	/**
+	 * Exit a parse tree produced by the {@code serviceConstructorExpression}
+	 * labeled alternative in {@link BallerinaParser#expression}.
+	 * @param ctx the parse tree
+	 */
+	void exitServiceConstructorExpression(BallerinaParser.ServiceConstructorExpressionContext ctx);
+	/**
 	 * Enter a parse tree produced by the {@code simpleLiteralExpression}
 	 * labeled alternative in {@link BallerinaParser#expression}.
 	 * @param ctx the parse tree
@@ -1504,6 +1706,18 @@ public interface BallerinaParserListener extends ParseTreeListener {
 	 */
 	void exitStringTemplateLiteralExpression(BallerinaParser.StringTemplateLiteralExpressionContext ctx);
 	/**
+	 * Enter a parse tree produced by the {@code workerReceiveExpression}
+	 * labeled alternative in {@link BallerinaParser#expression}.
+	 * @param ctx the parse tree
+	 */
+	void enterWorkerReceiveExpression(BallerinaParser.WorkerReceiveExpressionContext ctx);
+	/**
+	 * Exit a parse tree produced by the {@code workerReceiveExpression}
+	 * labeled alternative in {@link BallerinaParser#expression}.
+	 * @param ctx the parse tree
+	 */
+	void exitWorkerReceiveExpression(BallerinaParser.WorkerReceiveExpressionContext ctx);
+	/**
 	 * Enter a parse tree produced by the {@code bitwiseShiftExpression}
 	 * labeled alternative in {@link BallerinaParser#expression}.
 	 * @param ctx the parse tree
@@ -1527,6 +1741,18 @@ public interface BallerinaParserListener extends ParseTreeListener {
 	 * @param ctx the parse tree
 	 */
 	void exitTypeAccessExpression(BallerinaParser.TypeAccessExpressionContext ctx);
+	/**
+	 * Enter a parse tree produced by the {@code workerSendSyncExpression}
+	 * labeled alternative in {@link BallerinaParser#expression}.
+	 * @param ctx the parse tree
+	 */
+	void enterWorkerSendSyncExpression(BallerinaParser.WorkerSendSyncExpressionContext ctx);
+	/**
+	 * Exit a parse tree produced by the {@code workerSendSyncExpression}
+	 * labeled alternative in {@link BallerinaParser#expression}.
+	 * @param ctx the parse tree
+	 */
+	void exitWorkerSendSyncExpression(BallerinaParser.WorkerSendSyncExpressionContext ctx);
 	/**
 	 * Enter a parse tree produced by the {@code binaryAndExpression}
 	 * labeled alternative in {@link BallerinaParser#expression}.
@@ -1576,6 +1802,18 @@ public interface BallerinaParserListener extends ParseTreeListener {
 	 */
 	void exitCheckedExpression(BallerinaParser.CheckedExpressionContext ctx);
 	/**
+	 * Enter a parse tree produced by the {@code checkPanickedExpression}
+	 * labeled alternative in {@link BallerinaParser#expression}.
+	 * @param ctx the parse tree
+	 */
+	void enterCheckPanickedExpression(BallerinaParser.CheckPanickedExpressionContext ctx);
+	/**
+	 * Exit a parse tree produced by the {@code checkPanickedExpression}
+	 * labeled alternative in {@link BallerinaParser#expression}.
+	 * @param ctx the parse tree
+	 */
+	void exitCheckPanickedExpression(BallerinaParser.CheckPanickedExpressionContext ctx);
+	/**
 	 * Enter a parse tree produced by the {@code bitwiseExpression}
 	 * labeled alternative in {@link BallerinaParser#expression}.
 	 * @param ctx the parse tree
@@ -1599,6 +1837,18 @@ public interface BallerinaParserListener extends ParseTreeListener {
 	 * @param ctx the parse tree
 	 */
 	void exitUnaryExpression(BallerinaParser.UnaryExpressionContext ctx);
+	/**
+	 * Enter a parse tree produced by the {@code typeTestExpression}
+	 * labeled alternative in {@link BallerinaParser#expression}.
+	 * @param ctx the parse tree
+	 */
+	void enterTypeTestExpression(BallerinaParser.TypeTestExpressionContext ctx);
+	/**
+	 * Exit a parse tree produced by the {@code typeTestExpression}
+	 * labeled alternative in {@link BallerinaParser#expression}.
+	 * @param ctx the parse tree
+	 */
+	void exitTypeTestExpression(BallerinaParser.TypeTestExpressionContext ctx);
 	/**
 	 * Enter a parse tree produced by the {@code bracedOrTupleExpression}
 	 * labeled alternative in {@link BallerinaParser#expression}.
@@ -1624,6 +1874,30 @@ public interface BallerinaParserListener extends ParseTreeListener {
 	 */
 	void exitBinaryDivMulModExpression(BallerinaParser.BinaryDivMulModExpressionContext ctx);
 	/**
+	 * Enter a parse tree produced by the {@code waitExpression}
+	 * labeled alternative in {@link BallerinaParser#expression}.
+	 * @param ctx the parse tree
+	 */
+	void enterWaitExpression(BallerinaParser.WaitExpressionContext ctx);
+	/**
+	 * Exit a parse tree produced by the {@code waitExpression}
+	 * labeled alternative in {@link BallerinaParser#expression}.
+	 * @param ctx the parse tree
+	 */
+	void exitWaitExpression(BallerinaParser.WaitExpressionContext ctx);
+	/**
+	 * Enter a parse tree produced by the {@code trapExpression}
+	 * labeled alternative in {@link BallerinaParser#expression}.
+	 * @param ctx the parse tree
+	 */
+	void enterTrapExpression(BallerinaParser.TrapExpressionContext ctx);
+	/**
+	 * Exit a parse tree produced by the {@code trapExpression}
+	 * labeled alternative in {@link BallerinaParser#expression}.
+	 * @param ctx the parse tree
+	 */
+	void exitTrapExpression(BallerinaParser.TrapExpressionContext ctx);
+	/**
 	 * Enter a parse tree produced by the {@code tableLiteralExpression}
 	 * labeled alternative in {@link BallerinaParser#expression}.
 	 * @param ctx the parse tree
@@ -1648,6 +1922,18 @@ public interface BallerinaParserListener extends ParseTreeListener {
 	 */
 	void exitLambdaFunctionExpression(BallerinaParser.LambdaFunctionExpressionContext ctx);
 	/**
+	 * Enter a parse tree produced by the {@code binaryRefEqualExpression}
+	 * labeled alternative in {@link BallerinaParser#expression}.
+	 * @param ctx the parse tree
+	 */
+	void enterBinaryRefEqualExpression(BallerinaParser.BinaryRefEqualExpressionContext ctx);
+	/**
+	 * Exit a parse tree produced by the {@code binaryRefEqualExpression}
+	 * labeled alternative in {@link BallerinaParser#expression}.
+	 * @param ctx the parse tree
+	 */
+	void exitBinaryRefEqualExpression(BallerinaParser.BinaryRefEqualExpressionContext ctx);
+	/**
 	 * Enter a parse tree produced by the {@code binaryEqualExpression}
 	 * labeled alternative in {@link BallerinaParser#expression}.
 	 * @param ctx the parse tree
@@ -1659,18 +1945,6 @@ public interface BallerinaParserListener extends ParseTreeListener {
 	 * @param ctx the parse tree
 	 */
 	void exitBinaryEqualExpression(BallerinaParser.BinaryEqualExpressionContext ctx);
-	/**
-	 * Enter a parse tree produced by the {@code awaitExprExpression}
-	 * labeled alternative in {@link BallerinaParser#expression}.
-	 * @param ctx the parse tree
-	 */
-	void enterAwaitExprExpression(BallerinaParser.AwaitExprExpressionContext ctx);
-	/**
-	 * Exit a parse tree produced by the {@code awaitExprExpression}
-	 * labeled alternative in {@link BallerinaParser#expression}.
-	 * @param ctx the parse tree
-	 */
-	void exitAwaitExprExpression(BallerinaParser.AwaitExprExpressionContext ctx);
 	/**
 	 * Enter a parse tree produced by the {@code recordLiteralExpression}
 	 * labeled alternative in {@link BallerinaParser#expression}.
@@ -1707,18 +1981,6 @@ public interface BallerinaParserListener extends ParseTreeListener {
 	 * @param ctx the parse tree
 	 */
 	void exitVariableReferenceExpression(BallerinaParser.VariableReferenceExpressionContext ctx);
-	/**
-	 * Enter a parse tree produced by the {@code matchExprExpression}
-	 * labeled alternative in {@link BallerinaParser#expression}.
-	 * @param ctx the parse tree
-	 */
-	void enterMatchExprExpression(BallerinaParser.MatchExprExpressionContext ctx);
-	/**
-	 * Exit a parse tree produced by the {@code matchExprExpression}
-	 * labeled alternative in {@link BallerinaParser#expression}.
-	 * @param ctx the parse tree
-	 */
-	void exitMatchExprExpression(BallerinaParser.MatchExprExpressionContext ctx);
 	/**
 	 * Enter a parse tree produced by the {@code actionInvocationExpression}
 	 * labeled alternative in {@link BallerinaParser#expression}.
@@ -1768,6 +2030,18 @@ public interface BallerinaParserListener extends ParseTreeListener {
 	 */
 	void exitElvisExpression(BallerinaParser.ElvisExpressionContext ctx);
 	/**
+	 * Enter a parse tree produced by the {@code errorConstructorExpression}
+	 * labeled alternative in {@link BallerinaParser#expression}.
+	 * @param ctx the parse tree
+	 */
+	void enterErrorConstructorExpression(BallerinaParser.ErrorConstructorExpressionContext ctx);
+	/**
+	 * Exit a parse tree produced by the {@code errorConstructorExpression}
+	 * labeled alternative in {@link BallerinaParser#expression}.
+	 * @param ctx the parse tree
+	 */
+	void exitErrorConstructorExpression(BallerinaParser.ErrorConstructorExpressionContext ctx);
+	/**
 	 * Enter a parse tree produced by the {@code tableQueryExpression}
 	 * labeled alternative in {@link BallerinaParser#expression}.
 	 * @param ctx the parse tree
@@ -1804,17 +2078,65 @@ public interface BallerinaParserListener extends ParseTreeListener {
 	 */
 	void exitTypeInitExpression(BallerinaParser.TypeInitExpressionContext ctx);
 	/**
-	 * Enter a parse tree produced by the {@code awaitExpr}
-	 * labeled alternative in {@link BallerinaParser#awaitExpression}.
+	 * Enter a parse tree produced by {@link BallerinaParser#constantExpression}.
 	 * @param ctx the parse tree
 	 */
-	void enterAwaitExpr(BallerinaParser.AwaitExprContext ctx);
+	void enterConstantExpression(BallerinaParser.ConstantExpressionContext ctx);
 	/**
-	 * Exit a parse tree produced by the {@code awaitExpr}
-	 * labeled alternative in {@link BallerinaParser#awaitExpression}.
+	 * Exit a parse tree produced by {@link BallerinaParser#constantExpression}.
 	 * @param ctx the parse tree
 	 */
-	void exitAwaitExpr(BallerinaParser.AwaitExprContext ctx);
+	void exitConstantExpression(BallerinaParser.ConstantExpressionContext ctx);
+	/**
+	 * Enter a parse tree produced by {@link BallerinaParser#typeDescExpr}.
+	 * @param ctx the parse tree
+	 */
+	void enterTypeDescExpr(BallerinaParser.TypeDescExprContext ctx);
+	/**
+	 * Exit a parse tree produced by {@link BallerinaParser#typeDescExpr}.
+	 * @param ctx the parse tree
+	 */
+	void exitTypeDescExpr(BallerinaParser.TypeDescExprContext ctx);
+	/**
+	 * Enter a parse tree produced by {@link BallerinaParser#typeInitExpr}.
+	 * @param ctx the parse tree
+	 */
+	void enterTypeInitExpr(BallerinaParser.TypeInitExprContext ctx);
+	/**
+	 * Exit a parse tree produced by {@link BallerinaParser#typeInitExpr}.
+	 * @param ctx the parse tree
+	 */
+	void exitTypeInitExpr(BallerinaParser.TypeInitExprContext ctx);
+	/**
+	 * Enter a parse tree produced by {@link BallerinaParser#errorConstructorExpr}.
+	 * @param ctx the parse tree
+	 */
+	void enterErrorConstructorExpr(BallerinaParser.ErrorConstructorExprContext ctx);
+	/**
+	 * Exit a parse tree produced by {@link BallerinaParser#errorConstructorExpr}.
+	 * @param ctx the parse tree
+	 */
+	void exitErrorConstructorExpr(BallerinaParser.ErrorConstructorExprContext ctx);
+	/**
+	 * Enter a parse tree produced by {@link BallerinaParser#serviceConstructorExpr}.
+	 * @param ctx the parse tree
+	 */
+	void enterServiceConstructorExpr(BallerinaParser.ServiceConstructorExprContext ctx);
+	/**
+	 * Exit a parse tree produced by {@link BallerinaParser#serviceConstructorExpr}.
+	 * @param ctx the parse tree
+	 */
+	void exitServiceConstructorExpr(BallerinaParser.ServiceConstructorExprContext ctx);
+	/**
+	 * Enter a parse tree produced by {@link BallerinaParser#trapExpr}.
+	 * @param ctx the parse tree
+	 */
+	void enterTrapExpr(BallerinaParser.TrapExprContext ctx);
+	/**
+	 * Exit a parse tree produced by {@link BallerinaParser#trapExpr}.
+	 * @param ctx the parse tree
+	 */
+	void exitTrapExpr(BallerinaParser.TrapExprContext ctx);
 	/**
 	 * Enter a parse tree produced by {@link BallerinaParser#shiftExpression}.
 	 * @param ctx the parse tree
@@ -1835,26 +2157,6 @@ public interface BallerinaParserListener extends ParseTreeListener {
 	 * @param ctx the parse tree
 	 */
 	void exitShiftExprPredicate(BallerinaParser.ShiftExprPredicateContext ctx);
-	/**
-	 * Enter a parse tree produced by {@link BallerinaParser#matchExpression}.
-	 * @param ctx the parse tree
-	 */
-	void enterMatchExpression(BallerinaParser.MatchExpressionContext ctx);
-	/**
-	 * Exit a parse tree produced by {@link BallerinaParser#matchExpression}.
-	 * @param ctx the parse tree
-	 */
-	void exitMatchExpression(BallerinaParser.MatchExpressionContext ctx);
-	/**
-	 * Enter a parse tree produced by {@link BallerinaParser#matchExpressionPatternClause}.
-	 * @param ctx the parse tree
-	 */
-	void enterMatchExpressionPatternClause(BallerinaParser.MatchExpressionPatternClauseContext ctx);
-	/**
-	 * Exit a parse tree produced by {@link BallerinaParser#matchExpressionPatternClause}.
-	 * @param ctx the parse tree
-	 */
-	void exitMatchExpressionPatternClause(BallerinaParser.MatchExpressionPatternClauseContext ctx);
 	/**
 	 * Enter a parse tree produced by {@link BallerinaParser#nameReference}.
 	 * @param ctx the parse tree
@@ -2260,16 +2562,6 @@ public interface BallerinaParserListener extends ParseTreeListener {
 	 */
 	void exitForeverStatement(BallerinaParser.ForeverStatementContext ctx);
 	/**
-	 * Enter a parse tree produced by {@link BallerinaParser#doneStatement}.
-	 * @param ctx the parse tree
-	 */
-	void enterDoneStatement(BallerinaParser.DoneStatementContext ctx);
-	/**
-	 * Exit a parse tree produced by {@link BallerinaParser#doneStatement}.
-	 * @param ctx the parse tree
-	 */
-	void exitDoneStatement(BallerinaParser.DoneStatementContext ctx);
-	/**
 	 * Enter a parse tree produced by {@link BallerinaParser#streamingQueryStatement}.
 	 * @param ctx the parse tree
 	 */
@@ -2390,26 +2682,6 @@ public interface BallerinaParserListener extends ParseTreeListener {
 	 */
 	void exitStreamingAction(BallerinaParser.StreamingActionContext ctx);
 	/**
-	 * Enter a parse tree produced by {@link BallerinaParser#setClause}.
-	 * @param ctx the parse tree
-	 */
-	void enterSetClause(BallerinaParser.SetClauseContext ctx);
-	/**
-	 * Exit a parse tree produced by {@link BallerinaParser#setClause}.
-	 * @param ctx the parse tree
-	 */
-	void exitSetClause(BallerinaParser.SetClauseContext ctx);
-	/**
-	 * Enter a parse tree produced by {@link BallerinaParser#setAssignmentClause}.
-	 * @param ctx the parse tree
-	 */
-	void enterSetAssignmentClause(BallerinaParser.SetAssignmentClauseContext ctx);
-	/**
-	 * Exit a parse tree produced by {@link BallerinaParser#setAssignmentClause}.
-	 * @param ctx the parse tree
-	 */
-	void exitSetAssignmentClause(BallerinaParser.SetAssignmentClauseContext ctx);
-	/**
 	 * Enter a parse tree produced by {@link BallerinaParser#streamingInput}.
 	 * @param ctx the parse tree
 	 */
@@ -2509,66 +2781,6 @@ public interface BallerinaParserListener extends ParseTreeListener {
 	 * @param ctx the parse tree
 	 */
 	void exitTimeScale(BallerinaParser.TimeScaleContext ctx);
-	/**
-	 * Enter a parse tree produced by {@link BallerinaParser#deprecatedAttachment}.
-	 * @param ctx the parse tree
-	 */
-	void enterDeprecatedAttachment(BallerinaParser.DeprecatedAttachmentContext ctx);
-	/**
-	 * Exit a parse tree produced by {@link BallerinaParser#deprecatedAttachment}.
-	 * @param ctx the parse tree
-	 */
-	void exitDeprecatedAttachment(BallerinaParser.DeprecatedAttachmentContext ctx);
-	/**
-	 * Enter a parse tree produced by {@link BallerinaParser#deprecatedText}.
-	 * @param ctx the parse tree
-	 */
-	void enterDeprecatedText(BallerinaParser.DeprecatedTextContext ctx);
-	/**
-	 * Exit a parse tree produced by {@link BallerinaParser#deprecatedText}.
-	 * @param ctx the parse tree
-	 */
-	void exitDeprecatedText(BallerinaParser.DeprecatedTextContext ctx);
-	/**
-	 * Enter a parse tree produced by {@link BallerinaParser#deprecatedTemplateInlineCode}.
-	 * @param ctx the parse tree
-	 */
-	void enterDeprecatedTemplateInlineCode(BallerinaParser.DeprecatedTemplateInlineCodeContext ctx);
-	/**
-	 * Exit a parse tree produced by {@link BallerinaParser#deprecatedTemplateInlineCode}.
-	 * @param ctx the parse tree
-	 */
-	void exitDeprecatedTemplateInlineCode(BallerinaParser.DeprecatedTemplateInlineCodeContext ctx);
-	/**
-	 * Enter a parse tree produced by {@link BallerinaParser#singleBackTickDeprecatedInlineCode}.
-	 * @param ctx the parse tree
-	 */
-	void enterSingleBackTickDeprecatedInlineCode(BallerinaParser.SingleBackTickDeprecatedInlineCodeContext ctx);
-	/**
-	 * Exit a parse tree produced by {@link BallerinaParser#singleBackTickDeprecatedInlineCode}.
-	 * @param ctx the parse tree
-	 */
-	void exitSingleBackTickDeprecatedInlineCode(BallerinaParser.SingleBackTickDeprecatedInlineCodeContext ctx);
-	/**
-	 * Enter a parse tree produced by {@link BallerinaParser#doubleBackTickDeprecatedInlineCode}.
-	 * @param ctx the parse tree
-	 */
-	void enterDoubleBackTickDeprecatedInlineCode(BallerinaParser.DoubleBackTickDeprecatedInlineCodeContext ctx);
-	/**
-	 * Exit a parse tree produced by {@link BallerinaParser#doubleBackTickDeprecatedInlineCode}.
-	 * @param ctx the parse tree
-	 */
-	void exitDoubleBackTickDeprecatedInlineCode(BallerinaParser.DoubleBackTickDeprecatedInlineCodeContext ctx);
-	/**
-	 * Enter a parse tree produced by {@link BallerinaParser#tripleBackTickDeprecatedInlineCode}.
-	 * @param ctx the parse tree
-	 */
-	void enterTripleBackTickDeprecatedInlineCode(BallerinaParser.TripleBackTickDeprecatedInlineCodeContext ctx);
-	/**
-	 * Exit a parse tree produced by {@link BallerinaParser#tripleBackTickDeprecatedInlineCode}.
-	 * @param ctx the parse tree
-	 */
-	void exitTripleBackTickDeprecatedInlineCode(BallerinaParser.TripleBackTickDeprecatedInlineCodeContext ctx);
 	/**
 	 * Enter a parse tree produced by {@link BallerinaParser#documentationString}.
 	 * @param ctx the parse tree

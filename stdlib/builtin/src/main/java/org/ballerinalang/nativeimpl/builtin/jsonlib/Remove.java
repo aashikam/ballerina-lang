@@ -20,12 +20,14 @@ package org.ballerinalang.nativeimpl.builtin.jsonlib;
 
 import org.ballerinalang.bre.Context;
 import org.ballerinalang.bre.bvm.BlockingNativeCallableUnit;
+import org.ballerinalang.jvm.util.exceptions.BLangExceptionHelper;
 import org.ballerinalang.model.types.TypeKind;
 import org.ballerinalang.model.util.JSONUtils;
 import org.ballerinalang.model.values.BValue;
 import org.ballerinalang.nativeimpl.lang.utils.ErrorHandler;
 import org.ballerinalang.natives.annotations.Argument;
 import org.ballerinalang.natives.annotations.BallerinaFunction;
+import org.ballerinalang.util.exceptions.BallerinaErrorReasons;
 
 /**
  * Remove the element(s) that matches the given key.
@@ -53,9 +55,22 @@ public class Remove extends BlockingNativeCallableUnit {
                 JSONUtils.remove(json, fieldName);
             }
         } catch (Throwable e) {
-            ErrorHandler.handleJsonException(OPERATION, e);
+            ErrorHandler.handleJsonException(BallerinaErrorReasons.JSON_OPERATION_ERROR, OPERATION, e);
         }
 
         ctx.setReturnValues();
+    }
+
+    public static void remove(Object json, String fieldName) {
+        if (json == null) {
+            return;
+        }
+
+        try {
+            org.ballerinalang.jvm.JSONUtils.remove(json, fieldName);
+        } catch (Throwable e) {
+            BLangExceptionHelper.handleJsonException(BallerinaErrorReasons.JSON_OPERATION_ERROR, "get keys from json",
+                    e);
+        }
     }
 }

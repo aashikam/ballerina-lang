@@ -28,7 +28,7 @@ import java.io.File;
 /**
  * This class tests invoking an entry function in a package via the Ballerina Run Command and the data binding
  * functionality.
- *
+ *testInvalidSourceArg:
  * e.g., ballerina run abc:nomoremain 1 "Hello World" data binding main
  *  where nomoremain is the following function
  *      public function nomoremain(int i, string s, string... args) {
@@ -37,14 +37,21 @@ import java.io.File;
  */
 public class PkgRunFunctionNegativeTestCase extends BaseTest {
 
-    private String sourceRoot = (new File("src/test/resources/run/package/")).getAbsolutePath();
+    @Test(description = "test insufficient arguments")
+    public void testInsufficientArguments() throws BallerinaTestException {
+        LogLeecher errLogLeecher = new LogLeecher("ballerina: insufficient arguments to call the 'main' function",
+                                                  LeecherType.ERROR);
+        balClient.runMain((new File("src/test/resources/run/package")).getAbsolutePath(), "multiple_params",
+                          new LogLeecher[]{errLogLeecher});
+        errLogLeecher.waitForText(10000);
+    }
 
-    @Test
-    public void testEmptyEntryFunctionName() throws BallerinaTestException {
-        String sourceArg = "entry:";
-        LogLeecher errLogLeecher = new LogLeecher("ballerina: expected function name after final ':'",
-                LeecherType.ERROR);
-        balClient.runMain(sourceRoot, sourceArg, new LogLeecher[]{errLogLeecher});
-        errLogLeecher.waitForText(2000);
+    @Test(description = "test too many arguments")
+    public void testTooManyArguments() throws BallerinaTestException {
+        LogLeecher errLogLeecher = new LogLeecher("ballerina: too many arguments to call the 'main' function",
+                                                  LeecherType.ERROR);
+        balClient.runMain((new File("src/test/resources/run/package")).getAbsolutePath(), "no_params",
+                          new String[]{}, new String[]{"extra"}, new LogLeecher[]{errLogLeecher});
+        errLogLeecher.waitForText(10000);
     }
 }

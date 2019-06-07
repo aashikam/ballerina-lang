@@ -23,11 +23,12 @@ import org.ballerinalang.model.types.BField;
 import org.ballerinalang.model.types.BRecordType;
 import org.ballerinalang.model.types.BStructureType;
 import org.ballerinalang.model.types.BType;
+import org.ballerinalang.model.types.BTypes;
 import org.ballerinalang.model.types.BUnionType;
 import org.ballerinalang.model.types.TypeKind;
 import org.ballerinalang.model.types.TypeTags;
 import org.ballerinalang.model.values.BBoolean;
-import org.ballerinalang.model.values.BByteArray;
+import org.ballerinalang.model.values.BDecimal;
 import org.ballerinalang.model.values.BFloat;
 import org.ballerinalang.model.values.BInteger;
 import org.ballerinalang.model.values.BMap;
@@ -35,6 +36,7 @@ import org.ballerinalang.model.values.BNewArray;
 import org.ballerinalang.model.values.BRefType;
 import org.ballerinalang.model.values.BString;
 import org.ballerinalang.model.values.BValue;
+import org.ballerinalang.model.values.BValueArray;
 import org.ballerinalang.stdlib.time.util.TimeUtils;
 import org.ballerinalang.util.TableIterator;
 import org.ballerinalang.util.TableResourceManager;
@@ -51,11 +53,12 @@ import java.sql.Struct;
 import java.sql.Time;
 import java.sql.Timestamp;
 import java.sql.Types;
+import java.util.Arrays;
 import java.util.Calendar;
 import java.util.List;
+
 import javax.sql.rowset.CachedRowSet;
 
-import static org.ballerinalang.database.sql.SQLDatasourceUtils.POSTGRES_DATABASE_NAME;
 import static org.ballerinalang.database.sql.SQLDatasourceUtils.POSTGRES_OID_COLUMN_TYPE_NAME;
 
 /**
@@ -74,19 +77,9 @@ public class SQLDataIterator extends TableIterator {
     private static final String MISMATCHING_FIELD_ASSIGNMENT = "Trying to assign to a mismatching type";
     private String sourceDatabase;
 
-    public SQLDataIterator(Calendar utcCalendar, BStructureType structType, StructureTypeInfo timeStructInfo,
-                           StructureTypeInfo zoneStructInfo, TableResourceManager rm,
-                           ResultSet rs, List<ColumnDefinition> columnDefs, String databaseProductName) {
-        super(rm, rs, structType, columnDefs);
-        this.utcCalendar = utcCalendar;
-        this.timeStructInfo = timeStructInfo;
-        this.zoneStructInfo = zoneStructInfo;
-        this.sourceDatabase = databaseProductName;
-    }
-
     public SQLDataIterator(TableResourceManager rm, ResultSet rs, Calendar utcCalendar,
             List<ColumnDefinition> columnDefs, BStructureType structType, StructureTypeInfo timeStructInfo,
-                           StructureTypeInfo zoneStructInfo, String databaseProductName) {
+            StructureTypeInfo zoneStructInfo, String databaseProductName) {
         super(rm, rs, structType, columnDefs);
         this.utcCalendar = utcCalendar;
         this.timeStructInfo = timeStructInfo;
@@ -95,24 +88,24 @@ public class SQLDataIterator extends TableIterator {
     }
 
     @Override
-    public void close(boolean isInTransaction) {
+    public void close() {
         try {
             if (rs != null && !(rs instanceof CachedRowSet) && !rs.isClosed()) {
                 rs.close();
             }
-            resourceManager.gracefullyReleaseResources(isInTransaction);
+            resourceManager.gracefullyReleaseResources();
             rs = null;
         } catch (SQLException e) {
             throw new BallerinaException(e.getMessage(), e);
         }
     }
 
-    public void reset(boolean isInTransaction) {
+    public void reset() {
         try {
             if (rs instanceof CachedRowSet) {
                 rs.beforeFirst();
             } else {
-                close(isInTransaction);
+                close();
             }
         } catch (SQLException e) {
             throw new BallerinaException(e.getMessage(), e);
@@ -123,7 +116,7 @@ public class SQLDataIterator extends TableIterator {
     public String getBlob(int columnIndex) {
         try {
             Blob bValue = rs.getBlob(columnIndex);
-            return SQLDatasourceUtils.getString(bValue);
+            return rs.wasNull() ? null : SQLDatasourceUtils.getString(bValue);
         } catch (SQLException e) {
             throw new BallerinaException(e.getMessage(), e);
         }
@@ -132,14 +125,19 @@ public class SQLDataIterator extends TableIterator {
     @Override
     public BMap<String, BValue> generateNext() {
         if (this.type == null) {
-            throw new BallerinaException("the expected struct type is not specified in action");
+            throw new BallerinaException("the expected record type is not specified in the remote function");
         }
         BMap<String, BValue> bStruct = new BMap<>(this.type);
         int index = 0;
         String columnName = null;
         int sqlType = -1;
         try {
-            BField[] structFields = this.type.getFields();
+            BField[] structFields = this.type.getFields().values().toArray(new BField[0]);
+            if (columnDefs.size() != structFields.length) {
+                throw new BallerinaException(
+                        "Number of fields in the constraint type is " + (structFields.length > columnDefs.size() ?
+                                "greater" : "lower") + " than column count of the result set");
+            }
             for (ColumnDefinition columnDef : columnDefs) {
                 if (columnDef instanceof SQLColumnDefinition) {
                     SQLColumnDefinition def = (SQLColumnDefinition) columnDef;
@@ -207,7 +205,7 @@ public class SQLDataIterator extends TableIterator {
                             break;
                         case Types.INTEGER:
                         case Types.BIGINT:
-                            if (sourceDatabase.equalsIgnoreCase(POSTGRES_DATABASE_NAME)) {
+                            if (sourceDatabase.equalsIgnoreCase(Constants.DatabaseNames.POSTGRESQL)) {
                                 boolean isOID = rs.getMetaData().getColumnTypeName(index)
                                         .equalsIgnoreCase(POSTGRES_OID_COLUMN_TYPE_NAME);
                                 if (isOID) {
@@ -232,12 +230,8 @@ public class SQLDataIterator extends TableIterator {
                             break;
                         case Types.NUMERIC:
                         case Types.DECIMAL:
-                            double decimalValue = 0;
                             BigDecimal bigDecimalValue = rs.getBigDecimal(index);
-                            if (bigDecimalValue != null) {
-                                decimalValue = bigDecimalValue.doubleValue();
-                            }
-                            handleDoubleValue(decimalValue, bStruct, fieldName, fieldType);
+                            handleDecimalValue(bigDecimalValue, bStruct, fieldName, fieldType);
                             break;
                         case Types.BIT:
                         case Types.BOOLEAN:
@@ -263,8 +257,19 @@ public class SQLDataIterator extends TableIterator {
     }
 
     private void validateAndSetRefRecordField(BMap<String, BValue> bStruct, String fieldName, int expectedTypeTag,
-                                              int actualTypeTag, BRefType value, String exceptionMessage) {
-        if (expectedTypeTag == actualTypeTag) {
+            int actualTypeTag, BRefType value, String exceptionMessage) {
+        setMatchingRefRecordField(bStruct, fieldName, value, expectedTypeTag == actualTypeTag, exceptionMessage);
+    }
+
+    private void validateAndSetRefRecordField(BMap<String, BValue> bStruct, String fieldName, int expectedTypeTags[],
+            int actualTypeTag, BRefType value, String exceptionMessage) {
+        boolean typeMatches = Arrays.stream(expectedTypeTags).anyMatch(tag -> actualTypeTag == tag);
+        setMatchingRefRecordField(bStruct, fieldName, value, typeMatches, exceptionMessage);
+    }
+
+    private void setMatchingRefRecordField(BMap<String, BValue> bStruct, String fieldName, BRefType value,
+            boolean typeMatches, String exceptionMessage) {
+        if (typeMatches) {
             bStruct.put(fieldName, value);
         } else {
             throw new BallerinaException(exceptionMessage);
@@ -296,7 +301,7 @@ public class SQLDataIterator extends TableIterator {
         if (structValue == null) {
             return null;
         }
-        BField[] internalStructFields = structType.getFields();
+        BField[] internalStructFields = structType.getFields().values().toArray(new BField[0]);
         BMap<String, BValue> struct = new BMap<>(structType);
         try {
             Object[] dataArray = structValue.getAttributes();
@@ -322,6 +327,13 @@ public class SQLDataIterator extends TableIterator {
                             struct.put(fieldName, new BFloat(((BigDecimal) value).doubleValue()));
                         } else {
                             struct.put(fieldName, new BFloat((double) value));
+                        }
+                        break;
+                    case TypeTags.DECIMAL_TAG:
+                        if (value instanceof BigDecimal) {
+                            struct.put(fieldName, new BDecimal((BigDecimal) value));
+                        } else {
+                            struct.put(fieldName, new BDecimal(new BigDecimal((double) value)));
                         }
                         break;
                     case TypeTags.STRING_TAG:
@@ -390,23 +402,34 @@ public class SQLDataIterator extends TableIterator {
             throw new BallerinaException(
                     "Trying to assign an array containing NULL values to an array of a non-nillable element type");
         } else {
-            validateAndSetRefRecordField(bStruct, fieldName, ((BArrayType) nonNilType)
-                    .getElementType().getTag(), ((BArrayType) newArray.getType()).getElementType().getTag(),
-                    newArray, MISMATCHING_FIELD_ASSIGNMENT);
+            int expectedTypeTag = ((BArrayType) nonNilType).getElementType().getTag();
+            int actualTypeTag;
+            if (newArray.getType().getTag() == TypeTags.DECIMAL_TAG) {
+                actualTypeTag = TypeTags.DECIMAL_TAG;
+            } else {
+                actualTypeTag = ((BArrayType) newArray.getType()).getElementType().getTag();
+            }
+            validateAndSetRefRecordField(bStruct, fieldName, expectedTypeTag, actualTypeTag, newArray,
+                    MISMATCHING_FIELD_ASSIGNMENT);
         }
     }
 
     private void handleMappingArrayElementToUnionType(BArrayType expectedArrayType, BNewArray arrayTobeSet,
                                                       String fieldName, BMap<String, BValue> bStruct) {
-        BArrayType arrayType = (BArrayType) arrayTobeSet.getType();
-        if (arrayType.getElementType().getTag() == TypeTags.NULL_TAG) {
+        BType arrayType;
+        if (arrayTobeSet.getType().getTag() == TypeTags.DECIMAL_TAG) {
+            arrayType = BTypes.typeDecimal;
+        } else {
+            arrayType = ((BArrayType) arrayTobeSet.getType()).getElementType();
+        }
+        if (arrayType.getTag() == TypeTags.NULL_TAG) {
             bStruct.put(fieldName, arrayTobeSet);
         } else {
             BUnionType expectedArrayElementUnionType = (BUnionType) expectedArrayType.getElementType();
             BType expectedNonNilArrayElementType = retrieveNonNilType(expectedArrayElementUnionType.getMemberTypes());
-            BType actualNonNilArrayElementType = getActualNonNilArrayElementType(arrayType.getElementType());
-            validateAndSetRefRecordField(bStruct, fieldName, expectedNonNilArrayElementType
-                    .getTag(), actualNonNilArrayElementType.getTag(), arrayTobeSet, UNASSIGNABLE_UNIONTYPE_EXCEPTION);
+            BType actualNonNilArrayElementType = getActualNonNilArrayElementType(arrayType);
+            validateAndSetRefRecordField(bStruct, fieldName, expectedNonNilArrayElementType.getTag(),
+                    actualNonNilArrayElementType.getTag(), arrayTobeSet, UNASSIGNABLE_UNIONTYPE_EXCEPTION);
         }
     }
 
@@ -442,8 +465,8 @@ public class SQLDataIterator extends TableIterator {
                 handleUnAssignableUnionTypeAssignment();
             }
         } else if (fieldTypeTag == TypeTags.RECORD_TYPE_TAG) {
-            bStruct.put(fieldName,
-                    createUserDefinedType(structData, (BRecordType) fieldType));
+            validateAndSetRefRecordField(bStruct, fieldName, TypeTags.RECORD_TYPE_TAG, fieldTypeTag,
+                    createUserDefinedType(structData, (BRecordType) fieldType), MISMATCHING_FIELD_ASSIGNMENT);
         } else {
             handleMismatchingFieldAssignment();
         }
@@ -461,7 +484,8 @@ public class SQLDataIterator extends TableIterator {
             if (isOriginalValueNull) {
                 handleNilToNonNillableFieldAssignment();
             } else {
-                bStruct.put(fieldName, new BBoolean(boolValue));
+                validateAndSetRefRecordField(bStruct, fieldName, TypeTags.BOOLEAN_TAG, fieldTypeTag,
+                        new BBoolean(boolValue), MISMATCHING_FIELD_ASSIGNMENT);
             }
         }
     }
@@ -483,7 +507,7 @@ public class SQLDataIterator extends TableIterator {
             if (nonNillType.getTag() == TypeTags.ARRAY_TAG) {
                 int elementTypeTag = ((BArrayType) nonNillType).getElementType().getTag();
                 if (elementTypeTag == TypeTags.BYTE_TAG) {
-                    BRefType refValue = bytes == null ? null : new BByteArray(bytes);
+                    BRefType refValue = bytes == null ? null : new BValueArray(bytes);
                     bStruct.put(fieldName, refValue);
                 } else {
                     handleUnAssignableUnionTypeAssignment();
@@ -493,7 +517,16 @@ public class SQLDataIterator extends TableIterator {
             }
         } else {
             if (bytes != null) {
-                bStruct.put(fieldName, new BByteArray(bytes));
+                if (TypeTags.ARRAY_TAG == fieldTypeTag) {
+                    int elementTypeTag = ((BArrayType) fieldType).getElementType().getTag();
+                    if (elementTypeTag == TypeTags.BYTE_TAG) {
+                        bStruct.put(fieldName, new BValueArray(bytes));
+                    } else {
+                        throw new BallerinaException(MISMATCHING_FIELD_ASSIGNMENT);
+                    }
+                } else {
+                    throw new BallerinaException(MISMATCHING_FIELD_ASSIGNMENT);
+                }
             } else {
                 handleNilToNonNillableFieldAssignment();
             }
@@ -505,11 +538,14 @@ public class SQLDataIterator extends TableIterator {
         int fieldTypeTag = fieldType.getTag();
         if (fieldTypeTag == TypeTags.UNION_TAG) {
             BRefType refValue = stringValue == null ? null : new BString(stringValue);
-            validateAndSetRefRecordField(bStruct, fieldName, TypeTags.STRING_TAG,
+            int[] expectedTypeTags = { TypeTags.STRING_TAG, TypeTags.JSON_TAG };
+            validateAndSetRefRecordField(bStruct, fieldName, expectedTypeTags,
                     retrieveNonNilTypeTag(fieldType), refValue, UNASSIGNABLE_UNIONTYPE_EXCEPTION);
         } else {
             if (stringValue != null) {
-                bStruct.put(fieldName, new BString(stringValue));
+                int[] expectedTypeTags = { TypeTags.STRING_TAG, TypeTags.JSON_TAG };
+                validateAndSetRefRecordField(bStruct, fieldName, expectedTypeTags, fieldTypeTag,
+                        new BString(stringValue), MISMATCHING_FIELD_ASSIGNMENT);
             } else {
                 handleNilToNonNillableFieldAssignment();
             }
@@ -550,7 +586,7 @@ public class SQLDataIterator extends TableIterator {
             if (elementTypeTag == TypeTags.BYTE_TAG) {
                 Blob blobValue = rs.getBlob(index);
                 byte[] bytes = blobValue.getBytes(1L, (int) blobValue.length());
-                bStruct.put(fieldName, bytes == null ? null : new BByteArray(bytes));
+                bStruct.put(fieldName, bytes == null ? null : new BValueArray(bytes));
             } else {
                 errorHandlerFunction.apply();
             }
@@ -573,7 +609,8 @@ public class SQLDataIterator extends TableIterator {
             if (isOriginalValueNull) {
                 handleNilToNonNillableFieldAssignment();
             } else {
-                bStruct.put(fieldName, new BInteger(longValue));
+                validateAndSetRefRecordField(bStruct, fieldName, TypeTags.INT_TAG, fieldTypeTag,
+                        new BInteger(longValue), MISMATCHING_FIELD_ASSIGNMENT);
             }
         }
     }
@@ -590,7 +627,26 @@ public class SQLDataIterator extends TableIterator {
             if (isOriginalValueNull) {
                 handleNilToNonNillableFieldAssignment();
             } else {
-                bStruct.put(fieldName, new BFloat(fValue));
+                validateAndSetRefRecordField(bStruct, fieldName, TypeTags.FLOAT_TAG, fieldTypeTag,
+                        new BFloat(fValue), MISMATCHING_FIELD_ASSIGNMENT);
+            }
+        }
+    }
+
+    private void handleDecimalValue(BigDecimal fValue, BMap<String, BValue> bStruct, String fieldName, BType fieldType)
+            throws SQLException {
+        boolean isOriginalValueNull = rs.wasNull();
+        int fieldTypeTag = fieldType.getTag();
+        if (fieldTypeTag == TypeTags.UNION_TAG) {
+            BRefType refValue = isOriginalValueNull ? null : new BDecimal(fValue);
+            validateAndSetRefRecordField(bStruct, fieldName, TypeTags.DECIMAL_TAG,
+                    retrieveNonNilTypeTag(fieldType), refValue, UNASSIGNABLE_UNIONTYPE_EXCEPTION);
+        } else {
+            if (isOriginalValueNull) {
+                handleNilToNonNillableFieldAssignment();
+            } else {
+                validateAndSetRefRecordField(bStruct, fieldName, TypeTags.DECIMAL_TAG, fieldTypeTag,
+                        new BDecimal(fValue), MISMATCHING_FIELD_ASSIGNMENT);
             }
         }
     }

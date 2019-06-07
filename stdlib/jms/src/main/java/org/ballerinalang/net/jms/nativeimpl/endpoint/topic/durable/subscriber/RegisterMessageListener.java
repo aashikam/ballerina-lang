@@ -26,6 +26,7 @@ import org.ballerinalang.natives.annotations.Argument;
 import org.ballerinalang.natives.annotations.BallerinaFunction;
 import org.ballerinalang.natives.annotations.Receiver;
 import org.ballerinalang.net.jms.AbstractBlockingAction;
+import org.ballerinalang.net.jms.JmsConstants;
 import org.ballerinalang.net.jms.nativeimpl.endpoint.common.MessageListenerHandler;
 
 /**
@@ -33,20 +34,17 @@ import org.ballerinalang.net.jms.nativeimpl.endpoint.common.MessageListenerHandl
  *
  * @since 0.970
  */
-
 @BallerinaFunction(
-        orgName = "ballerina",
-        packageName = "jms",
+        orgName = JmsConstants.BALLERINA,
+        packageName = JmsConstants.JMS,
         functionName = "registerListener",
-        receiver = @Receiver(type = TypeKind.OBJECT,
-                             structType = "DurableTopicSubscriber",
-                             structPackage = "ballerina/jms"),
+        receiver = @Receiver(type = TypeKind.OBJECT, structType = JmsConstants.DURABLE_TOPIC_SUBSCRIBER,
+                             structPackage = JmsConstants.PROTOCOL_PACKAGE_JMS),
         args = {
-                @Argument(name = "serviceType",
-                          type = TypeKind.TYPEDESC),
-                @Argument(name = "consumerActions",
-                          type = TypeKind.OBJECT,
-                          structType = "DurableTopicSubscriberActions")
+                @Argument(name = "serviceType", type = TypeKind.TYPEDESC),
+                @Argument(name = JmsConstants.METHOD_FIELD_ACTIONS, type = TypeKind.OBJECT,
+                          structType = JmsConstants.DURABLE_TOPIC_SUBSCRIBER_CALLER_OBJ_NAME),
+                @Argument(name = JmsConstants.METHOD_FIELD_DATA, type = TypeKind.MAP)
         },
         isPublic = true
 )

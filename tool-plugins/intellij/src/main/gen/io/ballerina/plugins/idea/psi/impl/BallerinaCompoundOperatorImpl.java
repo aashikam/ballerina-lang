@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2018, WSO2 Inc. (http://www.wso2.org) All Rights Reserved.
+ *  Copyright (c) 2019, WSO2 Inc. (http://www.wso2.org) All Rights Reserved.
  *
  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  you may not use this file except in compliance with the License.
@@ -24,9 +24,10 @@ import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiElementVisitor;
 import com.intellij.psi.util.PsiTreeUtil;
 import static io.ballerina.plugins.idea.psi.BallerinaTypes.*;
+import com.intellij.extapi.psi.ASTWrapperPsiElement;
 import io.ballerina.plugins.idea.psi.*;
 
-public class BallerinaCompoundOperatorImpl extends BallerinaCompositeElementImpl implements BallerinaCompoundOperator {
+public class BallerinaCompoundOperatorImpl extends ASTWrapperPsiElement implements BallerinaCompoundOperator {
 
   public BallerinaCompoundOperatorImpl(@NotNull ASTNode node) {
     super(node);
@@ -49,14 +50,50 @@ public class BallerinaCompoundOperatorImpl extends BallerinaCompositeElementImpl
 
   @Override
   @Nullable
+  public PsiElement getCompoundBitAnd() {
+    return findChildByType(COMPOUND_BIT_AND);
+  }
+
+  @Override
+  @Nullable
+  public PsiElement getCompoundBitOr() {
+    return findChildByType(COMPOUND_BIT_OR);
+  }
+
+  @Override
+  @Nullable
+  public PsiElement getCompoundBitXor() {
+    return findChildByType(COMPOUND_BIT_XOR);
+  }
+
+  @Override
+  @Nullable
   public PsiElement getCompoundDiv() {
     return findChildByType(COMPOUND_DIV);
   }
 
   @Override
   @Nullable
+  public PsiElement getCompoundLeftShift() {
+    return findChildByType(COMPOUND_LEFT_SHIFT);
+  }
+
+  @Override
+  @Nullable
+  public PsiElement getCompoundLogicalShift() {
+    return findChildByType(COMPOUND_LOGICAL_SHIFT);
+  }
+
+  @Override
+  @Nullable
   public PsiElement getCompoundMul() {
     return findChildByType(COMPOUND_MUL);
+  }
+
+  @Override
+  @Nullable
+  public PsiElement getCompoundRightShift() {
+    return findChildByType(COMPOUND_RIGHT_SHIFT);
   }
 
   @Override

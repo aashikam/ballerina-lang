@@ -17,27 +17,31 @@
 */
 package org.ballerinalang.model.values;
 
+import org.ballerinalang.bre.bvm.BVM;
 import org.ballerinalang.model.JSONDataSource;
 import org.ballerinalang.model.types.BArrayType;
+import org.ballerinalang.model.types.BType;
 import org.ballerinalang.model.types.BTypes;
 import org.ballerinalang.model.util.JsonGenerator;
 import org.ballerinalang.util.exceptions.BallerinaException;
 
 import java.io.IOException;
 import java.io.OutputStream;
+import java.io.Writer;
+import java.util.List;
 
 /**
  * {@link BStreamingJSON} represent a JSON array generated from a {@link JSONDataSource}.
  * 
  * @since 0.981.0
  */
-public class BStreamingJSON extends BRefValueArray {
+public class BStreamingJSON extends BValueArray {
 
     JSONDataSource datasource;
 
     public BStreamingJSON(JSONDataSource datasource) {
         this.datasource = datasource;
-        this.values = (BRefType[]) newArrayInstance(BRefType.class);
+        this.refValues = (BRefType[]) newArrayInstance(BRefType.class);
         this.arrayType = new BArrayType(BTypes.typeJSON);
     }
 
@@ -62,29 +66,27 @@ public class BStreamingJSON extends BRefValueArray {
     }
 
     @Override
-    public BRefType<?> get(long index) {
+    public BRefType<?> getRefValue(long index) {
         // If the the index is larger than the size, and datasource has more content,
         // then read data from data-source until the index, or until the end of the data-source.
         while (index >= size && datasource.hasNext()) {
             appendToCache(datasource.next());
         }
 
-        return super.get(index);
+        return super.getRefValue(index);
     }
 
-    @Override
-    public void serialize(OutputStream outputStream) {
+    public void serialize(JsonGenerator gen) {
         /*
          * Below order is important, where if the value is generated from a streaming data source,
          * it should be able to serialize the data out again using the value
          */
         try {
-            JsonGenerator gen = new JsonGenerator(outputStream);
             gen.writeStartArray();
 
             // First serialize the values loaded to memory
             for (int i = 0; i < size; i++) {
-                gen.serialize(values[i]);
+                gen.serialize(refValues[i]);
             }
 
             // Then serialize remaining data in the data-source
@@ -98,12 +100,21 @@ public class BStreamingJSON extends BRefValueArray {
         }
     }
 
+    public void serialize(Writer writer) {
+        serialize(new JsonGenerator(writer));
+    }
+
+    @Override
+    public void serialize(OutputStream outputStream) {
+        serialize(new JsonGenerator(outputStream));
+    }
+
     @Override
     public BRefType<?>[] getValues() {
         if (datasource.hasNext()) {
             buildDatasource();
         }
-        return values;
+        return refValues;
     }
 
     @Override
@@ -118,6 +129,14 @@ public class BStreamingJSON extends BRefValueArray {
     @Override
     public BIterator newIterator() {
         return new BStreamingJSONIterator(this);
+    }
+
+    @Override
+    public long size() {
+        if (datasource.hasNext()) {
+            buildDatasource();
+        }
+        return size;
     }
 
     void appendToCache(BRefType<?> value) {
@@ -148,24 +167,20 @@ public class BStreamingJSON extends BRefValueArray {
         }
 
         @Override
-        public BValue[] getNext(int arity) {
-            BValue[] values;
+        public BValue getNext() {
+            BValue value;
             // If the current index is loaded in to memory, then read from it
             if (cursor < array.size) {
-                if (arity == 1) {
-                    values = new BValue[] { array.getBValue(cursor) };
-                } else {
-                    values = new BValue[] { new BInteger(cursor), array.getBValue(cursor) };
-                }
+                value = array.getBValue(cursor);
             } else {
                 // Otherwise read the next value from data-source and cache it in memory
                 BRefType<?> nextVal = array.datasource.next();
                 array.appendToCache(nextVal);
-                values = new BValue[] { nextVal };
+                value = nextVal;
             }
 
             this.cursor++;
-            return values;
+            return value;
         }
 
         @Override
@@ -175,6 +190,11 @@ public class BStreamingJSON extends BRefValueArray {
             }
 
             return array.datasource.hasNext();
+        }
+
+        @Override
+        public void stamp(BType type, List<BVM.TypeValuePair> unresolvedValues) {
+
         }
     }
 }

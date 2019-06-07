@@ -20,6 +20,7 @@ package org.ballerinalang.model;
 import org.ballerinalang.model.types.BStructureType;
 import org.ballerinalang.model.values.BMap;
 
+import java.math.BigDecimal;
 import java.util.List;
 
 /**
@@ -33,19 +34,21 @@ public interface DataIterator {
 
     boolean next();
 
-    void close(boolean isInTransaction);
+    void close();
 
-    void reset(boolean isInTransaction);
+    void reset();
 
     String getString(int columnIndex);
 
-    long getInt(int columnIndex);
+    Long getInt(int columnIndex);
 
-    double getFloat(int columnIndex);
+    Double getFloat(int columnIndex);
 
-    boolean getBoolean(int columnIndex);
+    Boolean getBoolean(int columnIndex);
 
     String getBlob(int columnIndex);
+
+    BigDecimal getDecimal(int columnIndex);
 
     Object[] getStruct(int columnIndex);
 

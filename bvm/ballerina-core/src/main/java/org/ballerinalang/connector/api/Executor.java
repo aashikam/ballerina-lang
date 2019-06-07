@@ -17,27 +17,28 @@
  */
 package org.ballerinalang.connector.api;
 
+import org.ballerinalang.bre.bvm.BVMExecutor;
 import org.ballerinalang.bre.bvm.CallableUnitCallback;
-import org.ballerinalang.bre.bvm.WorkerExecutionContext;
-import org.ballerinalang.connector.impl.ResourceExecutor;
 import org.ballerinalang.model.values.BValue;
+import org.ballerinalang.util.codegen.FunctionInfo;
 import org.ballerinalang.util.observability.ObserverContext;
 
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 
 /**
- * {@code Executor} Is the entry point from server connector side to ballerina side.
- * After doing the dispatching and finding the resource, server connector implementations can use
- * this API to invoke Ballerina engine.
+ * {@code Executor} Is the entry point from server connector side to ballerina side. After doing the dispatching and
+ * finding the resource, server connector implementations can use this API to invoke Ballerina engine.
  *
  * @since 0.94
  */
 public class Executor {
 
     /**
-     * This method will execute Ballerina resource in non-blocking manner.
-     * It will use Ballerina worker-pool for the execution and will return the
-     * connector thread immediately.
+     * This method will execute Ballerina resource in non-blocking manner. It will use Ballerina worker-pool for the
+     * execution and will return the connector thread immediately.
      *
      * @param resource         to be executed.
      * @param responseCallback to be executed when execution completes.
@@ -48,27 +49,43 @@ public class Executor {
     public static void submit(Resource resource, CallableUnitCallback responseCallback, Map<String, Object> properties,
                               ObserverContext observerContext, BValue... values)
             throws BallerinaConnectorException {
-        WorkerExecutionContext context = new WorkerExecutionContext(resource.getResourceInfo().getPackageInfo()
-                .getProgramFile());
-        ResourceExecutor.execute(resource, responseCallback, properties, observerContext, context, values);
+        if (resource == null || responseCallback == null) {
+            throw new BallerinaConnectorException("invalid arguments provided");
+        }
+        List<BValue> args = new ArrayList<>();
+        args.add(resource.getService().getBValue());
+        args.addAll(Arrays.asList(values));
+        FunctionInfo resourceInfo = resource.getResourceInfo();
+        BVMExecutor.executeResource(resourceInfo.getPackageInfo().getProgramFile(),
+                                    resourceInfo, responseCallback, properties, observerContext,
+                                    resource.getService().getServiceInfo(), args.toArray(new BValue[0]));
     }
 
     /**
-     * This method will execute Ballerina resource in non-blocking manner.
-     * It will use Ballerina worker-pool for the execution and will return the
-     * connector thread immediately.
+     * This method will execute Ballerina resource in non-blocking manner. It will use Ballerina worker-pool for the
+     * execution and will return the connector thread immediately.
      *
      * @param resource         to be executed.
      * @param responseCallback to be executed when execution completes.
      * @param properties       to be passed to context.
      * @param observerContext  for the resource invocation.
-     * @param context          of the resource execution.
      * @param values           required for the resource.
      */
-    public static void submit(Resource resource, CallableUnitCallback responseCallback, Map<String, Object> properties,
-                              ObserverContext observerContext, WorkerExecutionContext context, BValue... values)
+    public static void execute(Resource resource, CallableUnitCallback responseCallback, Map<String, Object> properties,
+                               ObserverContext observerContext, BValue... values)
             throws BallerinaConnectorException {
-        ResourceExecutor.execute(resource, responseCallback, properties, observerContext, context, values);
+        if (resource == null || responseCallback == null) {
+            throw new BallerinaConnectorException("invalid arguments provided");
+        }
+        List<BValue> args = new ArrayList<>();
+        args.add(resource.getService().getBValue());
+        args.addAll(Arrays.asList(values));
+        FunctionInfo resourceInfo = resource.getResourceInfo();
+        BVMExecutor.execute(resourceInfo.getPackageInfo().getProgramFile(),
+                            resourceInfo, responseCallback, properties, observerContext,
+                            resource.getService().getServiceInfo(), args.toArray(new BValue[0]));
     }
 
+    private Executor() {
+    }
 }

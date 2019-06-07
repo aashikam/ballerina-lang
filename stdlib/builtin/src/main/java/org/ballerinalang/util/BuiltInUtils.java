@@ -17,28 +17,18 @@ package org.ballerinalang.util;
 
 import org.ballerinalang.bre.Context;
 import org.ballerinalang.bre.bvm.BLangVMErrors;
-import org.ballerinalang.bre.bvm.BLangVMStructs;
 import org.ballerinalang.model.types.BTypes;
-import org.ballerinalang.model.types.TypeTags;
+import org.ballerinalang.model.values.BError;
 import org.ballerinalang.model.values.BMap;
 import org.ballerinalang.model.values.BString;
 import org.ballerinalang.model.values.BValue;
-import org.ballerinalang.util.codegen.PackageInfo;
-import org.ballerinalang.util.codegen.StructureTypeInfo;
-
-import java.io.UnsupportedEncodingException;
-import java.nio.charset.StandardCharsets;
-import java.util.Base64;
+import org.ballerinalang.util.exceptions.BallerinaErrorReasons;
 
 /**
  * @since 0.94.1
  */
 public class BuiltInUtils {
 
-    private static final String PROTOCOL_PACKAGE_UTIL = "ballerina.util";
-    private static final String PROTOCOL_PACKAGE_MIME = "ballerina.mime";
-    private static final String BASE64_ENCODE_ERROR = "Base64EncodeError";
-    private static final String BASE64_DECODE_ERROR = "Base64DecodeError";
     private static final int READABLE_BUFFER_SIZE = 8192; //8KB
 
     /**
@@ -56,124 +46,43 @@ public class BuiltInUtils {
         return new BString(value);
     }
 
-    public static BMap<String, BValue> createConversionError(Context context, String msg) {
-        return BLangVMErrors.createError(context, msg);
-    }
-
-    private static BMap<String, BValue> createBase64Error(Context context, String msg,
-                                                          boolean isMimeSpecific, boolean isEncoder) {
-        PackageInfo filePkg;
-        if (isMimeSpecific) {
-            filePkg = context.getProgramFile().getPackageInfo(PROTOCOL_PACKAGE_MIME);
-        } else {
-            filePkg = context.getProgramFile().getPackageInfo(PROTOCOL_PACKAGE_UTIL);
-        }
-        StructureTypeInfo entityErrInfo = filePkg.getStructInfo(isEncoder ? BASE64_ENCODE_ERROR : BASE64_DECODE_ERROR);
-        return BLangVMStructs.createBStruct(entityErrInfo, msg);
+    /**
+     * Get builtin conversion error.
+     *
+     * @param context Represent ballerina context
+     * @param errMsg  Error description (detail)
+     * @param reason  Error reason
+     * @return conversion error
+     */
+    public static BError createConversionError(Context context, String errMsg, String reason) {
+        return createError(context, errMsg, reason);
     }
 
     /**
-     * Encode a given BValue using Base64 encoding scheme.
+     * Get builtin string error.
      *
-     * @param context        Represent a ballerina context
-     * @param input          Represent a BValue which can be of type blob, string or byte channel
-     * @param charset        Represent the charset value to be used with string
-     * @param isMimeSpecific A boolean indicating whether the encoder should be mime specific or not
+     * @param context Represent ballerina context
+     * @param errMsg  Error description
+     * @return conversion error
      */
-    public static void encode(Context context, BValue input, String charset, boolean isMimeSpecific) {
-        switch (input.getType().getTag()) {
-            case TypeTags.STRING_TAG:
-                encodeString(context, input.stringValue(), charset, isMimeSpecific);
-                break;
-            default:
-                break;
-        }
+    public static BError createStringError(Context context, String errMsg) {
+        return createError(context, errMsg, BallerinaErrorReasons.STRING_OPERATION_ERROR);
     }
 
     /**
-     * Decode a given BValue using Base64 encoding scheme.
+     * Get builtin conversion error.
      *
-     * @param context        Represent a ballerina context
-     * @param encodedInput   Represent an encoded BValue which can be of type blob, string or byte channel
-     * @param charset        Represent the charset value to be used with string
-     * @param isMimeSpecific A boolean indicating whether the decoder should be mime specific or not
+     * @param context Represent ballerina context
+     * @param errMsg  Error description
+     * @param reason The reason of the error
+     * @return conversion error
      */
-    public static void decode(Context context, BValue encodedInput, String charset, boolean isMimeSpecific) {
-        switch (encodedInput.getType().getTag()) {
-            case TypeTags.STRING_TAG:
-                decodeString(context, encodedInput, charset, isMimeSpecific);
-                break;
-            default:
-                break;
-        }
+    public static BError createError(Context context, String errMsg, String reason) {
+        BMap<String, BValue> errorMap = new BMap<>();
+        errorMap.put("message", new BString(errMsg));
+        return BLangVMErrors.createError(context, true, BTypes.typeError, reason, errorMap);
     }
 
-    /**
-     * Encode a given string using Base64 encoding scheme.
-     *
-     * @param context           Represent a ballerina context
-     * @param stringToBeEncoded Represent the string that needs to be encoded
-     * @param charset           Represent the charset value to be used with string
-     * @param isMimeSpecific    A boolean indicating whether the encoder should be mime specific or not
-     */
-    public static void encodeString(Context context, String stringToBeEncoded, String charset, boolean isMimeSpecific) {
-        try {
-            byte[] encodedValue;
-            if (isMimeSpecific) {
-                encodedValue = Base64.getMimeEncoder().encode(stringToBeEncoded.getBytes(charset));
-            } else {
-                encodedValue = Base64.getEncoder().encode(stringToBeEncoded.getBytes(charset));
-            }
-            context.setReturnValues(new BString(new String(encodedValue, StandardCharsets.ISO_8859_1)));
-        } catch (UnsupportedEncodingException e) {
-            context.setReturnValues(BLangVMErrors.createError(context, e.getMessage()));
-        }
-    }
-
-    /**
-     * Decode a given encoded string using Base64 encoding scheme.
-     *
-     * @param context           Represent a ballerina context
-     * @param stringToBeDecoded Represent the string that needs to be decoded
-     * @param charset           Represent the charset value to be used with string
-     * @param isMimeSpecific    A boolean indicating whether the decoder should be mime specific or not
-     */
-    private static void decodeString(Context context, BValue stringToBeDecoded, String charset,
-                                     boolean isMimeSpecific) {
-        try {
-            byte[] decodedValue;
-            if (isMimeSpecific) {
-                decodedValue = Base64.getMimeDecoder().decode(stringToBeDecoded.stringValue()
-                                                                      .getBytes(StandardCharsets.ISO_8859_1));
-            } else {
-                decodedValue = Base64.getDecoder().decode(stringToBeDecoded.stringValue()
-                                                                  .getBytes(StandardCharsets.ISO_8859_1));
-            }
-            context.setReturnValues(new BString(new String(decodedValue, charset)));
-        } catch (UnsupportedEncodingException e) {
-            context.setReturnValues(createBase64Error(context, e.getMessage(), isMimeSpecific, false));
-        }
-    }
-
-    /**
-     * Decode a given encoded string using Base64 encoding scheme.
-     *
-     * @param context           Represent a ballerina context
-     * @param stringToBeDecoded Represent the string that needs to be decoded
-     * @param charset           Represent the charset value to be used with string
-     * @param isMimeSpecific    A boolean indicating whether the decoder should be mime specific or not
-     */
-    public static void decodeString(Context context, String stringToBeDecoded, String charset, boolean isMimeSpecific) {
-        try {
-            byte[] decodedValue;
-            if (isMimeSpecific) {
-                decodedValue = Base64.getMimeDecoder().decode(stringToBeDecoded.getBytes(StandardCharsets.ISO_8859_1));
-            } else {
-                decodedValue = Base64.getDecoder().decode(stringToBeDecoded.getBytes(StandardCharsets.ISO_8859_1));
-            }
-            context.setReturnValues(new BString(new String(decodedValue, charset)));
-        } catch (UnsupportedEncodingException e) {
-            context.setReturnValues(BLangVMErrors.createError(context, e.getMessage()));
-        }
+    private BuiltInUtils() {
     }
 }

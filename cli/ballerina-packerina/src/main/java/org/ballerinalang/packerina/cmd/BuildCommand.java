@@ -17,7 +17,6 @@
  */
 package org.ballerinalang.packerina.cmd;
 
-import org.ballerinalang.compiler.backend.llvm.NativeGen;
 import org.ballerinalang.launcher.BLauncherCmd;
 import org.ballerinalang.launcher.LauncherUtils;
 import org.ballerinalang.packerina.BuilderUtils;
@@ -32,7 +31,9 @@ import java.nio.file.Paths;
 import java.util.List;
 
 import static org.ballerinalang.packerina.cmd.Constants.BUILD_COMMAND;
+import static org.ballerinalang.util.BLangConstants.BALLERINA_TARGET;
 import static org.ballerinalang.util.BLangConstants.BLANG_SRC_FILE_SUFFIX;
+import static org.ballerinalang.util.BLangConstants.JVM_TARGET;
 
 /**
  * This class represents the "ballerina build" command.
@@ -44,7 +45,7 @@ public class BuildCommand implements BLauncherCmd {
     private static final String USER_DIR = "user.dir";
     private static PrintStream outStream = System.err;
 
-    @CommandLine.Option(names = {"-c"}, description = "build a compiled package")
+    @CommandLine.Option(names = {"-c"}, description = "build a compiled module")
     private boolean buildCompiledPkg;
 
     @CommandLine.Option(names = {"-o"}, description = "write output to the given file")
@@ -72,8 +73,21 @@ public class BuildCommand implements BLauncherCmd {
     @CommandLine.Option(names = "--dump-llvm-ir", hidden = true)
     private boolean dumpLLVMIR;
 
+    @CommandLine.Option(names = {"--jvmTarget"}, hidden = true,
+            description = "compile Ballerina program to a jvm class")
+    private boolean jvmTarget;
+
     @CommandLine.Option(names = {"--help", "-h"}, hidden = true)
     private boolean helpFlag;
+
+    @CommandLine.Option(names = "--experimental", description = "enable experimental language features")
+    private boolean experimentalFlag;
+
+    @CommandLine.Option(names = {"--config"}, description = "path to the configuration file")
+    private String configFilePath;
+
+    @CommandLine.Option(names = "--siddhiruntime", description = "enable siddhi runtime for stream processing")
+    private boolean siddhiRuntimeFlag;
 
     public void execute() {
         if (helpFlag) {
@@ -92,7 +106,8 @@ public class BuildCommand implements BLauncherCmd {
             genNativeBinary(sourceRootPath, argList);
         } else if (argList == null || argList.size() == 0) {
             // ballerina build
-            BuilderUtils.compileWithTestsAndWrite(sourceRootPath, offline, lockEnabled, skiptests);
+            BuilderUtils.compileWithTestsAndWrite(sourceRootPath, offline, lockEnabled, skiptests, experimentalFlag,
+                    siddhiRuntimeFlag, jvmTarget, dumpBIR);
         } else {
             // ballerina build pkgName [-o outputFileName]
             String targetFileName;
@@ -128,27 +143,42 @@ public class BuildCommand implements BLauncherCmd {
                 Path parent = resolvedFullPath.getParent();
                 sourceRootPath = parent != null ? parent : sourceRootPath;
 
-                // The package name/source should be the source file name
+                // The module name/source should be the source file name
                 Path resolvedFileName = resolvedFullPath.getFileName();
                 pkgName = resolvedFileName != null ? resolvedFileName.toString() : pkgName;
 
-            } else if (Files.isDirectory(sourceRootPath)) { // If the source is a package from a project
-                // Checks if the source is a package and if its inside a project (with a .ballerina folder)
+            } else if (Files.isDirectory(sourceRootPath)) { // If the source is a module from a project
+                // Checks if the source is a module and if its inside a project (with a .ballerina folder)
                 if (Files.isDirectory(resolvedFullPath) && !RepoUtils.hasProjectRepo(sourceRootPath)) {
-                    throw LauncherUtils.createLauncherException("did you mean to build the package ? If so build " +
-                                                                        "from the project folder");
+                    throw LauncherUtils.createLauncherException("you are trying to build a module that is not inside " +
+                            "a project. Run `ballerina init` from " + sourceRootPath + " to initialize it as a " +
+                            "project and then build the module.");
                 }
-                // If we are trying to run a bal file inside a package from a project directory an error is thrown.
-                // To differentiate between top level bals and bals inside packages we need to check if the parent of
-                // the sourcePath given is null. If it is null then its a top level bal else its a bal inside a package
+                if (Files.isRegularFile(resolvedFullPath) && !sourcePath.toString().endsWith(BLANG_SRC_FILE_SUFFIX)) {
+                    throw LauncherUtils.createLauncherException("only modules and " + BLANG_SRC_FILE_SUFFIX + " " +
+                                                                "files can be used with the 'ballerina build' " +
+                                                                        "command.");
+                }
+
+                if (Files.exists(resolvedFullPath)) {
+                    if (Files.isRegularFile(resolvedFullPath) && !sourcePath.toString()
+                                                                            .endsWith(BLANG_SRC_FILE_SUFFIX)) {
+                        throw LauncherUtils.createLauncherException("only modules and " + BLANG_SRC_FILE_SUFFIX + " " +
+                                                                    "files can be used with the 'ballerina build' " +
+                                                                            "command.");
+                    }
+                } else {
+                    throw LauncherUtils.createLauncherException("ballerina source does not exist '" + sourcePath + "'");
+                }
+                // If we are trying to run a bal file inside a module from a project directory an error is thrown.
+                // To differentiate between top level bals and bals inside modules we need to check if the parent of
+                // the sourcePath given is null. If it is null then its a top level bal else its a bal inside a module
                 Path parentPath = sourcePath.getParent();
                 if (Files.isRegularFile(resolvedFullPath) && sourcePath.toString().endsWith(BLANG_SRC_FILE_SUFFIX) &&
                         parentPath != null) {
-                    Path fileName = parentPath.getFileName();
-                    String srcPkgName = fileName != null ? fileName.toString() : "";
                     throw LauncherUtils.createLauncherException("you are trying to build a ballerina file inside a " +
-                                                                        "package within a project. Try running " +
-                                                                        "'ballerina build <package-name>'");
+                                                                        "module within a project. Try running " +
+                                                                        "'ballerina build <module-name>'");
                 }
             } else {
                 // Invalid source file provided
@@ -156,8 +186,21 @@ public class BuildCommand implements BLauncherCmd {
                                                                     "directory or a file  with a \'"
                                                             + BLangConstants.BLANG_SRC_FILE_SUFFIX + "\' extension");
             }
+
+            // Load the configuration file. If no config file is given then the default config file i.e.
+            // "ballerina.conf" in the source root path is taken.
+            LauncherUtils.loadConfigurations(sourceRootPath, configFilePath);
+
+//            if (jvmTarget || JVM_TARGET.equals(System.getProperty(BALLERINA_TARGET))) {
+//                BuilderUtils.compileAndWriteJar(sourceRootPath, pkgName, targetFileName, buildCompiledPkg,
+//                        offline, lockEnabled, skiptests, experimentalFlag, dumpBIR);
+//            } else {
+//                BuilderUtils.compileWithTestsAndWrite(sourceRootPath, pkgName, targetFileName, buildCompiledPkg,
+//                        offline, lockEnabled, skiptests, experimentalFlag, siddhiRuntimeFlag);
+//            }
             BuilderUtils.compileWithTestsAndWrite(sourceRootPath, pkgName, targetFileName, buildCompiledPkg,
-                                                  offline, lockEnabled, skiptests);
+                    offline, lockEnabled, skiptests, experimentalFlag, siddhiRuntimeFlag,
+                    jvmTarget || JVM_TARGET.equals(System.getProperty(BALLERINA_TARGET)), dumpBIR);
         }
         Runtime.getRuntime().exit(0);
     }
@@ -187,7 +230,7 @@ public class BuildCommand implements BLauncherCmd {
     public void printLongDesc(StringBuilder out) {
         out.append("Compiles Ballerina sources and writes the output to a file. \n");
         out.append("\n");
-        out.append("By default, output filename is the last part of packagename \n");
+        out.append("By default, output filename is the last part of module name \n");
         out.append("or the filename (minus the extension) with the extension \".balx\". \n");
         out.append("\n");
         out.append("If the output file is specified with the -o flag, the output \n");
@@ -196,25 +239,14 @@ public class BuildCommand implements BLauncherCmd {
 
     @Override
     public void printUsage(StringBuilder out) {
-        out.append("  ballerina build <balfile | packagename> [-o output] \n");
+        out.append("  ballerina build <balfile | module-name> [-o output] \n");
     }
 
     @Override
     public void setParentCmdParser(CommandLine parentCmdParser) {
     }
 
-    @Override
-    public void setSelfCmdParser(CommandLine selfCmdParser) {
-    }
-
     private void genNativeBinary(Path projectDirPath, List<String> argList) {
-        if (argList == null || argList.size() != 1) {
-            throw LauncherUtils.createUsageExceptionWithHelp("no Ballerina program given");
-        }
-        String programName = argList.get(0);
-
-        // TODO Check whether we need to remove last slash from program name.
-        NativeGen.genBinaryExecutable(projectDirPath, programName, outputFileName,
-                offline, lockEnabled, dumpBIR, dumpLLVMIR);
+        throw LauncherUtils.createLauncherException("llvm native generation is not supported");
     }
 }

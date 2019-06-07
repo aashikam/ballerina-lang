@@ -21,38 +21,36 @@ package org.ballerinalang.packerina.init.models;
  * Constants which holds the bal file content.
  */
 public class FileContentConstants {
-    public static final String SERVICE_CONTENT = "// A system package containing protocol access constructs\n" +
-                                                "// Package objects referenced with 'http:' in code\n" +
+    public static final String SERVICE_CONTENT = "// A system module containing protocol access constructs\n" +
+                                                "// Module objects referenced with 'http:' in code\n" +
                                                 "import ballerina/http;\n" +
-                                                "\n" +
-                                                "# A service endpoint represents a listener.\n" +
-                                                "endpoint http:Listener listener {\n" +
-                                                "    port:9090\n" +
-                                                "};\n" +
+                                                "import ballerina/io;\n" +
                                                 "\n" +
                                                 "# A service is a network-accessible API\n" +
                                                 "# Advertised on '/hello', port comes from listener endpoint\n" +
-                                                "service<http:Service> hello bind listener {\n" +
+                                                "service hello on new http:Listener(9090) {\n" +
                                                 "\n" +
                                                 "    # A resource is an invokable API method\n" +
                                                 "    # Accessible at '/hello/sayHello\n" +
-                                                "    #'caller' is the client invoking this resource \n" +
+                                                "    # 'caller' is the client invoking this resource \n" +
                                                 "\n" +
                                                 "    # + caller - Server Connector\n" +
                                                 "    # + request - Request\n" +
-                                                "\n" +
-                                                "    sayHello (endpoint caller, http:Request request) {\n" +
+                                                "    resource function sayHello(http:Caller caller, " +
+                                                "http:Request request) {\n" +
                                                 "\n" +
                                                 "        // Create object to carry data back to caller\n" +
                                                 "        http:Response response = new;\n" +
                                                 "\n" +
-                                                "        // Objects and structs can have function calls\n" +
-                                                "        response.setTextPayload(\"Hello Ballerina!\\n\");\n" +
+                                                "        // Set a string payload to be sent to the caller\n" +
+                                                "        response.setTextPayload(\"Hello Ballerina!\");\n" +
                                                 "\n" +
                                                 "        // Send a response back to caller\n" +
-                                                "        // Errors are ignored with '_'\n" +
                                                 "        // -> indicates a synchronous network-bound call\n" +
-                                                "        _ = caller -> respond(response);\n" +
+                                                "        error? result = caller -> respond(response);\n" +
+                                                "        if (result is error) {\n" +
+                                                "            io:println(\"Error in responding\", result);\n" +
+                                                "        }" +
                                                 "    }\n" +
                                                 "}";
 
@@ -60,7 +58,7 @@ public class FileContentConstants {
                                                         "\n" +
                                                         "# Prints `Hello World`.\n" +
                                                         "\n" +
-                                                        "public function main(string... args) {\n" +
+                                                        "public function main() {\n" +
                                                         "    io:println(\"Hello World!\");\n" +
                                                         "}\n";
 

@@ -20,8 +20,13 @@ package org.ballerinalang.stdlib.io.utils;
 
 import org.ballerinalang.bre.Context;
 import org.ballerinalang.bre.bvm.BLangVMErrors;
-import org.ballerinalang.bre.bvm.BLangVMStructs;
+import org.ballerinalang.connector.api.BLangConnectorSPIUtil;
+import org.ballerinalang.jvm.BallerinaErrors;
+import org.ballerinalang.jvm.values.ErrorValue;
+import org.ballerinalang.model.types.BTypes;
+import org.ballerinalang.model.values.BError;
 import org.ballerinalang.model.values.BMap;
+import org.ballerinalang.model.values.BString;
 import org.ballerinalang.model.values.BValue;
 import org.ballerinalang.stdlib.io.channels.FileIOChannel;
 import org.ballerinalang.stdlib.io.channels.base.Channel;
@@ -36,8 +41,6 @@ import org.ballerinalang.stdlib.io.events.Register;
 import org.ballerinalang.stdlib.io.events.bytes.ReadBytesEvent;
 import org.ballerinalang.stdlib.io.events.bytes.WriteBytesEvent;
 import org.ballerinalang.stdlib.io.events.characters.WriteCharactersEvent;
-import org.ballerinalang.util.codegen.PackageInfo;
-import org.ballerinalang.util.codegen.StructureTypeInfo;
 import org.ballerinalang.util.exceptions.BallerinaException;
 
 import java.io.IOException;
@@ -54,23 +57,63 @@ import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 
-import static org.ballerinalang.util.BLangConstants.BALLERINA_BUILTIN_PKG;
-
 /**
  * Represents the util functions of IO operations.
  */
 public class IOUtils {
+
+    /**
+     * IO package name.
+     */
+    private static final String PROTOCOL_PACKAGE_IO = "ballerina/io";
+    /**
+     * IO error struct name.
+     */
+    private static final String IO_ERROR = "IOError";
+    /**
+     * message which will be propagated.
+     */
+    private static final String MESSAGE = "message";
+/*
     /**
      * Returns the error struct for the corresponding message.
      *
      * @param context context of the extern function.
      * @param message error message.
      * @return error message struct.
-     */
+     *//*
+
     public static BMap<String, BValue> createError(Context context, String message) {
         PackageInfo ioPkg = context.getProgramFile().getPackageInfo(BALLERINA_BUILTIN_PKG);
         StructureTypeInfo error = ioPkg.getStructInfo(BLangVMErrors.STRUCT_GENERIC_ERROR);
         return BLangVMStructs.createBStruct(error, message);
+    }
+*/
+
+    /**
+     * Creates an error message.
+     *
+     * @param context context which is invoked.
+     * @param errCode the error code.
+     * @param errMsg  the cause for the error.
+     * @return an error which will be propagated to ballerina user.
+     */
+    public static BError createError(Context context, String errCode, String errMsg) {
+        BMap<String, BValue> ioErrorRecord = BLangConnectorSPIUtil.createBStruct(context,
+                PROTOCOL_PACKAGE_IO,
+                IO_ERROR);
+        ioErrorRecord.put(MESSAGE, new BString(errMsg));
+        return BLangVMErrors.createError(context, true, BTypes.typeError, errCode, ioErrorRecord);
+    }
+
+    /**
+     * Creates an error message.
+     *
+     * @param errMsg  the cause for the error.
+     * @return an error which will be propagated to ballerina user.
+     */
+    public static ErrorValue createError(String errMsg) {
+        return BallerinaErrors.createError(IOConstants.IO_ERROR_CODE, errMsg);
     }
 
     /**
@@ -154,12 +197,13 @@ public class IOUtils {
      * @param eventContext     the context of the event.
      * @throws BallerinaException during i/o error.
      */
+    //TODO Remove after migration : implemented using bvm values/types
     public static void writeFull(CharacterChannel characterChannel, String payload, EventContext eventContext) throws
             BallerinaException {
         try {
             int totalNumberOfCharsWritten = 0;
             int numberOfCharsWritten;
-            final int lengthOfPayload = payload.length();
+            final int lengthOfPayload = payload.getBytes().length;
             do {
                 WriteCharactersEvent event = new WriteCharactersEvent(characterChannel, payload, 0, eventContext);
                 CompletableFuture<EventResult> future = EventManager.getInstance().publish(event);
@@ -168,12 +212,46 @@ public class IOUtils {
                 totalNumberOfCharsWritten = totalNumberOfCharsWritten + numberOfCharsWritten;
             } while (totalNumberOfCharsWritten != lengthOfPayload && numberOfCharsWritten != 0);
             if (totalNumberOfCharsWritten != lengthOfPayload) {
-                String message = "JSON payload was partially written expected:" + lengthOfPayload + ",written : " +
+                String message = "JSON payload was partially written expected: " + lengthOfPayload + ", written : " +
                         totalNumberOfCharsWritten;
                 throw new BallerinaException(message);
             }
         } catch (InterruptedException | ExecutionException e) {
             throw new BallerinaException(e);
+        }
+    }
+
+    /**
+     * <p>
+     * Writes the whole payload to the channel.
+     * </p>
+     *
+     * @param characterChannel the character channel the payload should be written.
+     * @param payload          the content.
+     * @param eventContext     the context of the event.
+     * @throws BallerinaException during i/o error.
+     */
+    //TODO Rename method name to writeFull after migration
+    public static void writeFullContent(CharacterChannel characterChannel, String payload, EventContext eventContext)
+            throws org.ballerinalang.jvm.util.exceptions.BallerinaException {
+        try {
+            int totalNumberOfCharsWritten = 0;
+            int numberOfCharsWritten;
+            final int lengthOfPayload = payload.getBytes().length;
+            do {
+                WriteCharactersEvent event = new WriteCharactersEvent(characterChannel, payload, 0, eventContext);
+                CompletableFuture<EventResult> future = EventManager.getInstance().publish(event);
+                EventResult eventResult = future.get();
+                numberOfCharsWritten = (Integer) eventResult.getResponse();
+                totalNumberOfCharsWritten = totalNumberOfCharsWritten + numberOfCharsWritten;
+            } while (totalNumberOfCharsWritten != lengthOfPayload && numberOfCharsWritten != 0);
+            if (totalNumberOfCharsWritten != lengthOfPayload) {
+                String message = "JSON payload was partially written expected: " + lengthOfPayload + ", written : " +
+                        totalNumberOfCharsWritten;
+                throw new org.ballerinalang.jvm.util.exceptions.BallerinaException(message);
+            }
+        } catch (InterruptedException | ExecutionException e) {
+            throw new org.ballerinalang.jvm.util.exceptions.BallerinaException(e);
         }
     }
 
@@ -230,6 +308,7 @@ public class IOUtils {
      *
      * @param path the file location url
      */
+    //TODO Remove after migration : implemented using bvm values/types
     private static void createDirs(Path path) {
         Path parent = path.getParent();
         if (parent != null && !Files.exists(parent)) {
@@ -249,6 +328,7 @@ public class IOUtils {
      * @return the filechannel which will hold the reference.
      * @throws IOException during i/o error.
      */
+    //TODO Remove after migration : implemented using bvm values/types
     public static FileChannel openFileChannel(Path path, String accessMode) throws IOException {
         String accessLC = accessMode.toLowerCase(Locale.getDefault());
         Set<OpenOption> opts = new HashSet<>();
@@ -288,6 +368,7 @@ public class IOUtils {
      * @return delimited record channel to read from CSV.
      * @throws IOException during I/O error.
      */
+    //TODO Remove after migration : implemented using bvm values/types
     public static DelimitedRecordChannel createDelimitedRecordChannel(String filePath, String encoding, String mode,
                                                                       Format format)
             throws IOException {
@@ -298,4 +379,76 @@ public class IOUtils {
         return new DelimitedRecordChannel(characterChannel, format);
     }
 
+    /**
+     * Creates a directory at the specified path.
+     *
+     * @param path the file location url
+     */
+    private static void createDirsExtended(Path path) {
+        Path parent = path.getParent();
+        if (parent != null && !Files.exists(parent)) {
+            try {
+                Files.createDirectories(parent);
+            } catch (IOException e) {
+                throw new org.ballerinalang.jvm.util.exceptions.BallerinaException("Error in creating directory.", e);
+            }
+        }
+    }
+
+    /**
+     * Open a file channel from the given path.
+     *
+     * @param path       path to the file.
+     * @param accessMode file access mode.
+     * @return the filechannel which will hold the reference.
+     * @throws IOException during i/o error.
+     */
+    public static FileChannel openFileChannelExtended(Path path, String accessMode) throws IOException {
+        String accessLC = accessMode.toLowerCase(Locale.getDefault());
+        Set<OpenOption> opts = new HashSet<>();
+        if (accessLC.contains("r")) {
+            if (!Files.exists(path)) {
+                throw new org.ballerinalang.jvm.util.exceptions.BallerinaException("file not found: " + path);
+            }
+            if (!Files.isReadable(path)) {
+                throw new org.ballerinalang.jvm.util.exceptions.BallerinaException("file is not readable: " + path);
+            }
+            opts.add(StandardOpenOption.READ);
+        }
+        boolean write = accessLC.contains("w");
+        boolean append = accessLC.contains("a");
+        if (write || append) {
+            if (Files.exists(path) && !Files.isWritable(path)) {
+                throw new org.ballerinalang.jvm.util.exceptions.BallerinaException("file is not writable: " + path);
+            }
+            createDirsExtended(path);
+            opts.add(StandardOpenOption.CREATE);
+            if (append) {
+                opts.add(StandardOpenOption.APPEND);
+            } else {
+                opts.add(StandardOpenOption.WRITE);
+            }
+        }
+        return FileChannel.open(path, opts);
+    }
+
+    /**
+     * Creates a delimited record channel to read from CSV file.
+     *
+     * @param filePath path to the CSV file.
+     * @param encoding the encoding of CSV file.
+     * @param mode     permission to access the file.
+     * @param format   format of the CSV file.
+     * @return delimited record channel to read from CSV.
+     * @throws IOException during I/O error.
+     */
+    public static DelimitedRecordChannel createDelimitedRecordChannelExtended(String filePath, String encoding,
+                                                                              String mode, Format format)
+            throws IOException {
+        Path path = Paths.get(filePath);
+        FileChannel sourceChannel = openFileChannelExtended(path, mode);
+        FileIOChannel fileIOChannel = new FileIOChannel(sourceChannel);
+        CharacterChannel characterChannel = new CharacterChannel(fileIOChannel, Charset.forName(encoding).name());
+        return new DelimitedRecordChannel(characterChannel, format);
+    }
 }

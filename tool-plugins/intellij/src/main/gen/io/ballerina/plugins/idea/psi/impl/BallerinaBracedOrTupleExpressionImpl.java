@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2018, WSO2 Inc. (http://www.wso2.org) All Rights Reserved.
+ *  Copyright (c) 2019, WSO2 Inc. (http://www.wso2.org) All Rights Reserved.
  *
  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  you may not use this file except in compliance with the License.
@@ -43,20 +43,8 @@ public class BallerinaBracedOrTupleExpressionImpl extends BallerinaExpressionImp
 
   @Override
   @NotNull
-  public List<BallerinaExpression> getExpressionList() {
-    return PsiTreeUtil.getChildrenOfTypeAsList(this, BallerinaExpression.class);
-  }
-
-  @Override
-  @NotNull
-  public PsiElement getLeftParenthesis() {
-    return notNullChild(findChildByType(LEFT_PARENTHESIS));
-  }
-
-  @Override
-  @NotNull
-  public PsiElement getRightParenthesis() {
-    return notNullChild(findChildByType(RIGHT_PARENTHESIS));
+  public BallerinaTupleLiteral getTupleLiteral() {
+    return findNotNullChildByClass(BallerinaTupleLiteral.class);
   }
 
 }

@@ -28,6 +28,7 @@ import org.ballerinalang.util.exceptions.BallerinaException;
 
 import java.sql.SQLException;
 import java.sql.Struct;
+
 import javax.xml.stream.XMLStreamException;
 import javax.xml.stream.XMLStreamWriter;
 
@@ -48,25 +49,23 @@ public class TableOMDataSource extends AbstractPushOMDataSource {
     private BTable table;
     private String rootWrapper;
     private String rowWrapper;
-    private boolean isInTransaction;
 
-    public TableOMDataSource(BTable table, String rootWrapper, String rowWrapper, boolean isInTransaction) {
+    public TableOMDataSource(BTable table, String rootWrapper, String rowWrapper) {
         this.table = table;
         this.rootWrapper = rootWrapper != null ? rootWrapper : DEFAULT_ROOT_WRAPPER;
         this.rowWrapper = rowWrapper != null ? rowWrapper : DEFAULT_ROW_WRAPPER;
-        this.isInTransaction = isInTransaction;
     }
 
     @Override
     public void serialize(XMLStreamWriter xmlStreamWriter) throws XMLStreamException {
         xmlStreamWriter.writeStartElement("", this.rootWrapper, "");
-        while (table.hasNext(this.isInTransaction)) {
+        while (table.hasNext()) {
             table.moveToNext();
             xmlStreamWriter.writeStartElement("", this.rowWrapper, "");
             BStructureType structType = table.getStructType();
             BField[] structFields = null;
             if (structType != null) {
-                structFields = structType.getFields();
+                structFields = structType.getFields().values().toArray(new BField[0]);
             }
             int index = 1;
             for (ColumnDefinition col : table.getColumnDefs()) {
@@ -102,6 +101,9 @@ public class TableOMDataSource extends AbstractPushOMDataSource {
             break;
         case FLOAT:
             value = String.valueOf(table.getFloat(index));
+            break;
+        case DECIMAL:
+            value = String.valueOf(table.getDecimal(index));
             break;
         case BLOB:
             value = table.getBlob(index);
@@ -154,12 +156,13 @@ public class TableOMDataSource extends AbstractPushOMDataSource {
             BType internaltType = structFields[index - 1].fieldType;
             if (internaltType.getTag() == TypeTags.OBJECT_TYPE_TAG
                     || internaltType.getTag() == TypeTags.RECORD_TYPE_TAG) {
-                BField[] interanlStructFields = ((BStructureType) internaltType).getFields();
-                if (interanlStructFields != null) {
+                BField[] internalStructFields = ((BStructureType) internaltType).getFields()
+                                                                                .values().toArray(new BField[0]);
+                if (internalStructFields != null) {
                     for (Object val : structData) {
-                        xmlStreamWriter.writeStartElement("", interanlStructFields[i].fieldName, "");
+                        xmlStreamWriter.writeStartElement("", internalStructFields[i].fieldName, "");
                         if (val instanceof Struct) {
-                            processStruct(xmlStreamWriter, ((Struct) val).getAttributes(), interanlStructFields, i + 1);
+                            processStruct(xmlStreamWriter, ((Struct) val).getAttributes(), internalStructFields, i + 1);
                         } else {
                             xmlStreamWriter.writeCharacters(val.toString());
                         }

@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2018, WSO2 Inc. (http://www.wso2.org) All Rights Reserved.
+ *  Copyright (c) 2019, WSO2 Inc. (http://www.wso2.org) All Rights Reserved.
  *
  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  you may not use this file except in compliance with the License.
@@ -21,16 +21,34 @@ import java.util.List;
 import org.jetbrains.annotations.*;
 import com.intellij.psi.PsiElement;
 
-public interface BallerinaCompoundOperator extends BallerinaCompositeElement {
+public interface BallerinaCompoundOperator extends PsiElement {
 
   @Nullable
   PsiElement getCompoundAdd();
 
   @Nullable
+  PsiElement getCompoundBitAnd();
+
+  @Nullable
+  PsiElement getCompoundBitOr();
+
+  @Nullable
+  PsiElement getCompoundBitXor();
+
+  @Nullable
   PsiElement getCompoundDiv();
 
   @Nullable
+  PsiElement getCompoundLeftShift();
+
+  @Nullable
+  PsiElement getCompoundLogicalShift();
+
+  @Nullable
   PsiElement getCompoundMul();
+
+  @Nullable
+  PsiElement getCompoundRightShift();
 
   @Nullable
   PsiElement getCompoundSub();

@@ -18,20 +18,18 @@
 package org.ballerinalang.stdlib.time.nativeimpl;
 
 import org.ballerinalang.bre.Context;
+import org.ballerinalang.jvm.Strand;
+import org.ballerinalang.jvm.values.ArrayValue;
+import org.ballerinalang.jvm.values.MapValue;
 import org.ballerinalang.model.types.BTupleType;
 import org.ballerinalang.model.types.BTypes;
-import org.ballerinalang.model.types.TypeKind;
 import org.ballerinalang.model.values.BInteger;
 import org.ballerinalang.model.values.BMap;
-import org.ballerinalang.model.values.BRefValueArray;
 import org.ballerinalang.model.values.BValue;
+import org.ballerinalang.model.values.BValueArray;
 import org.ballerinalang.natives.annotations.BallerinaFunction;
-import org.ballerinalang.natives.annotations.Receiver;
-import org.ballerinalang.natives.annotations.ReturnType;
 
 import java.util.Arrays;
-
-import static org.ballerinalang.stdlib.time.util.TimeUtils.STRUCT_TYPE_TIME;
 
 /**
  * Get the year,month and date value for the given time.
@@ -40,25 +38,32 @@ import static org.ballerinalang.stdlib.time.util.TimeUtils.STRUCT_TYPE_TIME;
  */
 @BallerinaFunction(
         orgName = "ballerina", packageName = "time",
-        functionName = "getDate",
-        receiver = @Receiver(type = TypeKind.OBJECT, structType = STRUCT_TYPE_TIME, structPackage = "ballerina/time"),
-        returnType = {@ReturnType(type = TypeKind.INT),
-                      @ReturnType(type = TypeKind.INT),
-                      @ReturnType(type = TypeKind.INT)},
-        isPublic = true
+        functionName = "getDate"
 )
 public class GetDate extends AbstractTimeFunction {
 
     private static final BTupleType getDateTupleType = new BTupleType(
             Arrays.asList(BTypes.typeInt, BTypes.typeInt, BTypes.typeInt));
+    private static final org.ballerinalang.jvm.types.BTupleType getDateTupleJvmType = new org.ballerinalang.jvm.types
+            .BTupleType(Arrays.asList(org.ballerinalang.jvm.types.BTypes.typeInt,
+                                      org.ballerinalang.jvm.types.BTypes.typeInt,
+                                      org.ballerinalang.jvm.types.BTypes.typeInt));
 
     @Override
     public void execute(Context context) {
         BMap<String, BValue> timeStruct = ((BMap<String, BValue>) context.getRefArgument(0));
-        BRefValueArray date = new BRefValueArray(getDateTupleType);
+        BValueArray date = new BValueArray(getDateTupleType);
         date.add(0, new BInteger(getYear(timeStruct)));
         date.add(1, new BInteger(getMonth(timeStruct)));
         date.add(2, new BInteger(getDay(timeStruct)));
         context.setReturnValues(date);
+    }
+
+    public static ArrayValue getDate(Strand strand, MapValue<String, Object> timeRecord) {
+        ArrayValue date = new ArrayValue(getDateTupleJvmType);
+        date.add(0, getYear(timeRecord));
+        date.add(1, getMonth(timeRecord));
+        date.add(2, getDay(timeRecord));
+        return date;
     }
 }

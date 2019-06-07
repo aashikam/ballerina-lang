@@ -21,9 +21,11 @@ package org.ballerinalang.packerina.cmd;
 import org.ballerinalang.launcher.BLauncherCmd;
 import org.ballerinalang.packerina.init.InitHandler;
 import org.ballerinalang.packerina.init.models.FileType;
-import org.ballerinalang.packerina.init.models.PackageMdFile;
+import org.ballerinalang.packerina.init.models.ModuleMdFile;
 import org.ballerinalang.packerina.init.models.SrcFile;
 import org.ballerinalang.toml.model.Manifest;
+import org.wso2.ballerinalang.compiler.util.ProjectDirConstants;
+import org.wso2.ballerinalang.util.RepoUtils;
 import picocli.CommandLine;
 
 import java.io.IOException;
@@ -31,13 +33,17 @@ import java.io.PrintStream;
 import java.nio.charset.Charset;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
+import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
 import java.util.Scanner;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 import static org.ballerinalang.packerina.cmd.Constants.INIT_COMMAND;
 
@@ -49,7 +55,11 @@ public class InitCommand implements BLauncherCmd {
 
     public static final String DEFAULT_VERSION = "0.0.1";
     private static final String USER_DIR = "user.dir";
-    private static final PrintStream outStream = System.err;
+    private static final PrintStream errStream = System.err;
+    private final Path homePath = RepoUtils.createAndGetHomeReposPath();
+    private boolean alreadyInitializedProject = false;
+    private boolean manifestExistInProject = false;
+    private PrintStream out = System.out;
 
     @CommandLine.Option(names = {"--interactive", "-i"})
     private boolean interactiveFlag;
@@ -58,58 +68,88 @@ public class InitCommand implements BLauncherCmd {
     private boolean helpFlag;
 
     private static boolean isDirEmpty(final Path directory) throws IOException {
+
         try (DirectoryStream<Path> dirStream = Files.newDirectoryStream(directory)) {
-            return !dirStream.iterator().hasNext();
+            //Check whether the OS is MacOS and the folder contains .DS_Store file
+            Iterator pathIterator = dirStream.iterator();
+            if (!pathIterator.hasNext()) {
+                return true;
+            }
+            Path path = (Path) pathIterator.next();
+            Path fileName = path.getFileName();
+            return fileName != null && fileName.toString().equals(ProjectDirConstants.DS_STORE_FILE) &&
+                    !pathIterator.hasNext();
         }
     }
 
     @Override
     public void execute() {
-        PrintStream out = System.out;
-
         // Get source root path.
         Path projectPath = Paths.get(System.getProperty(USER_DIR));
+        try {
+            // Check if it is a project
+            boolean isProject = Files.exists(projectPath.resolve(ProjectDirConstants.DOT_BALLERINA_DIR_NAME));
+            if (isProject) {
+                alreadyInitializedProject = true;
+                manifestExistInProject = Files.exists(projectPath.resolve(ProjectDirConstants.MANIFEST_FILE_NAME));
+            }
+            // If the current directory is not a project traverse and check down and up
+            if (!alreadyInitializedProject) {
+                // Recursively traverse down
+                Optional<Path> childDotBallerina = Files.walk(projectPath)
+                        .filter(path -> Files.isDirectory(path) &&
+                                path.toFile().getName().equals(ProjectDirConstants.DOT_BALLERINA_DIR_NAME))
+                        .findFirst();
+                if (childDotBallerina.isPresent()) {
+                    errStream.println("A ballerina project is already initialized in " +
+                            childDotBallerina.get().toFile().getParent());
+                    return;
+                }
+                // Recursively traverse up till the root
+                Path projectRoot = findProjectRoot(projectPath);
+                if (projectRoot != null) {
+                    errStream.println("Directory is already within a ballerina project :" + projectRoot.toString());
+                    return;
+                }
+            }
+        } catch (IOException ignore) {
+        }
+
         Scanner scanner = new Scanner(System.in, Charset.defaultCharset().name());
         try {
             Manifest manifest = null;
 
             if (helpFlag) {
                 String commandUsageInfo = BLauncherCmd.getCommandUsageInfo(INIT_COMMAND);
-                outStream.println(commandUsageInfo);
+                errStream.println(commandUsageInfo);
                 return;
             }
 
             List<SrcFile> sourceFiles = new ArrayList<>();
-            List<PackageMdFile> packageMdFiles = new ArrayList<>();
+            List<ModuleMdFile> moduleMdFiles = new ArrayList<>();
+            boolean validInput = false;
+            boolean firstPrompt = true;
             if (interactiveFlag) {
 
-                // Check if Ballerina.toml file needs to be created.
-                out.print("Create Ballerina.toml [yes/y, no/n]: (y) ");
-                String createToml = scanner.nextLine().trim();
+                if (!manifestExistInProject) {
+                    // Check if Ballerina.toml file needs to be created.
+                    out.print("Create Ballerina.toml [yes/y, no/n]: (y) ");
+                    String createToml = scanner.nextLine().trim();
 
-                if (createToml.equalsIgnoreCase("yes") || createToml.equalsIgnoreCase("y") || createToml.isEmpty()) {
-                    manifest = new Manifest();
-
-                    String defaultOrg = guessOrgName();
-
-                    // Get org name.
-                    out.print("Organization name: (" + defaultOrg + ") ");
-                    String orgName = scanner.nextLine().trim();
-                    manifest.setName(orgName.isEmpty() ? defaultOrg : orgName);
-
-                    String version;
-                    do {
-                        out.print("Version: (" + DEFAULT_VERSION + ") ");
-                        version = scanner.nextLine().trim();
-                        version = version.isEmpty() ? DEFAULT_VERSION : version;
-                    } while (!validateVersion(out, version));
-
-                    manifest.setVersion(version);
+                    manifest = createManifest(scanner, createToml);
+                }
+                // If its already an initialized project
+                if (alreadyInitializedProject) {
+                    out.print("Create modules [yes/y, no/n]: (y) ");
+                    firstPrompt = false;
+                    String input = scanner.nextLine().trim();
+                    if (input.equalsIgnoreCase("n")) {
+                        out.println("Ballerina project not reinitialized");
+                        return;
+                    }
                 }
 
                 String srcInput;
-                boolean validInput = false;
-                boolean firstPrompt = true;
                 do {
                     // Following will be the first prompt and it will create a service by default. This is to align
                     // with the non-interactive implementation.
@@ -129,31 +169,31 @@ public class InitCommand implements BLauncherCmd {
                             || (srcInput.isEmpty() && firstPrompt)) {
                         String packageName;
                         do {
-                            out.print("Package for the service: (no package) ");
+                            out.print("Module for the service: (no module) ");
                             packageName = scanner.nextLine().trim();
-                        } while (!validatePkgName(out, packageName));
+                        } while (!validatePkgName(projectPath, packageName));
                         SrcFile srcFile = new SrcFile(packageName, FileType.SERVICE);
                         sourceFiles.add(srcFile);
                         SrcFile srcTestFile = new SrcFile(packageName, FileType.SERVICE_TEST);
                         sourceFiles.add(srcTestFile);
                         if (!packageName.isEmpty()) {
-                            PackageMdFile packageMdFile = new PackageMdFile(packageName, FileType.SERVICE);
-                            packageMdFiles.add(packageMdFile);
+                            ModuleMdFile moduleMdFile = new ModuleMdFile(packageName, FileType.SERVICE);
+                            moduleMdFiles.add(moduleMdFile);
                         }
                         firstPrompt = false;
                     } else if (srcInput.equalsIgnoreCase("main") || srcInput.equalsIgnoreCase("m")) {
                         String packageName;
                         do {
-                            out.print("Package for the main: (no package) ");
+                            out.print("Module for the main: (no module) ");
                             packageName = scanner.nextLine().trim();
-                        } while (!validatePkgName(out, packageName));
+                        } while (!validatePkgName(projectPath, packageName));
                         SrcFile srcFile = new SrcFile(packageName, FileType.MAIN);
                         sourceFiles.add(srcFile);
                         SrcFile srcTestFile = new SrcFile(packageName, FileType.MAIN_TEST);
                         sourceFiles.add(srcTestFile);
                         if (!packageName.isEmpty()) {
-                            PackageMdFile packageMdFile = new PackageMdFile(packageName, FileType.MAIN);
-                            packageMdFiles.add(packageMdFile);
+                            ModuleMdFile moduleMdFile = new ModuleMdFile(packageName, FileType.MAIN);
+                            moduleMdFiles.add(moduleMdFile);
                         }
                         firstPrompt = false;
                     } else if (srcInput.isEmpty() || srcInput.equalsIgnoreCase("f") ||
@@ -176,12 +216,50 @@ public class InitCommand implements BLauncherCmd {
                 }
             }
 
-            InitHandler.initialize(projectPath, manifest, sourceFiles, packageMdFiles);
-            out.println("Ballerina project initialized");
+            InitHandler.initialize(projectPath, manifest, sourceFiles, moduleMdFiles);
+            if (!alreadyInitializedProject) {
+                out.println("Ballerina project initialized");
+            } else {
+                out.println("Ballerina project reinitialized");
+            }
 
         } catch (IOException e) {
             out.println("Error occurred while creating project: " + e.getMessage());
         }
+    }
+
+    /**
+     * Create a manifest object.
+     *
+     * @param scanner    scanner object
+     * @param createToml create toml or not
+     * @return manifest object
+     */
+    private Manifest createManifest(Scanner scanner, String createToml) {
+
+        Manifest manifest = new Manifest();
+        if (createToml.equalsIgnoreCase("yes") || createToml.equalsIgnoreCase("y")
+                || createToml.isEmpty()) {
+
+            String defaultOrg = guessOrgName();
+
+            String orgName;
+            do {
+                out.print("Organization name: (" + defaultOrg + ") ");
+                orgName = scanner.nextLine().trim();
+            } while (!validateOrgName(orgName));
+            // Set org-name
+            manifest.setName(orgName.isEmpty() ? defaultOrg : orgName);
+            String version;
+            do {
+                out.print("Version: (" + DEFAULT_VERSION + ") ");
+                version = scanner.nextLine().trim();
+                version = version.isEmpty() ? DEFAULT_VERSION : version;
+            } while (!validateVersion(out, version));
+
+            manifest.setVersion(version);
+        }
+        return manifest;
     }
 
     /**
@@ -218,14 +296,6 @@ public class InitCommand implements BLauncherCmd {
     }
 
     /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void setSelfCmdParser(CommandLine selfCmdParser) {
-
-    }
-
-    /**
      * Validates the version is a semver version.
      *
      * @param versionAsString The version.
@@ -251,21 +321,84 @@ public class InitCommand implements BLauncherCmd {
     }
 
     /**
-     * Validates the package name.
+     * Validates the org-name.
      *
-     * @param pkgName The package name.
-     * @return True if valid package name, else false.
+     * @param orgName The org-name.
+     * @return True if valid org-name, else false.
      */
-    private boolean validatePkgName(PrintStream out, String pkgName) {
-        if (pkgName.isEmpty()) {
-           return true;
+    private boolean validateOrgName(String orgName) {
+        if (RepoUtils.isReservedOrgName(orgName)) {
+            out.println("--Invalid organization name: \'" + orgName + "\'. 'ballerina' and 'ballerinax' are reserved " +
+                    "organization names that are used by Ballerina");
+            return false;
         }
-        String validRegex = "^[a-zA-Z0-9_.]*$";
-        boolean matches = Pattern.matches(validRegex, pkgName);
+        boolean matches = RepoUtils.validateOrg(orgName);
         if (!matches) {
-            out.println("--Invalid package name: \"" + pkgName + "\"." + " Package name can only contain " +
-                                "alphanumeric, underscore and DOT");
+            out.println("--Invalid organization name: \'" + orgName + "\'. Organization name can only contain " +
+                    "lowercase alphanumerics and underscores and the maximum length is 256 characters");
         }
         return matches;
+    }
+
+    /**
+     * Validates the module name.
+     *
+     * @param projectPath
+     * @param pkgName     The module name.
+     * @return True if valid module name, else false.
+     */
+    private boolean validatePkgName(Path projectPath, String pkgName) {
+        if (validateExistingModules(projectPath, pkgName)) {
+            return false;
+        }
+        if (pkgName.isEmpty()) {
+            return true;
+        }
+        boolean matches = RepoUtils.validatePkg(pkgName);
+        if (!matches) {
+            out.println("--Invalid module name: \'" + pkgName + "\'. Module name can only contain " +
+                    "alphanumerics, underscores and periods and the maximum length is 256 characters");
+        }
+        return matches;
+    }
+
+    /**
+     * Find the project root by recursively up to the root.
+     *
+     * @param projectDir project path
+     * @return project root
+     */
+    private Path findProjectRoot(Path projectDir) {
+        Path path = projectDir.resolve(ProjectDirConstants.DOT_BALLERINA_DIR_NAME);
+        if (!path.equals(homePath) && java.nio.file.Files.exists(path, LinkOption.NOFOLLOW_LINKS)) {
+            return projectDir;
+        }
+        Path parentsParent = projectDir.getParent();
+        if (null != parentsParent) {
+            return findProjectRoot(parentsParent);
+        }
+        return null;
+    }
+
+    /**
+     * Validate existing modules.
+     *
+     * @param projectPath project path
+     * @param moduleNames modules name
+     * @return if the module name already exists
+     */
+    private boolean validateExistingModules(Path projectPath, String moduleNames) {
+        if (alreadyInitializedProject) {
+            List<Path> modules = new ArrayList<>();
+            try {
+                modules = Files.list(projectPath).map(Path::getFileName).collect(Collectors.toList());
+            } catch (IOException ignore) {
+            }
+            if (modules.contains(Paths.get(moduleNames))) {
+                out.println("Module already exists");
+                return true;
+            }
+        }
+        return false;
     }
 }

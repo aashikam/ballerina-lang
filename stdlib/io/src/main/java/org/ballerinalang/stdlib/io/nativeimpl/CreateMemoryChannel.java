@@ -19,8 +19,11 @@
 package org.ballerinalang.stdlib.io.nativeimpl;
 
 import org.ballerinalang.bre.Context;
+import org.ballerinalang.jvm.Strand;
+import org.ballerinalang.jvm.values.ArrayValue;
+import org.ballerinalang.jvm.values.ObjectValue;
 import org.ballerinalang.model.types.TypeKind;
-import org.ballerinalang.model.values.BByteArray;
+import org.ballerinalang.model.values.BValueArray;
 import org.ballerinalang.natives.annotations.Argument;
 import org.ballerinalang.natives.annotations.BallerinaFunction;
 import org.ballerinalang.stdlib.io.channels.AbstractNativeChannel;
@@ -41,7 +44,7 @@ import java.nio.channels.ReadableByteChannel;
  */
 @BallerinaFunction(
         orgName = "ballerina", packageName = "io",
-        functionName = "createMemoryChannel",
+        functionName = "createReadableChannel",
         args = {@Argument(name = "content", type = TypeKind.ARRAY, elementType = TypeKind.BYTE)},
         isPublic = true
 )
@@ -57,7 +60,7 @@ public class CreateMemoryChannel extends AbstractNativeChannel {
      * @param array byte array with elements initialized.
      * @return byte array which is shrunk.
      */
-    private byte[] shrink(BByteArray array) {
+    private byte[] shrink(BValueArray array) {
         int contentLength = (int) array.size();
         byte[] content = new byte[contentLength];
         System.arraycopy(array.getBytes(), 0, content, 0, contentLength);
@@ -70,7 +73,7 @@ public class CreateMemoryChannel extends AbstractNativeChannel {
     @Override
     public Channel inFlow(Context context) throws BallerinaException {
         try {
-            byte[] content = shrink(((BByteArray) context.getRefArgument(MESSAGE_CONTENT_INDEX)));
+            byte[] content = shrink(((BValueArray) context.getRefArgument(MESSAGE_CONTENT_INDEX)));
             ByteArrayInputStream contentStream = new ByteArrayInputStream(content);
             ReadableByteChannel readableByteChannel = Channels.newChannel(contentStream);
             return new BlobIOChannel(new BlobChannel(readableByteChannel));
@@ -78,5 +81,35 @@ public class CreateMemoryChannel extends AbstractNativeChannel {
             String message = "Error occurred while obtaining channel";
             throw new BallerinaIOException(message, e);
         }
+    }
+
+    public static ObjectValue createReadableChannel(Strand strand, ArrayValue content) {
+        return createChannel(inFlow(content));
+    }
+
+    private static Channel inFlow(ArrayValue contentArr)
+            throws org.ballerinalang.jvm.util.exceptions.BallerinaException {
+        try {
+            byte[] content = shrink(contentArr);
+            ByteArrayInputStream contentStream = new ByteArrayInputStream(content);
+            ReadableByteChannel readableByteChannel = Channels.newChannel(contentStream);
+            return new BlobIOChannel(new BlobChannel(readableByteChannel));
+        } catch (Throwable e) {
+            String message = "Error occurred while obtaining channel";
+            throw new org.ballerinalang.jvm.util.exceptions.BallerinaException(message, e);
+        }
+    }
+
+    /**
+     * Shrink the byte array to fit with the given content.
+     *
+     * @param array byte array with elements initialized.
+     * @return byte array which is shrunk.
+     */
+    private static byte[] shrink(ArrayValue array) {
+        int contentLength = array.size();
+        byte[] content = new byte[contentLength];
+        System.arraycopy(array.getBytes(), 0, content, 0, contentLength);
+        return content;
     }
 }

@@ -1,29 +1,46 @@
+// Copyright (c) 2018 WSO2 Inc. (http://www.wso2.org) All Rights Reserved.
+//
+// WSO2 Inc. licenses this file to you under the Apache License,
+// Version 2.0 (the "License"); you may not use this file except
+// in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing,
+// software distributed under the License is distributed on an
+// "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+// KIND, either express or implied.  See the License for the
+// specific language governing permissions and limitations
+// under the License.
 
 import ballerina/io;
 import ballerina/mime;
 import ballerina/http;
 
-# This functions pulls a package from ballerina central.
+# This functions pulls a module from ballerina central.
 #
 # + definedEndpoint - Endpoint defined with the proxy configurations
 # + accessToken - Access token
-# + mdFileContent - Package.md file content of the package
-# + summary - Summary of the package
-# + homePageURL - Website URL of the package
-# + repositoryURL - Source code URL of the package
-# + apiDocURL - API documentation URL of the package
-# + authors - Authors of the package
-# + keywords - Keywords which describes the package
-# + license - License of the package
-# + url - URL to be invoked to push the package
-# + dirPath - Directory path where the archived package resides
-# + ballerinaVersion - Ballerina version the package is built
-# + msg - Message printed when the package is pushed successfully which includes package info
-# + baloVersion - Balo version of the package
+# + mdFileContent - Module.md file content of the module
+# + summary - Summary of the module
+# + homePageURL - Website URL of the module
+# + repositoryURL - Source code URL of the module
+# + apiDocURL - API documentation URL of the module
+# + authors - Authors of the module
+# + keywords - Keywords which describes the module
+# + license - License of the module
+# + url - URL to be invoked to push the module
+# + dirPath - Directory path where the archived module resides
+# + ballerinaVersion - Ballerina version the module is built
+# + msg - Message printed when the module is pushed successfully which includes module info
+# + baloVersion - Balo version of the module
+# + return - Error if occurred, else nil
 function pushPackage (http:Client definedEndpoint, string accessToken, string mdFileContent, string summary, string homePageURL, string repositoryURL,
-                string apiDocURL, string authors, string keywords, string license, string url, string dirPath, string ballerinaVersion, string msg, string baloVersion) {
-    
-    endpoint http:Client httpEndpoint = definedEndpoint;
+                string apiDocURL, string authors, string keywords, string license, string url, string dirPath, string ballerinaVersion, string msg,
+                string baloVersion) returns error? {
+
+    http:Client httpEndpoint = definedEndpoint;
     mime:Entity mdFileContentBodyPart = addStringBodyParts("description", mdFileContent);
     mime:Entity summaryBodyPart = addStringBodyParts("summary", summary);
     mime:Entity homePageURLBodyPart = addStringBodyParts("websiteURL", homePageURL);
@@ -39,7 +56,10 @@ function pushPackage (http:Client definedEndpoint, string accessToken, string md
     mime:Entity filePart = new;
     filePart.setContentDisposition(getContentDispositionForFormData("artifact"));
     filePart.setFileAsEntityBody(untaint dirPath);
-    filePart.setContentType(mime:APPLICATION_OCTET_STREAM);
+    var contentTypeSetResult = filePart.setContentType(mime:APPLICATION_OCTET_STREAM);
+    if (contentTypeSetResult is error)  {
+        panic contentTypeSetResult;
+    }
 
     mime:Entity[] bodyParts = [filePart, mdFileContentBodyPart, summaryBodyPart, homePageURLBodyPart, repositoryURLBodyPart,
                                apiDocURLBodyPart, authorsBodyPart, keywordsBodyPart, licenseBodyPart, ballerinaVersionBodyPart, 
@@ -50,44 +70,55 @@ function pushPackage (http:Client definedEndpoint, string accessToken, string md
 
     var result = httpEndpoint -> post("", req);
     http:Response httpResponse = new;
-    match result {
-        http:Response response => httpResponse = response;
-        error e => {
-            io:println("connection to the remote host failed : " + e.message);
-            return;
-        }
+    if (result is http:Response) {
+        httpResponse = result;
+    } else {
+        return createError("connection to the remote host failed : " + result.reason());
     }
-    string statusCode = <string> httpResponse.statusCode;
+    string statusCode = string.convert(httpResponse.statusCode);
     if (statusCode.hasPrefix("5")) {
-        io:println("remote registry failed for url :" + url);
+        return createError("remote registry failed for url :" + url);
     } else if (statusCode != "200") {
-        json jsonResponse = check (httpResponse.getJsonPayload());
-        string message = jsonResponse.message.toString();
-        io:println(message);
+        var jsonResponse = httpResponse.getJsonPayload();
+        if (jsonResponse is json) {
+            string message = jsonResponse.message.toString();
+            return createError(message);
+        } else {
+            return createError("invalid response json");
+        }
     } else {
         io:println(msg);
     }
 }
 
-# This function will invoke the method to push the package.
-public function main (string... args) {
+# This function will invoke the method to push the module.
+# + args - Arguments passed
+# + return - nil if no error occurred, else error.
+public function main (string... args) returns error? {
     http:Client httpEndpoint;
     string host = args[13];
-    string port = args[14];
-    if (host != "" && port != "") {
-        try {
-          httpEndpoint = defineEndpointWithProxy(args[9], host, port, args[15], args[16]);
-        } catch (error err) {
-          io:println("failed to resolve host : " + host + " with port " + port);
-          return;
+    string strPort = args[14];
+    if (host != "" && strPort != "") {
+        var port = int.convert(strPort);
+        if (port is int) {
+            http:Client|error result = trap defineEndpointWithProxy(args[9], host, port, args[15], args[16]);
+            if (result is http:Client) {
+                httpEndpoint = result;
+                return pushPackage(httpEndpoint, args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7],
+                    args[8], args[9], args[10], args[12], args[11], args[17]);
+            } else {
+                return createError("failed to resolve host : " + host + " with port " + port);
+            }
+        } else {
+            return createError("invalid port : " + strPort);
         }
-    } else  if (host != "" || port != "") {
-        io:println("both host and port should be provided to enable proxy");     
-        return;   
+    } else  if (host != "" || strPort != "") {
+        return createError("both host and port should be provided to enable proxy");
     } else {
         httpEndpoint = defineEndpointWithoutProxy(args[9]);
-    }        
-    pushPackage(httpEndpoint, args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8], args[9], args[10], args[12], args[11], args[17]);    
+        return pushPackage(httpEndpoint, args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8],
+            args[9], args[10], args[12], args[11], args[17]);
+    }
 }
 
 # This function defines an endpoint with proxy configurations.
@@ -98,9 +129,8 @@ public function main (string... args) {
 # + username - Username of the proxy
 # + password - Password of the proxy
 # + return - Endpoint defined
-function defineEndpointWithProxy (string url, string hostname, string port, string username, string password) returns http:Client{
-    endpoint http:Client httpEndpoint {
-        url: url,
+function defineEndpointWithProxy (string url, string hostname, int port, string username, string password) returns http:Client{
+    http:Client httpEndpoint = new (url, config = {
         secureSocket:{
             trustStore:{
                 path: "${ballerina.home}/bre/security/ballerinaTruststore.p12",
@@ -110,7 +140,7 @@ function defineEndpointWithProxy (string url, string hostname, string port, stri
             shareSession: true
         },
             proxy : getProxyConfigurations(hostname, port, username, password)
-    };
+    });
     return httpEndpoint;
 }
 
@@ -119,8 +149,7 @@ function defineEndpointWithProxy (string url, string hostname, string port, stri
 # + url - URL to be invoked
 # + return - Endpoint defined
 function defineEndpointWithoutProxy (string url) returns http:Client{
-    endpoint http:Client httpEndpoint {
-        url: url,
+    http:Client httpEndpoint = new (url, config = {
         secureSocket:{
             trustStore:{
                 path: "${ballerina.home}/bre/security/ballerinaTruststore.p12",
@@ -129,7 +158,7 @@ function defineEndpointWithoutProxy (string url) returns http:Client{
             verifyHostname: false,
             shareSession: true
         }
-    };
+    });
     return httpEndpoint;
 }
 
@@ -153,7 +182,10 @@ function addStringBodyParts (string key, string value) returns (mime:Entity) {
     mime:Entity stringBodyPart = new;
     stringBodyPart.setContentDisposition(getContentDispositionForFormData(key));
     stringBodyPart.setText(untaint value);
-    stringBodyPart.setContentType(mime:TEXT_PLAIN);
+    var contentTypeSetResult = stringBodyPart.setContentType(mime:TEXT_PLAIN);
+    if (contentTypeSetResult is error)  {
+        panic contentTypeSetResult;
+    }
     return stringBodyPart;
 }
 
@@ -164,8 +196,16 @@ function addStringBodyParts (string key, string value) returns (mime:Entity) {
 # + username - Username of the proxy
 # + password - Password of the proxy
 # + return - Proxy configurations for the endpoint
-function getProxyConfigurations(string hostName, string port, string username, string password) returns http:ProxyConfig {
-    int portInt = check <int> port;
-    http:ProxyConfig proxy = { host : hostName, port : portInt , userName: username, password : password };
+function getProxyConfigurations(string hostName, int port, string username, string password) returns http:ProxyConfig {
+    http:ProxyConfig proxy = { host : hostName, port : port , userName: username, password : password };
     return proxy;
+}
+
+# Creates an error record.
+
+# + errMessage - The error message.
+# + return - Newly created error record.
+function createError (string errMessage) returns error {
+    error err = error(errMessage);
+    return err;
 }

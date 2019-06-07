@@ -49,21 +49,12 @@ public class BTableType extends BType {
 
     @Override
     public <V extends BValue> V getZeroValue() {
-        return null;
+        return (V) new BTable(this, null, null, null);
     }
 
     @Override
     public <V extends BValue> V getEmptyValue() {
-        return (V) new BTable();
-    }
-
-    @Override
-    public TypeSignature getSig() {
-        if (constraint == null) {
-            return new TypeSignature(TypeSignature.SIG_TABLE);
-        } else {
-            return new TypeSignature(TypeSignature.SIG_TABLE, constraint.getPackagePath(), constraint.getName());
-        }
+        return getZeroValue();
     }
 
     @Override
@@ -78,5 +69,23 @@ public class BTableType extends BType {
         } else {
             return super.toString() + "<" + constraint.getName() + ">";
         }
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (!super.equals(obj) || !(obj instanceof BTableType)) {
+            return false;
+        }
+
+        BTableType other = (BTableType) obj;
+        if (constraint == other.constraint) {
+            return true;
+        }
+
+        if (constraint == null || other.constraint == null) {
+            return false;
+        }
+
+        return constraint.equals(other.constraint);
     }
 }

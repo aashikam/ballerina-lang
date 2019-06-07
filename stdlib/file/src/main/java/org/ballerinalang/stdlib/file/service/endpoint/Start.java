@@ -21,12 +21,14 @@ package org.ballerinalang.stdlib.file.service.endpoint;
 import org.ballerinalang.bre.Context;
 import org.ballerinalang.bre.bvm.BlockingNativeCallableUnit;
 import org.ballerinalang.connector.api.BLangConnectorSPIUtil;
-import org.ballerinalang.connector.api.BallerinaConnectorException;
 import org.ballerinalang.connector.api.Struct;
+import org.ballerinalang.jvm.Strand;
+import org.ballerinalang.jvm.values.ObjectValue;
 import org.ballerinalang.model.types.TypeKind;
 import org.ballerinalang.natives.annotations.BallerinaFunction;
 import org.ballerinalang.natives.annotations.Receiver;
 import org.ballerinalang.stdlib.file.service.DirectoryListenerConstants;
+import org.ballerinalang.stdlib.file.utils.FileUtils;
 import org.wso2.transport.localfilesystem.server.connector.contract.LocalFileSystemServerConnector;
 import org.wso2.transport.localfilesystem.server.exception.LocalFileSystemServerConnectorException;
 
@@ -51,8 +53,20 @@ public class Start extends BlockingNativeCallableUnit {
         try {
             serverConnector.start();
         } catch (LocalFileSystemServerConnectorException e) {
-            throw new BallerinaConnectorException("Unable to start server connector", e);
+            context.setReturnValues(FileUtils.createError(context, e.getMessage()));
+            return;
         }
         context.setReturnValues();
+    }
+
+    public static Object start(Strand strand, ObjectValue listener) {
+        LocalFileSystemServerConnector serverConnector = (LocalFileSystemServerConnector) listener
+                .getNativeData(DirectoryListenerConstants.FS_SERVER_CONNECTOR);
+        try {
+            serverConnector.start();
+        } catch (LocalFileSystemServerConnectorException e) {
+            return FileUtils.createError(e.getMessage());
+        }
+        return null;
     }
 }

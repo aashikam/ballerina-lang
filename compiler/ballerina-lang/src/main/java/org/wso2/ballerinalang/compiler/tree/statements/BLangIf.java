@@ -33,6 +33,9 @@ public class BLangIf extends BLangStatement implements IfNode {
     public BLangBlockStmt body;
     public BLangStatement elseStmt;
 
+    public BLangIf() {
+    }
+
     @Override
     public BLangExpression getCondition() {
         return expr;

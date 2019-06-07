@@ -16,6 +16,7 @@
 package org.ballerinalang.langserver.compiler;
 
 import org.antlr.v4.runtime.DefaultErrorStrategy;
+import org.ballerinalang.compiler.CompilerOptionName;
 import org.ballerinalang.compiler.CompilerPhase;
 import org.ballerinalang.langserver.compiler.common.CustomErrorStrategyFactory;
 import org.ballerinalang.langserver.compiler.common.LSDocument;
@@ -26,6 +27,7 @@ import org.ballerinalang.model.elements.PackageID;
 import org.ballerinalang.repository.PackageRepository;
 import org.ballerinalang.toml.model.Manifest;
 import org.ballerinalang.toml.parser.ManifestProcessor;
+import org.ballerinalang.util.diagnostic.DiagnosticListener;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.wso2.ballerinalang.compiler.Compiler;
@@ -45,11 +47,13 @@ import java.nio.file.Paths;
 import java.util.Optional;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+
 import javax.annotation.CheckForNull;
 
 import static org.ballerinalang.compiler.CompilerOptionName.COMPILER_PHASE;
 import static org.ballerinalang.compiler.CompilerOptionName.PRESERVE_WHITESPACE;
 import static org.ballerinalang.compiler.CompilerOptionName.PROJECT_DIR;
+import static org.ballerinalang.compiler.CompilerOptionName.SKIP_TESTS;
 import static org.ballerinalang.compiler.CompilerOptionName.TEST_ENABLED;
 
 /**
@@ -60,6 +64,8 @@ public class LSCompilerUtil {
     private static final Logger logger = LoggerFactory.getLogger(LSCompilerUtil.class);
 
     public static final String UNTITLED_BAL = "untitled.bal";
+    
+    public static final boolean EXPERIMENTAL_FEATURES_ENABLED;
 
     private static Path untitledProjectPath;
 
@@ -67,6 +73,8 @@ public class LSCompilerUtil {
             Pattern.compile(".*[/\\\\]temp[/\\\\](.*)[/\\\\]untitled.bal");
 
     static {
+        String experimental = System.getProperty("experimental");
+        EXPERIMENTAL_FEATURES_ENABLED = experimental != null && Boolean.parseBoolean(experimental);
         // Here we will create a tmp directory as the untitled project repo.
         File untitledDir = com.google.common.io.Files.createTempDir();
         untitledProjectPath = untitledDir.toPath();
@@ -121,6 +129,7 @@ public class LSCompilerUtil {
         context.put(PackageRepository.class, packageRepository);
         CompilerOptions options = CompilerOptions.getInstance(context);
         options.put(PROJECT_DIR, document.getSourceRoot());
+        options.put(CompilerOptionName.EXPERIMENTAL_FEATURES_ENABLED, Boolean.toString(EXPERIMENTAL_FEATURES_ENABLED));
 
         if (null == compilerPhase) {
             throw new AssertionError("Compiler Phase can not be null.");
@@ -131,9 +140,14 @@ public class LSCompilerUtil {
         options.put(COMPILER_PHASE, phase);
         options.put(PRESERVE_WHITESPACE, Boolean.valueOf(preserveWhitespace).toString());
         options.put(TEST_ENABLED, String.valueOf(true));
+        options.put(SKIP_TESTS, String.valueOf(false));
 
         // In order to capture the syntactic errors, need to go through the default error strategy
         context.put(DefaultErrorStrategy.class, null);
+
+        if (context.get(DiagnosticListener.class) instanceof CollectDiagnosticListener) {
+            ((CollectDiagnosticListener) context.get(DiagnosticListener.class)).clearAll();
+        }
 
         Path sourceRootPath = document.getSourceRootPath();
         if (isBallerinaProject(document.getSourceRoot(), document.getURIString())) {
@@ -203,15 +217,15 @@ public class LSCompilerUtil {
     /**
      * Get compiler for the given context and file.
      *
-     * @param context             Language server context
-     * @param fileName            File name which is currently open
-     * @param compilerContext {@link CompilerContext} Compiler context
-     * @param customErrorStrategy custom error strategy class
-     * @return {@link Compiler} ballerina compiler
+     * @param context               Language server context
+     * @param relativeFilePath      File name which is currently open
+     * @param compilerContext       Compiler context
+     * @param customErrorStrategy   custom error strategy class
+     * @return {@link Compiler}     ballerina compiler
      */
-    public static Compiler getCompiler(LSContext context, String fileName, CompilerContext compilerContext,
+    public static Compiler getCompiler(LSContext context, String relativeFilePath, CompilerContext compilerContext,
                                        Class customErrorStrategy) {
-        context.put(DocumentServiceKeys.FILE_NAME_KEY, fileName);
+        context.put(DocumentServiceKeys.RELATIVE_FILE_PATH_KEY, relativeFilePath);
         context.put(DocumentServiceKeys.COMPILER_CONTEXT_KEY, compilerContext);
         context.put(DocumentServiceKeys.OPERATION_META_CONTEXT_KEY, new LSServiceOperationContext());
         if (customErrorStrategy != null) {
@@ -240,6 +254,57 @@ public class LSCompilerUtil {
 
         String fileRoot = findProjectRoot(parentPath.toString());
         return fileRoot != null ? fileRoot : parentPath.toString();
+    }
+
+    /**
+     * Get the project dir for given file.
+     *
+     * @param filePath file path
+     * @return {@link String} project directory path or null if not in a project
+     */
+    public static String getProjectDir(Path filePath) {
+        if (filePath == null || filePath.getParent() == null) {
+            return null;
+        }
+        Path parentPath = filePath.getParent();
+        if (parentPath == null) {
+            return null;
+        }
+
+        return findProjectRoot(parentPath.toString());
+    }
+
+    /**
+     * Returns top-level module path of a given file path.
+     * <p>
+     * If it is a non-project file; returns immediate parent.
+     * </p>
+     *
+     * @param filePath file path
+     * @return top-level module path
+     */
+    public static Path getCurrentModulePath(Path filePath) {
+        Path projectRoot = Paths.get(LSCompilerUtil.getSourceRoot(filePath));
+        Path currentModulePath = projectRoot;
+        Path prevSourceRoot = filePath.getParent();
+        try {
+            if (prevSourceRoot == null || Files.isSameFile(prevSourceRoot, projectRoot)) {
+                return currentModulePath;
+            }
+            while (true) {
+                Path newSourceRoot = prevSourceRoot.getParent();
+                currentModulePath = prevSourceRoot;
+                if (newSourceRoot == null || newSourceRoot.toString().isEmpty() ||
+                        "/".equals(newSourceRoot.toString()) || Files.isSameFile(newSourceRoot, projectRoot)) {
+                    // We have reached the project root
+                    break;
+                }
+                prevSourceRoot = newSourceRoot;
+            }
+        } catch (IOException e) {
+            // do nothing
+        }
+        return currentModulePath;
     }
 
     /**

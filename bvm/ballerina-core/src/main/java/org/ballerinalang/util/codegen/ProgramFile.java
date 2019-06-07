@@ -69,7 +69,6 @@ public class ProgramFile implements ConstantPool, AttributeInfoPool {
     public int currentPkgIndex = 0;
 
     private Debugger debugger;
-    private boolean distributedTransactionEnabled = false;
 
     // Cached values.
     // This is the actual path given by the user and this is used primarily for error reporting
@@ -79,8 +78,6 @@ public class ProgramFile implements ConstantPool, AttributeInfoPool {
     public GlobalMemoryArea globalMemArea;
 
     private Map<AttributeInfo.Kind, AttributeInfo> attributeInfoMap = new HashMap<>();
-
-    private List<AnnAttributeValue> unresolvedAnnAttrValues = new ArrayList<>();
 
     public int getMagicValue() {
         return magicValue;
@@ -128,14 +125,6 @@ public class ProgramFile implements ConstantPool, AttributeInfoPool {
 
     public boolean isServiceEPAvailable() {
         return servicesAvailable;
-    }
-
-    public void setDistributedTransactionEnabled(boolean distributedTransactionEnabled) {
-        this.distributedTransactionEnabled = distributedTransactionEnabled;
-    }
-
-    public boolean isDistributedTransactionEnabled() {
-        return distributedTransactionEnabled;
     }
 
     public void setServiceEPAvailable(boolean servicesAvailable) {

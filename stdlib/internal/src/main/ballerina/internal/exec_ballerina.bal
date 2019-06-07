@@ -16,22 +16,22 @@
 
 # Executes a ballerina doc command
 #
-# + packageList - List of packages
+# + moduleList - List of modules
 # + outputPath - Path to write api-docs
 # + templatesPath - Location of the templates
-# + exclude - Packages to exclude
+# + exclude - Modules to exclude
 # + includeNatives - Generate docs for natives
 # + envVars - Environment variables to pass
 # + config - Path to configuration file
 # + verbose - Verbose mode
-# + sourceRoot - Root folder of the packages
+# + sourceRoot - Root folder of the modules
 # + return - Data piped from the standard output and error output of the process
-public extern function execBallerinaDoc(string[] packageList,
-                                        string? sourceRoot = (),
-                                        string? outputPath = (),
-                                        string? templatesPath = (),
-                                        string[]? exclude = (),
-                                        boolean includeNatives = false,
-                                        map<string>? envVars = (),
-                                        string? config = (),
-                                        boolean verbose = false) returns (string|error);
+public function execBallerinaDoc(string[] moduleList,
+                                 string? sourceRoot = (),
+                                 string? outputPath = (),
+                                 string? templatesPath = (),
+                                 string[]? exclude = (),
+                                 boolean includeNatives = false,
+                                 map<string>? envVars = (),
+                                 string? config = (),
+                                 boolean verbose = false) returns string|error = external;

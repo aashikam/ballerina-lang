@@ -18,15 +18,13 @@
  */
 package org.ballerinalang.persistence.store;
 
-import org.ballerinalang.bre.bvm.WorkerExecutionContext;
+import org.ballerinalang.bre.old.WorkerExecutionContext;
 import org.ballerinalang.persistence.Deserializer;
 import org.ballerinalang.persistence.serializable.SerializableState;
 import org.ballerinalang.persistence.states.State;
 import org.ballerinalang.persistence.store.impl.FileStorageProvider;
 import org.ballerinalang.runtime.Constants;
 import org.ballerinalang.util.codegen.ProgramFile;
-import org.ballerinalang.util.codegen.ResourceInfo;
-import org.ballerinalang.util.program.BLangVMUtils;
 
 import java.util.Collections;
 import java.util.LinkedList;
@@ -62,10 +60,6 @@ public class PersistenceStore {
         for (String serializedState : serializedStates) {
             SerializableState sState = SerializableState.deserialize(serializedState);
             WorkerExecutionContext context = sState.getExecutionContext(programFile, deserializer);
-            if (context.callableUnitInfo instanceof ResourceInfo) {
-                ResourceInfo resourceInfo = (ResourceInfo) context.callableUnitInfo;
-                BLangVMUtils.setServiceInfo(context, resourceInfo.getServiceInfo());
-            }
             State state = new State(context, (String) context.globalProps.get(Constants.STATE_ID));
             // have to decrement ip as CPU class increments it as soon as instruction is fetched
             context.ip--;

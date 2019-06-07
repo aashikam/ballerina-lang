@@ -31,7 +31,6 @@ import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
 
 import java.io.BufferedReader;
-import java.io.File;
 import java.nio.file.Paths;
 import java.sql.Connection;
 import java.sql.DriverManager;
@@ -39,6 +38,8 @@ import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 /**
  * This test case tests the scenario of streaming the data from a table converted to XML.
@@ -47,8 +48,6 @@ public class TableToXMLStreamingTestCase extends BaseTest {
     private static BServerInstance serverInstance;
     private final int servicePort = Constant.DEFAULT_HTTP_PORT;
     private TestDatabase testDatabase;
-    private static final String DB_DIRECTORY =
-            Paths.get("target", "tempdb").toAbsolutePath().toString() + File.separator;
 
     @BeforeClass(alwaysRun = true)
     private void setup() throws Exception {
@@ -65,7 +64,7 @@ public class TableToXMLStreamingTestCase extends BaseTest {
     private void setUpDatabase() throws SQLException {
         String dbScriptPath = Paths
                 .get("data", "streaming", "datafiles", "streaming_test_data.sql").toString();
-        testDatabase = new FileBasedTestDatabase(SQLDBUtils.DBType.H2, dbScriptPath, DB_DIRECTORY,
+        testDatabase = new FileBasedTestDatabase(SQLDBUtils.DBType.H2, dbScriptPath, SQLDBUtils.DB_DIRECTORY,
                 "STREAMING_XML_TEST_DB");
         insertDummyData(testDatabase.getJDBCUrl(), testDatabase.getUsername(), testDatabase.getPassword());
     }
@@ -74,6 +73,15 @@ public class TableToXMLStreamingTestCase extends BaseTest {
     public void testStreamingLargeXML() throws Exception {
         HttpResponse response = HttpClientRequest
                 .doGet(serverInstance.getServiceURLHttp(servicePort, "dataService/getData"), 60000, responseBuilder);
+        Assert.assertNotNull(response);
+        Assert.assertEquals(response.getResponseCode(), 200);
+        Assert.assertEquals(Integer.parseInt(response.getData()), 211288909);
+    }
+
+    @Test(description = "Tests the outbound throttling scenario with a slow client")
+    public void testStreamingLargeXMLWithSlowClient() throws Exception {
+        HttpResponse response = HttpClientRequest.doGet(
+                serverInstance.getServiceURLHttp(servicePort, "dataService/getData"), 60000, slowResponseBuilder);
         Assert.assertNotNull(response);
         Assert.assertEquals(response.getResponseCode(), 200);
         Assert.assertEquals(Integer.parseInt(response.getData()), 211288909);
@@ -118,4 +126,23 @@ public class TableToXMLStreamingTestCase extends BaseTest {
         }
         return String.valueOf(count);
     });
+
+    /**
+     * This reads a buffered stream and returns the number of characters.
+     */
+    private static HttpClientRequest.CheckedFunction<BufferedReader, String> slowResponseBuilder =
+            ((bufferedReader) -> {
+                int count = 0;
+                while (bufferedReader.read() != -1) {
+                    if (count % 400000 == 0) {
+                        try {
+                            new CountDownLatch(1).await(100, TimeUnit.MILLISECONDS);
+                        } catch (InterruptedException e) {
+                            Thread.currentThread().interrupt();
+                        }
+                    }
+                    count++;
+                }
+                return String.valueOf(count);
+            });
 }

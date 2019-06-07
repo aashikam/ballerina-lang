@@ -46,7 +46,7 @@ import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
 public class TracingTestCase extends BaseTest {
     private static BServerInstance serverInstance;
 
-    private static final String BASEDIR = System.getProperty("basedir");
+    private static final String LIBDIR = System.getProperty("libdir");
     private static final String RESOURCE_LOCATION = "src" + File.separator + "test" + File.separator +
             "resources" + File.separator + "observability" + File.separator + "tracing" + File.separator;
     private static final String TEST_NATIVES_JAR = "observability-test-natives.jar";
@@ -62,9 +62,8 @@ public class TracingTestCase extends BaseTest {
 
         copyFile(new File(System.getProperty(TEST_NATIVES_JAR)), new File(serverInstance.getServerHome()
                 + DEST_FUNCTIONS_JAR));
-
         FileUtils.copyDirectoryToDirectory(
-                new File(BASEDIR + File.separator + "target" + File.separator + "lib" + File.separator + "repo" +
+                new File(LIBDIR + File.separator + "lib" + File.separator + "repo" +
                         File.separator + "ballerina" + File.separator + "testobserve"),
                 new File(serverInstance.getServerHome()
                         + File.separator + "lib" + File.separator + "repo" + File.separator + "ballerina"));
@@ -95,9 +94,9 @@ public class TracingTestCase extends BaseTest {
         out.println(data);
         List<BMockSpan> mockSpans = new Gson().fromJson(data, type);
 
-        Assert.assertEquals(mockSpans.size(), 5, "Mismatch in number of spans reported.");
+        Assert.assertEquals(mockSpans.size(), 8, "Mismatch in number of spans reported.");
         Assert.assertEquals(mockSpans.stream()
-                .filter(bMockSpan -> bMockSpan.getParentId() == 0).count(), 2, "Mismatch in number of root spans.");
+                .filter(bMockSpan -> bMockSpan.getParentId() == 0).count(), 1, "Mismatch in number of root spans.");
     }
 
     @Test
@@ -112,11 +111,11 @@ public class TracingTestCase extends BaseTest {
         out.println(data);
         List<BMockSpan> mockSpans = new Gson().fromJson(data, type);
 
-        Assert.assertEquals(mockSpans.size(), 14, "Mismatch in number of spans reported.");
+        Assert.assertEquals(mockSpans.size(), 20, "Mismatch in number of spans reported.");
         Assert.assertEquals(mockSpans
                 .stream()
                 .filter(bMockSpan -> bMockSpan.getParentId() == 0)
-                .count(), 5, "Mismatch in number of root spans.");
+                .count(), 3, "Mismatch in number of root spans.");
     }
 
     @Test
@@ -131,10 +130,10 @@ public class TracingTestCase extends BaseTest {
         out.println(data);
         List<BMockSpan> mockSpans = new Gson().fromJson(data, type);
 
-        Assert.assertEquals(mockSpans.size(), 23, "Mismatch in number of spans reported.");
+        Assert.assertEquals(mockSpans.size(), 32, "Mismatch in number of spans reported.");
 
         Assert.assertEquals(mockSpans.stream()
-                .filter(bMockSpan -> bMockSpan.getParentId() == 0).count(), 9, "Mismatch in number of root spans.");
+                .filter(bMockSpan -> bMockSpan.getParentId() == 0).count(), 6, "Mismatch in number of root spans.");
 
         Optional<BMockSpan> uSpanTwo = mockSpans.stream()
                 .filter(bMockSpan -> bMockSpan.getOperationName().equals("uSpanFour")).findFirst();

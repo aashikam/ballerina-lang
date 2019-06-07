@@ -15,23 +15,42 @@
 // under the License.
 
 
-@Description {value:"Mock service endpoint which does not open a listening port."}
-public type NonListener object {
-    private Connection conn;
-    private ServiceEndpointConfiguration config;
+# Mock server endpoint which does not open a listening port.
+public type MockListener object {
 
-    public function init (ServiceEndpointConfiguration c);
-    public extern function initEndpoint () returns (error);
-    public extern function register (typedesc serviceType);
-    public extern function start ();
-    public extern function getCallerActions() returns Connection;
-    public extern function stop ();
+    *AbstractListener;
+
+    private int port = 0;
+    private ServiceEndpointConfiguration config = {};
+
+    public function __start() returns error? {
+        return self.start();
+    }
+
+    public function __stop() returns error? {
+        return self.stop();
+    }
+
+    public function __attach(service s, string? name = ()) returns error? {
+        return self.register(s, name);
+    }
+
+    public function __init(int port, ServiceEndpointConfiguration? config = ()) {
+        self.config = config ?: {};
+        self.port = port;
+        self.init(self.config);
+    }
+
+    public function init(ServiceEndpointConfiguration c);
+    public function initEndpoint() returns error? = external;
+    public function register(service s, string? name) returns error? = external;
+    public function start() = external;
+    public function stop() = external;
 };
 
-function NonListener::init (ServiceEndpointConfiguration c) {
-    self.config = c;
+public function MockListener.init (ServiceEndpointConfiguration c) {
     var err = self.initEndpoint();
-    if (err != null) {
-        throw err;
+    if (err is error) {
+        panic err;
     }
 }

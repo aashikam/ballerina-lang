@@ -24,7 +24,7 @@ import com.google.gson.JsonParser;
 import com.google.gson.reflect.TypeToken;
 import org.ballerinalang.langserver.compiler.workspace.WorkspaceDocumentException;
 import org.ballerinalang.langserver.completion.util.CompletionTestUtil;
-import org.ballerinalang.langserver.completion.util.FileUtils;
+import org.ballerinalang.langserver.util.FileUtils;
 import org.ballerinalang.langserver.util.TestUtil;
 import org.eclipse.lsp4j.CompletionItem;
 import org.eclipse.lsp4j.Position;
@@ -71,11 +71,16 @@ public abstract class CompletionTest {
         JsonArray resultList = json.getAsJsonObject("result").getAsJsonArray("left");
         List<CompletionItem> responseItemList = gson.fromJson(resultList, collectionType);
         List<CompletionItem> expectedList = getExpectedList(configJsonObject);
-        
-        Assert.assertTrue(CompletionTestUtil.isSubList(expectedList, responseItemList), "Failed Test for: "
-                + configJsonPath);
+
+        boolean result = CompletionTestUtil.isSubList(expectedList, responseItemList);
+        if (!result) {
+            // This will print nice comparable text in IDE
+//            Assert.assertEquals(responseItemList.toString(), expectedList.toString(),
+//                        "Failed Test for: " + configJsonPath);
+            Assert.fail("Failed Test for: " + configJsonPath);
+        }
     }
-    
+
     String getResponse(JsonObject configJsonObject) throws IOException {
         Path sourcePath = sourcesPath.resolve(configJsonObject.get("source").getAsString());
         String responseString;

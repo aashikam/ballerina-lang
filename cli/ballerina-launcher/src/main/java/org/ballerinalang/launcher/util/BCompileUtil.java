@@ -16,7 +16,9 @@
  */
 package org.ballerinalang.launcher.util;
 
+import org.ballerinalang.BLangProgramRunner;
 import org.ballerinalang.bre.bvm.BLangVMStructs;
+import org.ballerinalang.compiler.CompilerOptionName;
 import org.ballerinalang.compiler.CompilerPhase;
 import org.ballerinalang.launcher.LauncherUtils;
 import org.ballerinalang.model.elements.PackageID;
@@ -41,14 +43,10 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
-import java.net.URI;
-import java.net.URISyntaxException;
-import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.security.CodeSource;
 import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -56,8 +54,8 @@ import java.util.stream.Collectors;
 import static org.ballerinalang.compiler.CompilerOptionName.COMPILER_PHASE;
 import static org.ballerinalang.compiler.CompilerOptionName.PRESERVE_WHITESPACE;
 import static org.ballerinalang.compiler.CompilerOptionName.PROJECT_DIR;
+import static org.ballerinalang.compiler.CompilerOptionName.SKIP_TESTS;
 import static org.ballerinalang.compiler.CompilerOptionName.TEST_ENABLED;
-import static org.ballerinalang.util.BLangConstants.MAIN_FUNCTION_NAME;
 
 /**
  * Utility methods for compile Ballerina files.
@@ -73,12 +71,15 @@ public class BCompileUtil {
     /**
      * Compile and return the semantic errors. Error scenarios cannot use this method.
      *
-     * @param sourceFilePath Path to source package/file
+     * @param sourceFilePath Path to source module/file
      * @return compileResult
      */
     public static CompileResult compileAndSetup(String sourceFilePath) {
         CompileResult compileResult = compile(sourceFilePath, CompilerPhase.CODE_GEN);
-        BRunUtil.invokePackageInit(compileResult);
+        if (compileResult.getErrorCount() > 0) {
+            throw new IllegalStateException(compileResult.toString());
+        }
+        BLangProgramRunner.runProgram(compileResult.getProgFile(), new BValue[0]);
         return compileResult;
     }
 
@@ -86,20 +87,23 @@ public class BCompileUtil {
      * Compile and return the semantic errors. Error scenarios cannot use this method.
      *
      * @param obj this is to find the original callers location.
-     * @param sourceRoot  root path of the source packages
-     * @param packageName name of the package to compile
+     * @param sourceRoot  root path of the modules
+     * @param packageName name of the module to compile
      * @return compileResult
      */
     public static CompileResult compileAndSetup(Object obj, String sourceRoot, String packageName) {
         CompileResult compileResult = compile(obj, sourceRoot, packageName);
-        BRunUtil.invokePackageInit(compileResult, packageName);
+        if (compileResult.getErrorCount() > 0) {
+            throw new IllegalStateException(compileResult.toString());
+        }
+        BLangProgramRunner.runProgram(compileResult.getProgFile(), new BValue[0]);
         return compileResult;
     }
 
     /**
      * Compile and return the semantic errors.
      *
-     * @param sourceFilePath Path to source package/file
+     * @param sourceFilePath Path to source module/file
      * @return Semantic errors
      */
     public static CompileResult compileAndGetBIR(String sourceFilePath) {
@@ -109,54 +113,74 @@ public class BCompileUtil {
     /**
      * Compile and return the semantic errors.
      *
-     * @param sourceFilePath Path to source package/file
+     * @param sourceFilePath Path to source module/file
      * @return Semantic errors
      */
     public static CompileResult compile(String sourceFilePath) {
         return compile(sourceFilePath, CompilerPhase.CODE_GEN);
     }
 
+    public static CompileResult compileWithoutExperimentalFeatures(String sourceFilePath) {
+        return compile(sourceFilePath, CompilerPhase.CODE_GEN, false);
+    }
+
+    public static CompileResult compile(String sourceFilePath, boolean isSiddhiRuntimeEnabled) {
+        Path sourcePath = Paths.get(sourceFilePath);
+        String packageName = sourcePath.getFileName().toString();
+        Path sourceRoot = resourceDir.resolve(sourcePath.getParent());
+        return compile(sourceRoot.toString(), packageName, CompilerPhase.CODE_GEN, isSiddhiRuntimeEnabled, true);
+    }
+
+    /**
+     * Compile and return the semantic errors.
+     *
+     * @param sourceRoot  root path of the modules
+     * @param packageName name of the module to compile
+     * @return Semantic errors
+     */
+    public static CompileResult compile(String sourceRoot, String packageName) {
+        Path rootPath = Paths.get(sourceRoot);
+        Path packagePath = Paths.get(packageName);
+        return getCompileResult(packageName, rootPath, packagePath);
+    }
+
     /**
      * Compile and return the semantic errors.
      *
      * @param obj this is to find the original callers location.
-     * @param sourceRoot  root path of the source packages
-     * @param packageName name of the package to compile
+     * @param sourceRoot  root path of the modules
+     * @param packageName name of the module to compile
      * @return Semantic errors
      */
     public static CompileResult compile(Object obj, String sourceRoot, String packageName) {
-        try {
-            String effectiveSource;
-            CodeSource codeSource = obj.getClass().getProtectionDomain().getCodeSource();
-            URL location = codeSource.getLocation();
-            URI locationUri = location.toURI();
-            Path pathLocation = Paths.get(locationUri);
-            String filePath = concatFileName(sourceRoot, pathLocation);
-            Path rootPath = Paths.get(filePath);
-            Path packagePath = Paths.get(packageName);
-            if (Files.isDirectory(packagePath)) {
-                String[] pkgParts = packageName.split("\\/");
-                List<Name> pkgNameComps = Arrays.stream(pkgParts)
-                        .map(part -> {
-                            if (part.equals("")) {
-                                return Names.EMPTY;
-                            } else if (part.equals("_")) {
-                                return Names.EMPTY;
-                            }
-                            return new Name(part);
-                        })
-                        .collect(Collectors.toList());
-                // TODO: orgName is anon, fix it.
-                PackageID pkgId = new PackageID(Names.ANON_ORG, pkgNameComps, Names.DEFAULT_VERSION);
-                effectiveSource = pkgId.getName().getValue();
-                return compile(rootPath.toString(), effectiveSource, CompilerPhase.CODE_GEN);
-            } else {
-                effectiveSource = packageName;
-                return compile(rootPath.toString(), effectiveSource, CompilerPhase.CODE_GEN,
-                        new FileSystemProjectDirectory(rootPath));
-            }
-        } catch (URISyntaxException e) {
-            throw new IllegalArgumentException("error while running test: " + e.getMessage());
+        String filePath = concatFileName(sourceRoot, resourceDir);
+        Path rootPath = Paths.get(filePath);
+        Path packagePath = Paths.get(packageName);
+        return getCompileResult(packageName, rootPath, packagePath);
+    }
+
+    private static CompileResult getCompileResult(String packageName, Path rootPath, Path packagePath) {
+        String effectiveSource;
+        if (Files.isDirectory(packagePath)) {
+            String[] pkgParts = packageName.split("\\/");
+            List<Name> pkgNameComps = Arrays.stream(pkgParts)
+                    .map(part -> {
+                        if (part.equals("")) {
+                            return Names.EMPTY;
+                        } else if (part.equals("_")) {
+                            return Names.EMPTY;
+                        }
+                        return new Name(part);
+                    })
+                    .collect(Collectors.toList());
+            // TODO: orgName is anon, fix it.
+            PackageID pkgId = new PackageID(Names.ANON_ORG, pkgNameComps, Names.DEFAULT_VERSION);
+            effectiveSource = pkgId.getName().getValue();
+            return compile(rootPath.toString(), effectiveSource, CompilerPhase.CODE_GEN);
+        } else {
+            effectiveSource = packageName;
+            return compile(rootPath.toString(), effectiveSource, CompilerPhase.CODE_GEN,
+                           new FileSystemProjectDirectory(rootPath));
         }
     }
 
@@ -189,52 +213,123 @@ public class BCompileUtil {
      * Compile and return the semantic errors.
      *
      * @param sourceFilePath Path to source package/file
+     * @param compilerPhase Compiler phase
+     * @param enableExpFeatures Flag indicating to enable the experimental feature
+     * @return Semantic errors
+     */
+    public static CompileResult compile(String sourceFilePath, CompilerPhase compilerPhase, boolean enableExpFeatures) {
+        Path sourcePath = Paths.get(sourceFilePath);
+        String packageName = sourcePath.getFileName().toString();
+        Path sourceRoot = resourceDir.resolve(sourcePath.getParent());
+        return compile(sourceRoot.toString(), packageName, compilerPhase, enableExpFeatures);
+    }
+
+
+    /**
+     * Compile and return the semantic errors.
+     *
+     * @param sourceFilePath Path to source package/file
      * @param compilerPhase  Compiler phase
      * @return Semantic errors
      */
     public static CompileResult compile(String sourceFilePath, CompilerPhase compilerPhase) {
-        Path sourcePath = Paths.get(sourceFilePath);
-        String packageName = sourcePath.getFileName().toString();
-        Path sourceRoot = resourceDir.resolve(sourcePath.getParent());
-        return compile(sourceRoot.toString(), packageName, compilerPhase);
+        return compile(sourceFilePath, compilerPhase, true);
     }
 
     /**
      * Compile and return the semantic errors.
      *
-     * @param sourceRoot    root path of the source packages
-     * @param packageName   name of the package to compile
+     * @param sourceRoot root path of the modules
+     * @param packageName name of the module to compile
      * @param compilerPhase Compiler phase
+     * @param enableExpFeatures Flag indicating to enable the experimental features
      * @return Semantic errors
      */
-    public static CompileResult compile(String sourceRoot, String packageName, CompilerPhase compilerPhase) {
+    public static CompileResult compile(String sourceRoot, String packageName, CompilerPhase compilerPhase,
+                                        boolean enableExpFeatures) {
         CompilerContext context = new CompilerContext();
         CompilerOptions options = CompilerOptions.getInstance(context);
         options.put(PROJECT_DIR, sourceRoot);
         options.put(COMPILER_PHASE, compilerPhase.toString());
         options.put(PRESERVE_WHITESPACE, "false");
+        options.put(CompilerOptionName.EXPERIMENTAL_FEATURES_ENABLED, Boolean.toString(enableExpFeatures));
 
-        return compile(context, packageName, compilerPhase);
+        return compile(context, packageName, compilerPhase, false);
     }
 
+    /**
+     * Compile and return the semantic errors.
+     *
+     * @param sourceRoot root path of the modules
+     * @param packageName name of the module to compile
+     * @param compilerPhase Compiler phase
+     * @param isSiddhiRuntimeEnabled Flag indicating to enable siddhi runtime for stream processing
+     * @param enableExpFeatures Flag indicating to enable the experimental features
+     * @return Semantic errors
+     */
+    public static CompileResult compile(String sourceRoot, String packageName, CompilerPhase compilerPhase,
+                                        boolean isSiddhiRuntimeEnabled, boolean enableExpFeatures) {
+        CompilerContext context = new CompilerContext();
+        CompilerOptions options = CompilerOptions.getInstance(context);
+        options.put(PROJECT_DIR, sourceRoot);
+        options.put(COMPILER_PHASE, compilerPhase.toString());
+        options.put(PRESERVE_WHITESPACE, "false");
+        options.put(CompilerOptionName.SIDDHI_RUNTIME_ENABLED, Boolean.toString(isSiddhiRuntimeEnabled));
+        options.put(CompilerOptionName.EXPERIMENTAL_FEATURES_ENABLED, Boolean.toString(enableExpFeatures));
+
+        return compile(context, packageName, compilerPhase, false);
+    }
+
+    /**
+     * Compile and return the semantic errors.
+     *
+     * @param sourceRoot    root path of the modules
+     * @param packageName   name of the module to compile
+     * @param compilerPhase Compiler phase
+     * @return Semantic errors
+     */
+    public static CompileResult compile(String sourceRoot, String packageName, CompilerPhase compilerPhase) {
+        return compile(sourceRoot, packageName, compilerPhase, true);
+    }
 
     /**
      * Compile with tests and return the semantic errors.
      *
-     * @param sourceRoot    root path of the source packages
-     * @param packageName   name of the package to compile
+     * @param context       Compiler Context
+     * @param listener      the diagnostic log common to a project
+     * @param packageName   name of the module to compile
      * @param compilerPhase Compiler phase
      * @return Semantic errors
      */
-    public static CompileResult compileWithTests(String sourceRoot, String packageName, CompilerPhase compilerPhase) {
+    public static CompileResult compileWithTests(CompilerContext context,
+                                                 CompileResult.CompileResultDiagnosticListener listener,
+                                                 String packageName,
+                                                 CompilerPhase compilerPhase) {
+        return compile(context, listener, packageName, compilerPhase, true);
+    }
+
+    /**
+     * Create a compiler context.
+     *
+     * @param sourceRoot    source root or project directory path
+     * @param compilerPhase Compiler phase
+     * @return new compiler context object
+     */
+    public static CompilerContext createCompilerContext(String sourceRoot, CompilerPhase compilerPhase) {
+        return createCompilerContext(sourceRoot, compilerPhase, Boolean.TRUE);
+    }
+
+    public static CompilerContext createCompilerContext(String sourceRoot, CompilerPhase compilerPhase,
+                                                        boolean enableExpFeatures) {
         CompilerContext context = new CompilerContext();
         CompilerOptions options = CompilerOptions.getInstance(context);
         options.put(PROJECT_DIR, sourceRoot);
         options.put(COMPILER_PHASE, compilerPhase.toString());
         options.put(PRESERVE_WHITESPACE, "false");
         options.put(TEST_ENABLED, "true");
-
-        return compile(context, packageName, compilerPhase);
+        options.put(SKIP_TESTS, "false");
+        options.put(CompilerOptionName.EXPERIMENTAL_FEATURES_ENABLED, Boolean.toString(enableExpFeatures));
+        return context;
     }
 
     public static CompileResult compile(String sourceRoot, String packageName, CompilerPhase compilerPhase,
@@ -244,13 +339,12 @@ public class BCompileUtil {
         options.put(PROJECT_DIR, sourceRoot);
         options.put(COMPILER_PHASE, compilerPhase.toString());
         options.put(PRESERVE_WHITESPACE, "false");
+        options.put(CompilerOptionName.EXPERIMENTAL_FEATURES_ENABLED, Boolean.TRUE.toString());
         context.put(SourceDirectory.class, sourceDirectory);
 
-        CompileResult comResult = new CompileResult();
-
-        // catch errors
-        DiagnosticListener listener = comResult::addDiagnostic;
+        CompileResult.CompileResultDiagnosticListener listener = new CompileResult.CompileResultDiagnosticListener();
         context.put(DiagnosticListener.class, listener);
+        CompileResult comResult = new CompileResult(listener);
 
         // compile
         Compiler compiler = Compiler.getInstance(context);
@@ -265,11 +359,18 @@ public class BCompileUtil {
     }
 
     private static CompileResult compile(CompilerContext context, String packageName,
-                                         CompilerPhase compilerPhase) {
-        CompileResult comResult = new CompileResult();
-        // catch errors
-        DiagnosticListener listener = comResult::addDiagnostic;
+                                         CompilerPhase compilerPhase, boolean withTests) {
+        CompileResult.CompileResultDiagnosticListener listener = new CompileResult.CompileResultDiagnosticListener();
         context.put(DiagnosticListener.class, listener);
+        return compile(context, listener, packageName, compilerPhase, withTests);
+    }
+
+    private static CompileResult compile(CompilerContext context,
+                                         CompileResult.CompileResultDiagnosticListener listener,
+                                         String packageName,
+                                         CompilerPhase compilerPhase,
+                                         boolean withTests) {
+        CompileResult comResult = new CompileResult(listener);
 
         // compile
         Compiler compiler = Compiler.getInstance(context);
@@ -280,10 +381,20 @@ public class BCompileUtil {
         } else if (CompilerPhase.CODE_GEN.compareTo(compilerPhase) > 0 || compilerPhase == CompilerPhase.BIR_GEN) {
             return comResult;
         }
+        CompiledBinaryFile.ProgramFile programFile;
+        // If its executing tests, then check if the testable package is null or not. If its not null, then pass the
+        // testable package node to generate the package program file.
+        if (withTests && packageNode.containsTestablePkg()) {
+            programFile = compiler.getExecutableProgram(packageNode.getTestablePkg());
+        } else {
+            // If its not executing tests or if its executing tests and the testable package is not present then pass
+            // the bLangPackage node to generate the program file.
+            programFile = compiler.getExecutableProgram(packageNode);
+        }
 
-        CompiledBinaryFile.ProgramFile programFile = compiler.getExecutableProgram(packageNode);
         if (programFile != null) {
             ProgramFile pFile = LauncherUtils.getExecutableProgram(programFile);
+            pFile.setProgramFilePath(Paths.get(packageName));
             comResult.setProgFile(pFile);
         }
         return comResult;
@@ -292,8 +403,8 @@ public class BCompileUtil {
     /**
      * Compile and return the compiled package node.
      *
-     * @param sourceFilePath Path to source package/file
-     * @return compiled package node
+     * @param sourceFilePath Path to source module/file
+     * @return compiled module node
      */
     public static BLangPackage compileAndGetPackage(String sourceFilePath) {
         Path sourcePath = Paths.get(sourceFilePath);
@@ -304,40 +415,14 @@ public class BCompileUtil {
         options.put(PROJECT_DIR, resourceDir.resolve(sourceRoot).toString());
         options.put(COMPILER_PHASE, CompilerPhase.CODE_GEN.toString());
         options.put(PRESERVE_WHITESPACE, "false");
+        options.put(CompilerOptionName.EXPERIMENTAL_FEATURES_ENABLED, Boolean.TRUE.toString());
 
-        CompileResult comResult = new CompileResult();
-
-        // catch errors
-        DiagnosticListener listener = comResult::addDiagnostic;
+        CompileResult.CompileResultDiagnosticListener listener = new CompileResult.CompileResultDiagnosticListener();
         context.put(DiagnosticListener.class, listener);
 
         // compile
         Compiler compiler = Compiler.getInstance(context);
         return compiler.compile(packageName);
-    }
-
-    /**
-     * Compile and run a ballerina file.
-     *
-     * @param sourceFilePath Path to the ballerina file.
-     * @param functionName   The name of the function to run
-     */
-    public static void run(String sourceFilePath, String functionName) {
-        // TODO: improve. How to get the output
-        CompileResult result = compile(sourceFilePath);
-        ProgramFile programFile = result.getProgFile();
-
-        // If there is no main or service entry point, throw an error
-        if (MAIN_FUNCTION_NAME.equals(functionName) && !programFile.isMainEPAvailable()
-                && !programFile.isServiceEPAvailable()) {
-            throw new RuntimeException("main function not found in '" + programFile.getProgramFilePath() + "'");
-        }
-
-        if (programFile.isMainEPAvailable() || !MAIN_FUNCTION_NAME.equals(functionName)) {
-            LauncherUtils.runMain(programFile, functionName, new String[0], false);
-        } else {
-            LauncherUtils.runServices(programFile);
-        }
     }
 
     public static String readFileAsString(String path) throws IOException {
@@ -390,7 +475,7 @@ public class BCompileUtil {
      *                    java.util.ServiceLoader}. Otherwise semantic analyzing capability providing wont work since it
      *                    cant find core package.
      * @param sourceRoot  source root of a project
-     * @param fileName    either the file name (if in project root) or the package name
+     * @param fileName    either the file name (if in project root) or the module name
      * @return list of diagnostics
      */
     public static List<Diagnostic> getDiagnostics(ClassLoader classLoader, String sourceRoot, String fileName) {
@@ -400,12 +485,11 @@ public class BCompileUtil {
         options.put(PROJECT_DIR, sourceRoot);
         options.put(COMPILER_PHASE, CompilerPhase.CODE_GEN.toString());
         options.put(PRESERVE_WHITESPACE, "false");
+        options.put(CompilerOptionName.EXPERIMENTAL_FEATURES_ENABLED, Boolean.TRUE.toString());
 
-        CompileResult comResult = new CompileResult();
-
-        // catch errors
-        DiagnosticListener listener = comResult::addDiagnostic;
+        CompileResult.CompileResultDiagnosticListener listener = new CompileResult.CompileResultDiagnosticListener();
         context.put(DiagnosticListener.class, listener);
+        CompileResult comResult = new CompileResult(listener);
 
         // compile
         Compiler compiler = Compiler.getInstance(context);

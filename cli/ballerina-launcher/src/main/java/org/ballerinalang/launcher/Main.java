@@ -41,8 +41,6 @@ import java.util.Properties;
 import java.util.ServiceLoader;
 
 import static org.ballerinalang.runtime.Constants.SYSTEM_PROP_BAL_DEBUG;
-import static org.ballerinalang.util.BLangConstants.COLON;
-import static org.ballerinalang.util.BLangConstants.MAIN_FUNCTION_NAME;
 
 /**
  * This class executes a Ballerina program.
@@ -82,11 +80,6 @@ public class Main {
         }
     }
 
-    private static CommandLine addSubCommand(CommandLine parentCmd, String commandName, Object commandObject) {
-        parentCmd.addSubcommand(commandName, commandObject);
-        return parentCmd.getSubcommands().get(commandName);
-    }
-
     private static Optional<BLauncherCmd> getInvokedCmd(String... args) {
         try {
             DefaultCmd defaultCmd = new DefaultCmd();
@@ -95,9 +88,8 @@ public class Main {
 
             // Run command
             RunCmd runCmd = new RunCmd();
-            CommandLine pcRunCmd = addSubCommand(cmdParser, BallerinaCliCommands.RUN, runCmd);
+            cmdParser.addSubcommand(BallerinaCliCommands.RUN, runCmd);
             runCmd.setParentCmdParser(cmdParser);
-            runCmd.setSelfCmdParser(pcRunCmd);
 
             // Set stop at positional before the other commands are added as sub commands, to enforce ordering only
             // for the run command
@@ -204,7 +196,7 @@ public class Main {
         private List<String> argList;
 
         @CommandLine.Option(names = {"--sourceroot"},
-                description = "path to the directory containing source files and packages")
+                description = "path to the directory containing source files and modules")
         private String sourceRoot;
 
         @CommandLine.Option(names = {"--help", "-h", "?"}, hidden = true)
@@ -222,14 +214,17 @@ public class Main {
         @CommandLine.Option(names = "--observe", description = "enable observability with default configs")
         private boolean observeFlag;
 
-        @CommandLine.Option(names = "--printreturn", description = "print return value to the out stream")
-        private boolean printReturn;
-
         @CommandLine.Option(names = "-e", description = "Ballerina environment parameters")
         private Map<String, String> runtimeParams = new HashMap<>();
 
         @CommandLine.Option(names = "-B", description = "Ballerina VM options")
         private Map<String, String> vmOptions = new HashMap<>();
+
+        @CommandLine.Option(names = "--experimental", description = "enable experimental language features")
+        private boolean experimentalFlag;
+
+        @CommandLine.Option(names = "--siddhiruntime", description = "enable siddhi runtime for stream processing")
+        private boolean siddhiRuntimeFlag;
 
         public void execute() {
             if (helpFlag) {
@@ -250,18 +245,7 @@ public class Main {
             VMOptions.getInstance().addOptions(vmOptions);
 
             String programArg = argList.get(0);
-            String functionName = MAIN_FUNCTION_NAME;
-            Path sourcePath;
-            if (programArg.contains(COLON)) {
-                String[] programArgConstituents = programArg.split(COLON);
-                functionName = programArgConstituents[programArgConstituents.length - 1];
-                if (functionName.isEmpty() || programArg.endsWith(COLON)) {
-                    throw LauncherUtils.createUsageExceptionWithHelp("expected function name after final ':'");
-                }
-                sourcePath = Paths.get(programArg.replace(COLON.concat(functionName), ""));
-            } else {
-                sourcePath = Paths.get(argList.get(0));
-            }
+            Path sourcePath = Paths.get(programArg);
 
             // Filter out the list of arguments given to the ballerina program.
             // TODO: 7/26/18 improve logic with positioned param
@@ -274,8 +258,8 @@ public class Main {
             }
 
             // Normalize the source path to remove './' or '.\' characters that can appear before the name
-            LauncherUtils.runProgram(sourceRootPath, sourcePath.normalize(), functionName, runtimeParams,
-                                     configFilePath, programArgs, offline, observeFlag, printReturn);
+            LauncherUtils.runProgram(sourceRootPath, sourcePath.normalize(), runtimeParams, configFilePath, programArgs,
+                                     offline, observeFlag, siddhiRuntimeFlag, experimentalFlag);
         }
 
         @Override
@@ -287,7 +271,7 @@ public class Main {
         public void printLongDesc(StringBuilder out) {
             out.append("Run command runs a compiled Ballerina program. \n");
             out.append("\n");
-            out.append("If a Ballerina source file or a source package is given, \n");
+            out.append("If a Ballerina source file or a module is given, \n");
             out.append("run command compiles and runs it. \n");
             out.append("\n");
             out.append("By default, 'ballerina run' executes the main function. \n");
@@ -299,15 +283,11 @@ public class Main {
 
         @Override
         public void printUsage(StringBuilder out) {
-            out.append("  ballerina run [flags] <balfile | packagename | balxfile> [args...] \n");
+            out.append("  ballerina run [flags] <balfile | module-name | balxfile> [args...] \n");
         }
 
         @Override
         public void setParentCmdParser(CommandLine parentCmdParser) {
-        }
-
-        @Override
-        public void setSelfCmdParser(CommandLine selfCmdParser) {
         }
     }
 
@@ -359,10 +339,6 @@ public class Main {
         @Override
         public void setParentCmdParser(CommandLine parentCmdParser) {
             this.parentCmdParser = parentCmdParser;
-        }
-
-        @Override
-        public void setSelfCmdParser(CommandLine selfCmdParser) {
         }
     }
 
@@ -419,11 +395,6 @@ public class Main {
         @Override
         public void setParentCmdParser(CommandLine parentCmdParser) {
             this.parentCmdParser = parentCmdParser;
-        }
-
-        @Override
-        public void setSelfCmdParser(CommandLine selfCmdParser) {
-
         }
     }
 
@@ -512,11 +483,6 @@ public class Main {
         public void setParentCmdParser(CommandLine parentCmdParser) {
         }
 
-        @Override
-        public void setSelfCmdParser(CommandLine selfCmdParser) {
-
-        }
-
         private String promptForInput(String msg) {
             errStream.println(msg);
             return new String(System.console().readPassword());
@@ -571,10 +537,6 @@ public class Main {
 
         @Override
         public void setParentCmdParser(CommandLine parentCmdParser) {
-        }
-
-        @Override
-        public void setSelfCmdParser(CommandLine selfCmdParser) {
         }
     }
 }

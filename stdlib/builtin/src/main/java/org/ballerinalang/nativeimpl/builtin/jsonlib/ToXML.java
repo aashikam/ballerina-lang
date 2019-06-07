@@ -20,8 +20,13 @@ package org.ballerinalang.nativeimpl.builtin.jsonlib;
 
 import org.ballerinalang.bre.Context;
 import org.ballerinalang.bre.bvm.BlockingNativeCallableUnit;
+import org.ballerinalang.jvm.BallerinaErrors;
+import org.ballerinalang.jvm.util.exceptions.BLangExceptionHelper;
+import org.ballerinalang.jvm.values.ErrorValue;
+import org.ballerinalang.jvm.values.MapValueImpl;
 import org.ballerinalang.model.types.TypeKind;
 import org.ballerinalang.model.util.JSONUtils;
+import org.ballerinalang.model.values.BError;
 import org.ballerinalang.model.values.BMap;
 import org.ballerinalang.model.values.BValue;
 import org.ballerinalang.model.values.BXML;
@@ -29,6 +34,7 @@ import org.ballerinalang.natives.annotations.Argument;
 import org.ballerinalang.natives.annotations.BallerinaFunction;
 import org.ballerinalang.natives.annotations.ReturnType;
 import org.ballerinalang.util.BuiltInUtils;
+import org.ballerinalang.util.exceptions.BallerinaErrorReasons;
 
 import static org.ballerinalang.util.BLangConstants.BALLERINA_BUILTIN_PKG;
 
@@ -53,13 +59,14 @@ public class ToXML extends BlockingNativeCallableUnit {
 
     @Override
     public void execute(Context ctx) {
-        BXML<?> xml = null;
-        BMap<String, BValue> error = null;
+        BXML<?> xml;
+        BError error;
         try {
             // Accessing Parameters
             BValue json = ctx.getNullableRefArgument(0);
             if (json == null) {
-                error = BuiltInUtils.createConversionError(ctx, "cannot convert null json to xml");
+                error = BuiltInUtils.createConversionError(ctx, "cannot convert null json to xml",
+                                                           BallerinaErrorReasons.JSON_CONVERSION_ERROR);
                 ctx.setReturnValues(error);
                 return;
             }
@@ -70,9 +77,29 @@ public class ToXML extends BlockingNativeCallableUnit {
             //Converting to xml.
             xml = JSONUtils.convertToXML(json, attributePrefix, arrayEntryTag);
             ctx.setReturnValues(xml);
-        } catch (Throwable e) {
-            error = BuiltInUtils.createConversionError(ctx, "failed to convert json to xml: " + e.getMessage());
+        } catch (Exception e) {
+            error = BuiltInUtils.createConversionError(ctx, "failed to convert json to xml: " + e.getMessage(),
+                                                       BallerinaErrorReasons.JSON_CONVERSION_ERROR);
             ctx.setReturnValues(error);
         }
+    }
+
+    public static Object toXML(Object json, MapValueImpl<?, ?> options) {
+        try {
+            if (json == null) {
+                ErrorValue error = BallerinaErrors.createError(BallerinaErrorReasons.JSON_CONVERSION_ERROR,
+                        "cannot convert null json to xml");
+                return error;
+            }
+
+            String attributePrefix = options.get(XML_OPTIONS_ATTRIBUTE_PREFIX).toString();
+            String arrayEntryTag = options.get(XML_OPTIONS_ARRAY_ENTRY_TAG).toString();
+            return org.ballerinalang.jvm.JSONToXMLConverter.convertToXML(json, attributePrefix, arrayEntryTag);
+        } catch (Throwable e) {
+            BLangExceptionHelper.handleJsonException(BallerinaErrorReasons.JSON_OPERATION_ERROR, "get keys from json",
+                    e);
+        }
+
+        return null;
     }
 }

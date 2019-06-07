@@ -16,156 +16,133 @@
 
 import ballerina/system;
 
-type ValueType "STRING"|"INT"|"FLOAT"|"BOOLEAN"|"MAP"|"ARRAY";
+type ValueType STRING|INT|FLOAT|BOOLEAN|MAP|ARRAY;
 
-@final ValueType STRING = "STRING";
-@final ValueType INT = "INT";
-@final ValueType FLOAT = "FLOAT";
-@final ValueType BOOLEAN = "BOOLEAN";
-@final ValueType MAP = "MAP";
-@final ValueType ARRAY = "ARRAY";
+const STRING = "STRING";
+const INT = "INT";
+const FLOAT = "FLOAT";
+const BOOLEAN = "BOOLEAN";
+const MAP = "MAP";
+const ARRAY = "ARRAY";
 
 # Retrieves the specified configuration value as a string.
 #
 # + key - The configuration to be retrieved
-# + default - The default value to be use in case there is no mapping for the provided key
+# + defaultValue - The default value to be use in case there is no mapping for the provided key
 # + return - Configuration value mapped by the key
-public function getAsString(@sensitive string key, string default = "") returns string {
+public function getAsString(@sensitive string key, string defaultValue = "") returns string {
     if (contains(key)) {
         var value = get(key, STRING);
 
-        match value {
-            string strValue => return strValue;
-            int|float|boolean|map|any[]|() => {
-                error err = { message: "Invalid value. Expected a 'string'." };
-                throw err;
-            }
-            error err => {
-                error e = { message: "Invalid value. Expected a 'string'.", cause: err };
-                throw e;
-            }
+        if (value is string) {
+            return value;
+        } else {
+            error err = error("Invalid value. Expected a 'string'.");
+            panic err;
         }
     }
 
     string envVar = lookupEnvVar(key);
-    return envVar == "" ? default : envVar;
+    return envVar == "" ? defaultValue : envVar;
 }
 
 # Retrieves the specified configuration value as an int.
 #
 # + key - The configuration to be retrieved
-# + default - The default value to be use in case there is no mapping for the provided key
+# + defaultValue - The default value to be use in case there is no mapping for the provided key
 # + return - Configuration value mapped by the key
-public function getAsInt(@sensitive string key, int default = 0) returns int {
+public function getAsInt(@sensitive string key, int defaultValue = 0) returns int {
     if (contains(key)) {
         var value = get(key, INT);
 
-        match value {
-            int intVal => return intVal;
-            string|float|boolean|map|any[]|() x => {
-                error err = { message: "Invalid value. Expected an 'int'." };
-                throw err;
-            }
-            error err => {
-                error e = { message: "Invalid value. Expected an 'int'.", cause: err };
-                throw e;
-            }
+        if (value is int) {
+            return value;
+        } else {
+            error err = error("Invalid value. Expected an 'int'.");
+            panic err;
         }
     }
 
     string strVal = lookupEnvVar(key);
     if (strVal == "") {
-        return default;
+        return defaultValue;
     }
 
-    var envVar = <int> strVal;
-    match envVar {
-        int intVal => return intVal;
-        error err => throw err;
+    var envVar = int.convert(strVal);
+    if (envVar is int) {
+        return envVar;
+    } else {
+        panic envVar;
     }
 }
 
 # Retrieves the specified configuration value as a float.
 #
 # + key - The configuration to be retrieved
-# + default - The default value to be use in case there is no mapping for the provided key
+# + defaultVal - The default value to be use in case there is no mapping for the provided key
 # + return - Configuration value mapped by the key
-public function getAsFloat(@sensitive string key, float default = 0.0) returns float {
+public function getAsFloat(@sensitive string key, float defaultVal = 0.0) returns float {
     if (contains(key)) {
         var value = get(key, FLOAT);
 
-        match value {
-            float floatVal => return floatVal;
-            int|string|boolean|map|any[]|() => {
-                error err = { message: "Invalid value. Expected a 'float'." };
-                throw err;
-            }
-            error err => {
-                error e = { message: "Invalid value. Expected a 'float'.", cause: err };
-                throw e;
-            }
+        if (value is float) {
+            return value;
+        } else {
+            error err = error("Invalid value. Expected a 'float'.");
+            panic err;
         }
     }
 
     string strVal = lookupEnvVar(key);
     if (strVal == "") {
-        return default;
+        return defaultVal;
     }
 
-    var envVar = <float> strVal;
-    match envVar {
-        float floatVal => return floatVal;
-        error err => throw err;
+    var envVar = float.convert(strVal);
+    if (envVar is float) {
+        return envVar;
+    } else {
+        panic envVar;
     }
 }
 
 # Retrieves the specified configuration value as a boolean.
 #
 # + key - The configuration to be retrieved
-# + default - The default value to be use in case there is no mapping for the provided key
+# + defaultValue - The default value to be use in case there is no mapping for the provided key
 # + return - Configuration value mapped by the key
-public function getAsBoolean(@sensitive string key, boolean default = false) returns boolean {
+public function getAsBoolean(@sensitive string key, boolean defaultValue = false) returns boolean {
     if (contains(key)) {
         var value = get(key, BOOLEAN);
 
-        match value {
-            boolean booleanVal => return booleanVal;
-            int|float|string|map|any[]|() => {
-                error err = { message: "Invalid value. Expected a 'boolean'." };
-                throw err;
-            }
-            error err => {
-                error e = { message: "Invalid value. Expected a 'boolean'.", cause: err };
-                throw e;
-            }
+        if (value is boolean) {
+            return value;
+        } else {
+            error err = error("Invalid value. Expected a 'boolean'.");
+            panic err;
         }
     }
 
     string strVal = lookupEnvVar(key);
     if (strVal == "") {
-        return default;
+        return defaultValue;
     }
 
-    return <boolean> strVal;
+    return boolean.convert(strVal);
 }
 
 # Retrieves the specified configuration value as a map. If there is no mapping, an empty map will be returned.
 #
 # + key - The configuration to be retrieved
 # + return - Configuration value mapped by the key
-public function getAsMap(@sensitive string key) returns map {
+public function getAsMap(@sensitive string key) returns map<any> {
     var value = get(key, MAP);
 
-    match value {
-        map section => return section;
-        int|float|boolean|string|any[]|() => {
-            error err = { message: "Invalid value. Expected a 'map'." };
-            throw err;
-        }
-        error err => {
-            error e = { message: "Invalid value. Expected a 'map'.", cause: err };
-            throw e;
-        }
+    if (value is map<any>) {
+        return value;
+    } else {
+        error err = error("Invalid value. Expected a 'map'.");
+        panic err;
     }
 }
 

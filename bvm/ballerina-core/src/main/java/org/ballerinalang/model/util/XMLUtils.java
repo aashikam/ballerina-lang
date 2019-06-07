@@ -17,6 +17,10 @@
  */
 package org.ballerinalang.model.util;
 
+import org.apache.axiom.c14n.Canonicalizer;
+import org.apache.axiom.c14n.exceptions.AlgorithmAlreadyRegisteredException;
+import org.apache.axiom.c14n.exceptions.CanonicalizationException;
+import org.apache.axiom.c14n.exceptions.InvalidCanonicalizerException;
 import org.apache.axiom.om.DeferredParsingException;
 import org.apache.axiom.om.OMAbstractFactory;
 import org.apache.axiom.om.OMAttribute;
@@ -38,10 +42,10 @@ import org.ballerinalang.model.types.BArrayType;
 import org.ballerinalang.model.types.BTypes;
 import org.ballerinalang.model.values.BMap;
 import org.ballerinalang.model.values.BRefType;
-import org.ballerinalang.model.values.BRefValueArray;
 import org.ballerinalang.model.values.BString;
 import org.ballerinalang.model.values.BTable;
 import org.ballerinalang.model.values.BValue;
+import org.ballerinalang.model.values.BValueArray;
 import org.ballerinalang.model.values.BXML;
 import org.ballerinalang.model.values.BXMLItem;
 import org.ballerinalang.model.values.BXMLQName;
@@ -52,9 +56,11 @@ import java.io.InputStream;
 import java.io.Reader;
 import java.io.StringReader;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.Map;
+
 import javax.xml.XMLConstants;
 import javax.xml.namespace.QName;
 import javax.xml.stream.XMLStreamException;
@@ -69,9 +75,29 @@ public class XMLUtils {
     private static final String XML_NAMESPACE_PREFIX = "xmlns:";
     private static final String XML_VALUE_TAG = "#text";
     private static final String XML_DCLR_START = "<?xml";
+    private static Canonicalizer canonicalizer = null;
 
     private static final OMFactory OM_FACTORY = OMAbstractFactory.getOMFactory();
     public static final StAXParserConfiguration STAX_PARSER_CONFIGURATION = StAXParserConfiguration.STANDALONE;
+
+    static {
+        Canonicalizer.init();
+        try {
+            Canonicalizer.register("http://www.w3.org/TR/2001/REC-xml-c14n-20010315",
+                                   "org.apache.axiom.c14n.impl.Canonicalizer20010315OmitComments");
+            Canonicalizer.register("http://www.w3.org/TR/2001/REC-xml-c14n-20010315#WithComments",
+                                   "org.apache.axiom.c14n.impl.Canonicalizer20010315WithComments");
+            Canonicalizer.register("http://www.w3.org/2001/10/xml-exc-c14n#",
+                                   "org.apache.axiom.c14n.impl.Canonicalizer20010315ExclOmitComments");
+            Canonicalizer.register("http://www.w3.org/2001/10/xml-exc-c14n#WithComments",
+                                   "org.apache.axiom.c14n.impl.Canonicalizer20010315ExclWithComments");
+            canonicalizer = Canonicalizer.getInstance("http://www.w3.org/2001/10/xml-exc-c14n#WithComments");
+        } catch (AlgorithmAlreadyRegisteredException e) {
+            // ignore
+        } catch (InvalidCanonicalizerException e) {
+            throw new BallerinaException("Error initializing canonicalizer: " + e.getMessage());
+        }
+    }
 
     /**
      * Create a XML item from string literal.
@@ -130,7 +156,7 @@ public class XMLUtils {
      */
     @SuppressWarnings("unchecked")
     public static BXML<?> parse(InputStream xmlStream) {
-        BRefValueArray elementsSeq = new BRefValueArray();
+        BValueArray elementsSeq = new BValueArray();
         OMDocument doc;
         try {
             doc = OMXMLBuilderFactory.createOMBuilder(STAX_PARSER_CONFIGURATION, xmlStream).getDocument();
@@ -156,7 +182,7 @@ public class XMLUtils {
      */
     @SuppressWarnings("unchecked")
     public static BXML<?> parse(InputStream xmlStream, String charset) {
-        BRefValueArray elementsSeq = new BRefValueArray();
+        BValueArray elementsSeq = new BValueArray();
         OMDocument doc;
         try {
             doc = OMXMLBuilderFactory.createOMBuilder(STAX_PARSER_CONFIGURATION, xmlStream, charset).getDocument();
@@ -181,7 +207,7 @@ public class XMLUtils {
      */
     @SuppressWarnings("unchecked")
     public static BXML<?> parse(Reader reader) {
-        BRefValueArray elementsSeq = new BRefValueArray();
+        BValueArray elementsSeq = new BValueArray();
         OMDocument doc;
         try {
             doc = OMXMLBuilderFactory.createOMBuilder(STAX_PARSER_CONFIGURATION, reader).getDocument();
@@ -206,7 +232,7 @@ public class XMLUtils {
      * @return Concatenated XML sequence
      */
     public static BXML<?> concatenate(BXML<?> firstSeq, BXML<?> secondSeq) {
-        BRefValueArray concatSeq = new BRefValueArray();
+        BValueArray concatSeq = new BValueArray();
         int j = 0;
 
         //Load the content fully before concat the two
@@ -215,9 +241,9 @@ public class XMLUtils {
 
         // Add all the items in the first sequence
         if (firstSeq.getNodeType() == XMLNodeType.SEQUENCE) {
-            BRefValueArray seq = ((BXMLSequence) firstSeq).value();
+            BValueArray seq = ((BXMLSequence) firstSeq).value();
             for (int i = 0; i < seq.size(); i++) {
-                concatSeq.add(j++, seq.get(i));
+                concatSeq.add(j++, seq.getRefValue(i));
             }
         } else {
             concatSeq.add(j++, firstSeq);
@@ -225,9 +251,9 @@ public class XMLUtils {
 
         // Add all the items in the second sequence
         if (secondSeq.getNodeType() == XMLNodeType.SEQUENCE) {
-            BRefValueArray seq = ((BXMLSequence) secondSeq).value();
+            BValueArray seq = ((BXMLSequence) secondSeq).value();
             for (int i = 0; i < seq.size(); i++) {
-                concatSeq.add(j++, seq.get(i));
+                concatSeq.add(j++, seq.getRefValue(i));
             }
         } else {
             concatSeq.add(j++, secondSeq);
@@ -240,13 +266,12 @@ public class XMLUtils {
      * Converts a {@link BTable} to {@link BXML}.
      *
      * @param table {@link BTable} to convert
-     * @param isInTransaction   Within a transaction or not
      * @return converted {@link BXML}
      */
     @SuppressWarnings("rawtypes")
-    public static BXML tableToXML(BTable table, boolean isInTransaction) {
+    public static BXML tableToXML(BTable table) {
         OMSourcedElementImpl omSourcedElement = new OMSourcedElementImpl();
-        omSourcedElement.init(new TableOMDataSource(table, null, null, isInTransaction));
+        omSourcedElement.init(new TableOMDataSource(table, null, null));
         return new BXMLItem(omSourcedElement);
     }
 
@@ -314,6 +339,11 @@ public class XMLUtils {
     public static BXML<?> createXMLText(String content) {
         // Remove carriage return on windows environments to eliminate additional &#xd; being added
         content = content.replace("\r\n", "\n");
+        // &gt; &lt; and &amp; in XML literal in Ballerina lang maps to >, <, and & in XML infoset.
+        content = content
+                .replace("&gt;", ">")
+                .replace("&lt;", "<")
+                .replace("&amp;", "&");
 
         OMText omText = OM_FACTORY.createOMText(content);
         return new BXMLItem(omText);
@@ -352,18 +382,91 @@ public class XMLUtils {
             } else if (OMNode.TEXT_NODE == omNode.getType()) {
                 json = JsonParser.parse("\"" + ((OMText) omNode).getText() + "\"");
             } else {
-                json = new BMap<String, BValue>();
+                json = new BMap<String, BValue>(BTypes.typeJSON);
             }
         } else {
             //Process xml sequence
             BXMLSequence xmlSequence = (BXMLSequence) xml;
             if (xmlSequence.isEmpty().booleanValue()) {
-                return new BRefValueArray(new BArrayType(BTypes.typeJSON));
+                return new BValueArray(new BArrayType(BTypes.typeJSON));
             }
             json = traverseXMLSequence(xmlSequence, attributePrefix, preserveNamespaces);
 
         }
         return json;
+    }
+
+    /**
+     * Compares if two xml values are equal.
+     *
+     * Equality is computed as follows
+     * - for XML elements: compares the canonicalized versions, including comments
+     * - for non-elements (standalone text, PI, comments): a string comparison
+     *
+     * @param xmlOne    the first XML value
+     * @param xmlTwo    the second XML value
+     * @return  true if the two are equal, false if not equal or an exception is thrown while checking equality
+     */
+    public static boolean isEqual(BXML<?> xmlOne, BXML<?> xmlTwo) {
+        XMLNodeType xmlOneNodeType = xmlOne.getNodeType();
+        XMLNodeType xmlTwoNodeType = xmlTwo.getNodeType();
+
+        try {
+            if (xmlOneNodeType == XMLNodeType.SEQUENCE && xmlTwoNodeType == XMLNodeType.SEQUENCE) {
+                return isXmlSequenceEqual((BXMLSequence) xmlOne, (BXMLSequence) xmlTwo);
+            } else if (xmlOneNodeType != XMLNodeType.SEQUENCE && xmlTwoNodeType != XMLNodeType.SEQUENCE) {
+                return isXmlItemEqual((BXMLItem) xmlOne, (BXMLItem) xmlTwo);
+            } else {
+                if (xmlOneNodeType == XMLNodeType.SEQUENCE && xmlOne.isSingleton().booleanValue()) {
+                    return isXmlSingletonSequenceItemEqual((BXMLSequence) xmlOne, (BXMLItem) xmlTwo);
+                }
+
+                if (xmlTwoNodeType == XMLNodeType.SEQUENCE && xmlTwo.isSingleton().booleanValue()) {
+                    return isXmlSingletonSequenceItemEqual((BXMLSequence) xmlTwo, (BXMLItem) xmlOne);
+                }
+            }
+        } catch (Exception e) {
+            // ignore and return false
+        }
+        return false;
+    }
+
+    private static boolean isXmlSequenceEqual(BXMLSequence xmlSequenceOne, BXMLSequence xmlSequenceTwo) {
+        if (xmlSequenceOne.size() != xmlSequenceTwo.size()) {
+            return false;
+        }
+
+        for (int i = 0; i < xmlSequenceOne.value().size(); i++) {
+            if (!isEqual((BXML<?>) xmlSequenceOne.value().getRefValue(i), (BXML<?>) xmlSequenceTwo.value().
+                    getRefValue(i))) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static boolean isXmlItemEqual(BXMLItem xmlItemOne, BXMLItem xmlItemTwo) throws CanonicalizationException {
+        switch (xmlItemOne.getNodeType()) {
+            case ELEMENT:
+                return Arrays.equals(canonicalize(xmlItemOne), canonicalize(xmlItemTwo));
+            default:
+                return xmlItemOne.stringValue().equals(xmlItemTwo.stringValue());
+        }
+    }
+
+    private static boolean isXmlSingletonSequenceItemEqual(BXMLSequence singletonXmlSequence, BXMLItem xmlItem)
+            throws CanonicalizationException {
+        switch (xmlItem.getNodeType()) {
+            case ELEMENT:
+                return Arrays.equals(canonicalize((BXMLItem) ((BXMLSequence) singletonXmlSequence).getItem(0)),
+                                     canonicalize(xmlItem));
+            default:
+                return ((BXMLSequence) singletonXmlSequence).getItem(0).stringValue().equals(xmlItem.stringValue());
+        }
+    }
+
+    private static byte[] canonicalize(BXMLItem bxmlItem) throws CanonicalizationException {
+        return canonicalizer.canonicalize((bxmlItem).value().toString().getBytes());
     }
 
     /**
@@ -377,12 +480,12 @@ public class XMLUtils {
     @SuppressWarnings("rawtypes")
     private static BMap<String, BRefType<?>> traverseXMLElement(OMElement omElement, String attributePrefix,
             boolean preserveNamespaces) {
-        BMap<String, BRefType<?>> rootNode = new BMap<>();
+        BMap<String, BRefType<?>> rootNode = new BMap<>(BTypes.typeJSON);
         LinkedHashMap<String, String> attributeMap = collectAttributesAndNamespaces(omElement, preserveNamespaces);
         Iterator iterator = omElement.getChildElements();
         String keyValue = getElementKey(omElement, preserveNamespaces);
         if (iterator.hasNext()) {
-            BMap<String, BRefType<?>> currentRoot = new BMap<>();
+            BMap<String, BRefType<?>> currentRoot = new BMap<>(BTypes.typeJSON);
             ArrayList<OMElement> childArray = new ArrayList<>();
             LinkedHashMap<String, ArrayList<BRefType<?>>> rootMap = new LinkedHashMap<>();
             while (iterator.hasNext()) {
@@ -443,12 +546,12 @@ public class XMLUtils {
      */
     private static BValue traverseXMLSequence(BXMLSequence xmlSequence, String attributePrefix,
             boolean preserveNamespaces) {
-        BRefValueArray sequence = xmlSequence.value();
+        BValueArray sequence = xmlSequence.value();
         long count = sequence.size();
         ArrayList<OMElement> childArray = new ArrayList<>();
         ArrayList<OMText> textArray = new ArrayList<>();
         for (long i = 0; i < count; ++i) {
-            BXMLItem xmlItem = (BXMLItem) sequence.get(i);
+            BXMLItem xmlItem = (BXMLItem) sequence.getRefValue(i);
             OMNode omNode = xmlItem.value();
             if (OMNode.ELEMENT_NODE ==  omNode.getType()) {
                 childArray.add((OMElement) omNode);
@@ -457,7 +560,7 @@ public class XMLUtils {
             }
         }
 
-        BRefValueArray textArrayNode = null;
+        BValueArray textArrayNode = null;
         if (textArray.size() > 0) { //Text nodes are converted into json array
             textArrayNode = processTextArray(textArray);
         }
@@ -511,7 +614,7 @@ public class XMLUtils {
                     }
                 } else {
                     //Child elements with similar keys are put into an array
-                    BRefValueArray arrayNode = new BRefValueArray(new BArrayType(BTypes.typeJSON));
+                    BValueArray arrayNode = new BValueArray(new BArrayType(BTypes.typeJSON));
                     for (OMElement element : elementList) {
                         arrayNode.append(new BString(element.getText()));
                     }
@@ -537,7 +640,7 @@ public class XMLUtils {
                 root.put(key, elementList.get(0));
             } else {
                 // When there are multiple nodes with the same key they are set into an array
-                BRefValueArray arrayNode = new BRefValueArray(new BArrayType(BTypes.typeJSON));
+                BValueArray arrayNode = new BValueArray(new BArrayType(BTypes.typeJSON));
                 for (BRefType<?> node : elementList) {
                     arrayNode.append(node);
                 }
@@ -594,7 +697,7 @@ public class XMLUtils {
             LinkedHashMap<String, String> attributeMap, String attributePrefix, String singleElementValue) {
         boolean singleElement = false;
         if (rootNode == null) {
-            rootNode = new BMap<>();
+            rootNode = new BMap<>(BTypes.typeJSON);
             singleElement = true;
         }
         //All the attributes and namesapces are set as key value pairs with given prefix
@@ -615,9 +718,9 @@ public class XMLUtils {
      * @param childArray List of XML text elements
      * @return ArrayNode Json array node corresponding to the given text elements
      */
-    private static BRefValueArray processTextArray(ArrayList<OMText> childArray) {
+    private static BValueArray processTextArray(ArrayList<OMText> childArray) {
         //Create array based on xml text elements
-        BRefValueArray arrayNode = new BRefValueArray(new BArrayType(BTypes.typeJSON));
+        BValueArray arrayNode = new BValueArray(new BArrayType(BTypes.typeJSON));
         for (OMText element : childArray) {
             arrayNode.append(new BString(element.getText()));
         }

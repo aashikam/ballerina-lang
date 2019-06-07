@@ -41,7 +41,7 @@ public enum RuntimeErrors {
     SERVER_CONNECTOR_ALREADY_EXIST("server.connector.already.exist", "RUNTIME_0016"),
     INVALID_SERVICE_PROTOCOL("invalid.service.protocol", "RUNTIME_0017"),
     CONNECTOR_INPUT_TYPES_NOT_EQUIVALENT("connector.input.types.are.not.equivalent", "RUNTIME_0018"),
-    UNKNOWN_FIELD_JSON_STURCT("unknown.field.in.json.struct", "RUNTIME_0019"),
+    UNKNOWN_FIELD_JSON_STRUCT("unknown.field.in.json.struct", "RUNTIME_0019"),
     INVALID_RETRY_COUNT("invalid.retry.count", "RUNTIME_0020"),
     NOT_ENOUGH_FORMAT_ARGUMENTS("not.enough.format.arguments", "RUNTIME_0021"),
     INVALID_FORMAT_SPECIFIER("invalid.format.specifier", "RUNTIME_0022"),
@@ -50,7 +50,20 @@ public enum RuntimeErrors {
     INVALID_TASK_CONFIG("invalid.task.config", "RUNTIME_0025"),
     TASK_ALREADY_RUNNING("task.already.running", "RUNTIME_0026"),
     TASK_NOT_RUNNING("task.not.running", "RUNTIME_0027"),
-    ILLEGAL_FORMAT_CONVERSION("illegal.format.conversion", "RUNTIME_0028");
+    ILLEGAL_FORMAT_CONVERSION("illegal.format.conversion", "RUNTIME_0028"),
+    INCOMPATIBLE_STAMP_OPERATION("incompatible.stamp.operation", "RUNTIME_0029"),
+    CANNOT_STAMP_NULL("cannot.stamp.null", "RUNTIME_0030"),
+    UNSUPPORTED_CLONE_OPERATION("unsupported.clone.operation", "RUNTIME_0031"),
+    INVALID_RECORD_FIELD_ACCESS("invalid.record.field.access", "RUNTIME_0032"),
+    INVALID_RECORD_FIELD_ADDITION("invalid.record.field.addition", "RUNTIME_0033"),
+    INVALID_OBJECT_FIELD_ADDITION("invalid.object.field.addition", "RUNTIME_0034"),
+    TYPE_CAST_ERROR("incompatible.types.cannot.cast", "RUNTIME_0035"),
+    INVALID_DYNAMICALLY_NESTED_TRANSACTION("dynamically.nested.transactions.are.not.allowed", "RUNTIME_0036"),
+    CYCLIC_VALUE_REFERENCE("cyclic.value.reference", "RUNTIME_0037"),
+    CANNOT_CONVERT_NULL("cannot.convert.null", "RUNTIME_0038"),
+    INCOMPATIBLE_CONVERT_OPERATION("incompatible.convert.operation", "RUNTIME_0039"),
+    INCOMPATIBLE_SIMPLE_TYPE_CONVERT_OPERATION("incompatible.simple.type.convert.operation", "RUNTIME_0040"),
+    TUPLE_INDEX_OUT_OF_RANGE("tuple.index.out.of.range", "RUNTIME_0038");
 
     private String errorMsgKey;
     private String errorCode;

@@ -14,42 +14,38 @@
 // specific language governing permissions and limitations
 // under the License.
 
-
-import ballerina/auth;
 import ballerina/reflect;
 
 # Representation of the Authentication filter.
 #
-# + authnHandlerChain - The Authentication handler chain
+# + authnHandlers - Array of authentication handlers
 public type AuthnFilter object {
 
-    public AuthnHandlerChain authnHandlerChain;
+    public AuthnHandler?[]|AuthnHandler?[][] authnHandlers;
 
-    public new(authnHandlerChain) {}
+    public function __init(AuthnHandler?[]|AuthnHandler?[][] authnHandlers) {
+        self.authnHandlers = authnHandlers;
+    }
 
     # Request filter method which attempts to authenticated the request.
     #
-    # + listener - The http endpoint
+    # + caller - Caller for outbound HTTP responses
     # + request - An inboud HTTP request message
     # + context - A filter context
     # + return - True if the filter succeeds
-    public function filterRequest(Listener listener, Request request, FilterContext context) returns boolean {
-        // get auth config for this resource
-        boolean authenticated;
-        var (isSecured, authProviders) = getResourceAuthConfig(context);
-        if (isSecured) {
-            // if auth providers are there, use those to authenticate
-            if (lengthof authProviders > 0) {
-                authenticated = self.authnHandlerChain.handleWithSpecificAuthnHandlers(authProviders, request);
-            } else {
-                // if not, try to authenticate using any of available authn handlers
-                authenticated = self.authnHandlerChain.handle(request);
-            }
+    public function filterRequest(Caller caller, Request request, FilterContext context) returns boolean {
+        boolean|error authenticated;
+        var authnHandlers = getAuthnHandlers(context);
+        if (authnHandlers is AuthnHandler?[]|AuthnHandler?[][]) {
+            authenticated = handleAuthnRequest(authnHandlers, request);
         } else {
-            // not secured, no need to authenticate
-            return isAuthnSuccesfull(listener, true);
+            if (authnHandlers) {
+                authenticated = handleAuthnRequest(self.authnHandlers, request);
+            } else {
+                authenticated = true;
+            }
         }
-        return isAuthnSuccesfull(listener, authenticated);
+        return isAuthnSuccessful(caller, authenticated);
     }
 
     public function filterResponse(Response response, FilterContext context) returns boolean {
@@ -57,122 +53,74 @@ public type AuthnFilter object {
     }
 };
 
+function handleAuthnRequest(AuthnHandler?[]|AuthnHandler?[][] authnHandlers, Request request) returns boolean|error {
+    if (authnHandlers is AuthnHandler?[]) {
+        return checkForAuthnHandlers(authnHandlers, request);
+    } else {
+        foreach AuthnHandler?[] authnHandler in authnHandlers {
+            var response = checkForAuthnHandlers(authnHandler, request);
+            if (response is boolean) {
+                if (!response) {
+                    return response;
+                }
+            } else {
+                return response;
+            }
+        }
+        return true;
+    }
+}
+
+function checkForAuthnHandlers(AuthnHandler?[] authnHandlers, Request request) returns boolean|error {
+    error? err = ();
+    foreach AuthnHandler? authnHandler in authnHandlers {
+        if (authnHandler is AuthnHandler) {
+            boolean canHandleResponse = authnHandler.canHandle(request);
+            if (canHandleResponse) {
+                var handleResponse = authnHandler.handle(request);
+                if (handleResponse is boolean) {
+                    if (handleResponse) {
+                        // If one of the authenticators from the chain could successfully authenticate the user,
+                        // it is not required to look through other providers. The authenticator chain is using "OR"
+                        // combination of provider results.
+                        return true;
+                    }
+                } else {
+                    err = handleResponse;
+                }
+            }
+        }
+    }
+    if (err is error) {
+        return err;
+    }
+    return false;
+}
+
 # Verifies if the authentication is successful. If not responds to the user.
 #
-# + listener - The http endpoint
-# + authenticated - Authorization status for the request
-# + return - Authorization result to indicate if the filter can proceed(true) or not(false)
-function isAuthnSuccesfull(Listener listener, boolean authenticated) returns boolean {
-    endpoint Listener caller = listener;
-    Response response;
-    if (!authenticated) {
-        response.statusCode = 401;
-        response.setTextPayload("Authentication failure");
-        var value = caller->respond(response);
-        match value {
-            error err => throw err;
-            () => {}
+# + caller - Caller for outbound HTTP responses
+# + authenticated - Authentication status for the request, or `error` if error occurred
+# + return - Authentication result to indicate if the filter can proceed(true) or not(false)
+function isAuthnSuccessful(Caller caller, boolean|error authenticated) returns boolean {
+    Response response = new;
+    response.statusCode = 401;
+    if (authenticated is boolean) {
+        if (!authenticated) {
+            response.setTextPayload("Authentication failure");
+            var err = caller->respond(response);
+            if (err is error) {
+                panic err;
+            }
+            return false;
+        }
+    } else {
+        response.setTextPayload("Authentication failure. " + authenticated.reason());
+        var err = caller->respond(response);
+        if (err is error) {
+            panic err;
         }
         return false;
     }
     return true;
-}
-
-# Checks if the resource is secured.
-#
-# + context - A filter context
-# + return - A tuple of whether the resource is secured and the list of auth provider ids
-function getResourceAuthConfig(FilterContext context) returns (boolean, string[]) {
-    boolean resourceSecured;
-    string[] authProviderIds = [];
-    // get authn details from the resource level
-    ListenerAuthConfig? resourceLevelAuthAnn = getAuthAnnotation(ANN_PACKAGE, RESOURCE_ANN_NAME,
-        reflect:getResourceAnnotations(context.serviceType, context.resourceName));
-    ListenerAuthConfig? serviceLevelAuthAnn = getAuthAnnotation(ANN_PACKAGE, SERVICE_ANN_NAME,
-        reflect:getServiceAnnotations(context.serviceType));
-    // check if authentication is enabled
-    resourceSecured = isResourceSecured(resourceLevelAuthAnn, serviceLevelAuthAnn);
-    // if resource is not secured, no need to check further
-    if (!resourceSecured) {
-        return (resourceSecured, authProviderIds);
-    }
-    // check if auth providers are given at resource level
-    match resourceLevelAuthAnn.authProviders {
-        string[] providers => {
-            authProviderIds = providers;
-        }
-        () => {
-            // no auth providers found in resource level, try in service level
-            match serviceLevelAuthAnn.authProviders {
-                string[] providers => {
-                    authProviderIds = providers;
-                }
-                () => {
-                    // no auth providers found
-                }
-            }
-        }
-    }
-    return (resourceSecured, authProviderIds);
-}
-
-function isResourceSecured(ListenerAuthConfig? resourceLevelAuthAnn, ListenerAuthConfig? serviceLevelAuthAnn)
-             returns boolean {
-    boolean isSecured;
-    match resourceLevelAuthAnn.authentication {
-        Authentication authn => {
-            isSecured = authn.enabled;
-        }
-        () => {
-            // if not found at resource level, check in the service level
-            match serviceLevelAuthAnn.authentication {
-                Authentication authn => {
-                    isSecured = authn.enabled;
-                }
-                () => {
-                    // if still authentication annotation is nil, means the user has not specified that the service
-                    // should be secured. However since the authn filter has been engaged, need to authenticate.
-                    isSecured = true;
-                }
-            }
-        }
-    }
-    return isSecured;
-}
-
-# Tries to retrieve the annotation value for authentication hierarchically - first from the resource level and then
-# from the service level, if it  is not there in the resource level.
-#
-# + annotationPackage - Annotation package name
-# + annotationName - Annotation name
-# + annData - Array of annotationData instances
-# + return - ListenerAuthConfig instance if its defined, else nil
-function getAuthAnnotation(string annotationPackage, string annotationName, reflect:annotationData[] annData) returns (
-            ListenerAuthConfig?) {
-    if (lengthof annData == 0) {
-        return ();
-    }
-    reflect:annotationData|() authAnn;
-    foreach ann in annData {
-        if (ann.name == annotationName && ann.pkgName == annotationPackage) {
-            authAnn = ann;
-            break;
-        }
-    }
-    match authAnn {
-        reflect:annotationData annData1 => {
-            if (annotationName == RESOURCE_ANN_NAME) {
-                HttpResourceConfig resourceConfig = check <HttpResourceConfig>annData1.value;
-                return resourceConfig.authConfig;
-            } else if (annotationName == SERVICE_ANN_NAME) {
-                HttpServiceConfig serviceConfig = check <HttpServiceConfig>annData1.value;
-                return serviceConfig.authConfig;
-            } else {
-                return ();
-            }
-        }
-        () => {
-            return ();
-        }
-    }
 }

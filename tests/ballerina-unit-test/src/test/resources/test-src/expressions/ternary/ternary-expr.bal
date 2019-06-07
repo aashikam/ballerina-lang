@@ -32,7 +32,7 @@ function foo (int a, string b, boolean c) returns (string) {
 
 type Person record {
     string name;
-    string location;
+    string location?;
 };
 
 function test6 (string s) returns (string) {
@@ -40,14 +40,14 @@ function test6 (string s) returns (string) {
     return p.name;
 }
 
-function test7 (string s) returns (int) {
-    map m = {"data" : s == "one" ? 1 : 2};
-    var y = check <int>m.data;
+function test7 (string s) returns (int|error) {
+    map<any> m = {"data" : s == "one" ? 1 : 2};
+    var y = check int.convert(m.data);
     return y;
 }
 
 function test8 (string s) returns (string) {
-    string x = string `hello {{s == "world" ? "world...!!" : "everyone..!"}}`;
+    string x = string `hello ${s == "world" ? "world...!!" : "everyone..!"}`;
     return x;
 }
 
@@ -67,44 +67,6 @@ function test10 (string s) returns (Person) {
     Person tom = {name : "tom", location : "US"};
     Person bob = {name : "bob", location : "UK"};
     return s == "tom" ? tom : bob;
-}
-
-function test11 (int input) returns (string) {
-    int i = 0;
-    string output = "";
-    while (i < 5) {
-        i = i + 1;
-        try {
-            if (i == 3) {
-                break;
-            }
-        } catch (error e) {
-            output = output + "Error";
-        } finally {
-            output = output + (input == 1 ? "run_" : "time_");
-            output = output + i + " ";
-        }
-    }
-    return output;
-}
-
-function test12 (int input) returns (string) {
-    int i = 0;
-    string output = "";
-    while (i < 5) {
-        i = i + 1;
-        try {
-            if (i == 3) {
-                return output;
-            }
-         } catch (error e) {
-            output = output + "Error";
-        } finally {
-            output = output + (input == 1 ? "run_" : "time_");
-            output = output + i + " ";
-        }
-    }
-    return output;
 }
 
 function testNestedTernary1 (int value) returns (string, string) {
@@ -135,4 +97,18 @@ function testNestedTernary5 (int value) returns (string, string) {
     string s1 = value > 50 ? "morethan50" : value > 30 ? value > 40 ? "morethan40" : "lessthan40" : value > 20 ? "morethan20" : "lessthan20";
     string s2 = value > 50 ? "morethan50" : (value > 30 ? (value > 40 ? "morethan40" : "lessthan40") : (value > 20 ? "morethan20" : "lessthan20"));
     return (s1, s2);
+}
+
+function testErrorInTernary() returns int|error {
+    int x = 8;
+    var result = x > 5 ? decrement(x) : increment(x);
+    return result;
+}
+
+function decrement(int i) returns error|int {
+    return i - 1;
+}
+
+function increment(int i) returns error|int {
+    return i + 1;
 }

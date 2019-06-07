@@ -20,11 +20,15 @@ package org.ballerinalang.nativeimpl.builtin.maplib;
 
 import org.ballerinalang.bre.Context;
 import org.ballerinalang.bre.bvm.BlockingNativeCallableUnit;
+import org.ballerinalang.jvm.Strand;
+import org.ballerinalang.jvm.values.MapValueImpl;
 import org.ballerinalang.model.types.TypeKind;
 import org.ballerinalang.model.values.BMap;
 import org.ballerinalang.model.values.BValue;
 import org.ballerinalang.natives.annotations.Argument;
 import org.ballerinalang.natives.annotations.BallerinaFunction;
+import org.ballerinalang.util.exceptions.BLangFreezeException;
+import org.ballerinalang.util.exceptions.BallerinaException;
 
 /**
  * Extern function to clear map entries.
@@ -40,7 +44,19 @@ public class Clear extends BlockingNativeCallableUnit {
 
     public void execute(Context ctx) {
         BMap<String, BValue> map = (BMap<String, BValue>) ctx.getRefArgument(0);
-        map.clear();
-        ctx.setReturnValues();
+        try {
+            map.clear();
+            ctx.setReturnValues();
+        } catch (BLangFreezeException e) {
+            throw new BallerinaException(e.getMessage(), "Failed to clear map: " + e.getDetail());
+        }
+    }
+
+    public static void clear(Strand strand, MapValueImpl<?, ?> map) {
+        try {
+            map.clear();
+        } catch (BLangFreezeException e) {
+            throw new BallerinaException(e.getMessage(), "Failed to clear map: " + e.getDetail());
+        }
     }
 }

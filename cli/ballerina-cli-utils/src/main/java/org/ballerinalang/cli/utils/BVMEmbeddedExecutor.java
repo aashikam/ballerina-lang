@@ -19,47 +19,79 @@ package org.ballerinalang.cli.utils;
 
 import org.ballerinalang.annotation.JavaSPIService;
 import org.ballerinalang.compiler.BLangCompilerException;
+import org.ballerinalang.model.values.BError;
+import org.ballerinalang.model.values.BValue;
 import org.ballerinalang.spi.EmbeddedExecutor;
+import org.ballerinalang.util.EmbeddedExecutorError;
 
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
-
-import static org.ballerinalang.util.BLangConstants.COLON;
-import static org.ballerinalang.util.BLangConstants.MAIN_FUNCTION_NAME;
+import java.util.Optional;
 
 /**
- * This represents the Ballerina package provider.
+ * This represents the Ballerina module provider.
  *
  * @since 0.964
  */
 @JavaSPIService("org.ballerinalang.spi.EmbeddedExecutor")
 public class BVMEmbeddedExecutor implements EmbeddedExecutor {
+    
+    /**
+     * {@inheritDoc}
+     */
     @Override
-    public void execute(String programArg, boolean isFunction, String... args) {
-        String balxPath = programArg;
-        String functionName = MAIN_FUNCTION_NAME;
-
-        if (isFunction && programArg.contains(COLON)) {
-            String[] programArgConstituents = programArg.split(COLON);
-            functionName = programArgConstituents[programArgConstituents.length - 1];
-            if (functionName.isEmpty() || programArg.endsWith(COLON)) {
-                throw new BLangCompilerException("usage error: expected function name after final ':'");
-            }
-            balxPath = programArg.replace(COLON.concat(functionName), "");
-        }
-
-        URL resource = BVMEmbeddedExecutor.class.getClassLoader()
-                                                .getResource("META-INF/ballerina/" + balxPath);
+    public Optional<EmbeddedExecutorError> executeFunction(String programArg, String... args) {
+        URL resource = BVMEmbeddedExecutor.class.getClassLoader().getResource("META-INF/ballerina/" + programArg);
         if (resource == null) {
-            throw new BLangCompilerException("Missing internal modules when retrieving remote package");
+            throw new BLangCompilerException("missing internal modules when executing");
         }
+        
         try {
             URI balxResource = resource.toURI();
-            // TODO: 8/5/18 return BValue[] ignored 
-            ExecutorUtils.execute(balxResource, isFunction, isFunction ? functionName : null, args);
+            BValue returns = ExecutorUtils.executeFunction(balxResource, args);
+            // Check if the return is an error
+            if (returns instanceof BError) {
+                BError bError = (BError) returns;
+                return Optional.of(createEmbeddedExecutorError(bError));
+            } else {
+                return Optional.empty();
+            }
         } catch (URISyntaxException e) {
-            throw new BLangCompilerException("Error loading internal modules when retrieving remote package");
+            throw new BLangCompilerException("error reading balx path in executor.");
         }
+    }
+    
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void executeService(String balxPath) {
+        URL resource = BVMEmbeddedExecutor.class.getClassLoader().getResource("META-INF/ballerina/" + balxPath);
+        if (resource == null) {
+            throw new BLangCompilerException("missing internal modules when executing");
+        }
+        
+        try {
+            URI balxResource = resource.toURI();
+            ExecutorUtils.executeService(balxResource);
+        } catch (URISyntaxException e) {
+            throw new BLangCompilerException("error reading balx path in executor.");
+        }
+    }
+    
+    /**
+     * Creates an error object for the embedded executor.
+     * @param bError The error from the execution.
+     * @return Created embedded executor error.
+     */
+    private EmbeddedExecutorError createEmbeddedExecutorError(BError bError) {
+        EmbeddedExecutorError error = new EmbeddedExecutorError();
+        error.setMessage(bError.getReason());
+        BError cause = bError.cause;
+        if (cause != null) {
+            error.setCause(createEmbeddedExecutorError(cause));
+        }
+        return error;
     }
 }

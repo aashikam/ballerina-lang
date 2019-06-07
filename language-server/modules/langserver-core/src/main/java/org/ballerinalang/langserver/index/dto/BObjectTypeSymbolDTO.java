@@ -17,27 +17,33 @@
 */
 package org.ballerinalang.langserver.index.dto;
 
+import org.ballerinalang.langserver.index.ObjectType;
 import org.eclipse.lsp4j.CompletionItem;
 
 /**
  * DTO for BObjectTypeSymbol.
+ * 
+ * @since 0.983.0
  */
-public class BObjectTypeSymbolDTO {
-    
+public final class BObjectTypeSymbolDTO {
+
+    private int id;
+
     private int packageId;
-    
-    private String name;
-    
-    private String fields;
-    
-    private ObjectType type;
 
     private boolean isPrivate;
-    
+
+    private String name;
+
+    private String fields;
+
+    private ObjectType type;
+
     private CompletionItem completionItem;
 
-    public BObjectTypeSymbolDTO(int packageId, String name, String fields, ObjectType type, boolean isPrivate,
-                                CompletionItem completionItem) {
+    private BObjectTypeSymbolDTO(int id, int packageId, String name, String fields, ObjectType type,
+                                boolean isPrivate, CompletionItem completionItem) {
+        this.id = id;
         this.packageId = packageId;
         this.name = name;
         this.fields = fields;
@@ -46,11 +52,8 @@ public class BObjectTypeSymbolDTO {
         this.completionItem = completionItem;
     }
 
-    public BObjectTypeSymbolDTO(int packageId, String name, String fields, boolean isPrivate) {
-        this.packageId = packageId;
-        this.name = name;
-        this.fields = fields;
-        this.isPrivate = isPrivate;
+    public int getId() {
+        return id;
     }
 
     public int getPackageId() {
@@ -75,5 +78,65 @@ public class BObjectTypeSymbolDTO {
 
     public CompletionItem getCompletionItem() {
         return completionItem;
+    }
+
+    /**
+     * Builder for BObjectTypeSymbolDTO.
+     */
+    public static class BObjectTypeSymbolDTOBuilder {
+
+        private int id = -1;
+
+        private int packageId = -1;
+
+        private boolean isPrivate;
+
+        private String name = "";
+
+        private String fields = "";
+
+        private ObjectType type;
+
+        private CompletionItem completionItem;
+
+        public BObjectTypeSymbolDTOBuilder setId(int id) {
+            this.id = id;
+            return this;
+        }
+
+        public BObjectTypeSymbolDTOBuilder setPackageId(int packageId) {
+            this.packageId = packageId;
+            return this;
+        }
+
+        public BObjectTypeSymbolDTOBuilder setPrivate(boolean aPrivate) {
+            isPrivate = aPrivate;
+            return this;
+        }
+
+        public BObjectTypeSymbolDTOBuilder setName(String name) {
+            this.name = name;
+            return this;
+        }
+
+        public BObjectTypeSymbolDTOBuilder setFields(String fields) {
+            this.fields = fields;
+            return this;
+        }
+
+        public BObjectTypeSymbolDTOBuilder setType(ObjectType type) {
+            this.type = type;
+            return this;
+        }
+
+        public BObjectTypeSymbolDTOBuilder setCompletionItem(CompletionItem completionItem) {
+            this.completionItem = completionItem;
+            return this;
+        }
+        
+        public BObjectTypeSymbolDTO build() {
+            return new BObjectTypeSymbolDTO(this.id, this.packageId, this.name, this.fields, this.type,
+                    this.isPrivate, this.completionItem);
+        }
     }
 }

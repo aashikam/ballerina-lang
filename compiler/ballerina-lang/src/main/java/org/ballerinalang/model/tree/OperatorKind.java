@@ -40,10 +40,12 @@ public enum OperatorKind {
     IS_ASSIGNABLE("isassignable"),
     NOT("!"),
     LENGTHOF("lengthof"),
+    TYPEOF("typeof"),
     UNTAINT("untaint"),
     INCREMENT("++"),
     DECREMENT("--"),
     CHECK("check"),
+    CHECK_PANIC("checkpanic"),
     ELVIS("?:"),
     BITWISE_AND("&"),
     BITWISE_OR("|"),
@@ -53,7 +55,9 @@ public enum OperatorKind {
     BITWISE_RIGHT_SHIFT(">>"),
     BITWISE_UNSIGNED_RIGHT_SHIFT(">>>"),
     CLOSED_RANGE("..."),
-    HALF_OPEN_RANGE("..<");
+    HALF_OPEN_RANGE("..<"),
+    REF_EQUAL("==="),
+    REF_NOT_EQUAL("!==");
 
     private final String opValue;
 

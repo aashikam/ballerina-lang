@@ -40,18 +40,13 @@ class BByteType extends BType {
     @Override
     @SuppressWarnings("unchecked")
     public <V extends BValue> V getZeroValue() {
-        return (V) new BByte((byte) 0);
+        return (V) new BByte(0);
     }
 
     @Override
     @SuppressWarnings("unchecked")
     public <V extends BValue> V getEmptyValue() {
-        return (V) new BByte((byte) 0);
-    }
-
-    @Override
-    public TypeSignature getSig() {
-        return new TypeSignature(TypeSignature.SIG_BYTE);
+        return (V) new BByte(0);
     }
 
     @Override

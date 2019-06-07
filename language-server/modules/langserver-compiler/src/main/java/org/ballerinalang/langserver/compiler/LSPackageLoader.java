@@ -97,6 +97,9 @@ public class LSPackageLoader {
                     String[] packageNames = packageDir.list(((dir, name) -> !name.startsWith(DOT)));
                     if (packageNames != null) {
                         for (String name : packageNames) {
+                            if ("builtin".equals(name)) {
+                                continue;
+                            }
                             BallerinaPackage ballerinaPackage = new BallerinaPackage(repo, name, null);
                             ballerinaPackages.add(ballerinaPackage);
                         }
@@ -148,10 +151,10 @@ public class LSPackageLoader {
     }
 
     public static List<BallerinaPackage> getSdkPackages() {
-        return sdkPackages;
+        return new ArrayList<>(sdkPackages);
     }
 
     public static List<BallerinaPackage> getHomeRepoPackages() {
-        return homeRepoPackages;
+        return new ArrayList<>(homeRepoPackages);
     }
 }

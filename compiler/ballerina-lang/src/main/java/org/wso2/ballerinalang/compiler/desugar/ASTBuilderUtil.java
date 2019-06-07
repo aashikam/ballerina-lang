@@ -17,56 +17,71 @@
 package org.wso2.ballerinalang.compiler.desugar;
 
 import org.ballerinalang.model.TreeBuilder;
-import org.ballerinalang.model.elements.DocTag;
 import org.ballerinalang.model.elements.Flag;
-import org.ballerinalang.model.symbols.SymbolKind;
+import org.ballerinalang.model.elements.PackageID;
 import org.ballerinalang.model.tree.IdentifierNode;
 import org.ballerinalang.model.tree.NodeKind;
 import org.ballerinalang.model.tree.OperatorKind;
 import org.ballerinalang.model.types.TypeKind;
 import org.wso2.ballerinalang.compiler.semantics.analyzer.SymbolResolver;
 import org.wso2.ballerinalang.compiler.semantics.analyzer.Types;
+import org.wso2.ballerinalang.compiler.semantics.model.BLangBuiltInMethod;
 import org.wso2.ballerinalang.compiler.semantics.model.SymbolTable;
-import org.wso2.ballerinalang.compiler.semantics.model.symbols.BConversionOperatorSymbol;
+import org.wso2.ballerinalang.compiler.semantics.model.symbols.BCastOperatorSymbol;
 import org.wso2.ballerinalang.compiler.semantics.model.symbols.BInvokableSymbol;
 import org.wso2.ballerinalang.compiler.semantics.model.symbols.BObjectTypeSymbol;
 import org.wso2.ballerinalang.compiler.semantics.model.symbols.BOperatorSymbol;
 import org.wso2.ballerinalang.compiler.semantics.model.symbols.BSymbol;
 import org.wso2.ballerinalang.compiler.semantics.model.symbols.BVarSymbol;
+import org.wso2.ballerinalang.compiler.semantics.model.symbols.Symbols;
 import org.wso2.ballerinalang.compiler.semantics.model.types.BInvokableType;
 import org.wso2.ballerinalang.compiler.semantics.model.types.BType;
+import org.wso2.ballerinalang.compiler.tree.BLangErrorVariable;
 import org.wso2.ballerinalang.compiler.tree.BLangFunction;
 import org.wso2.ballerinalang.compiler.tree.BLangIdentifier;
 import org.wso2.ballerinalang.compiler.tree.BLangNodeVisitor;
-import org.wso2.ballerinalang.compiler.tree.BLangVariable;
+import org.wso2.ballerinalang.compiler.tree.BLangRecordVariable;
+import org.wso2.ballerinalang.compiler.tree.BLangService;
+import org.wso2.ballerinalang.compiler.tree.BLangSimpleVariable;
+import org.wso2.ballerinalang.compiler.tree.BLangTupleVariable;
 import org.wso2.ballerinalang.compiler.tree.expressions.BLangBinaryExpr;
+import org.wso2.ballerinalang.compiler.tree.expressions.BLangCheckedExpr;
 import org.wso2.ballerinalang.compiler.tree.expressions.BLangExpression;
 import org.wso2.ballerinalang.compiler.tree.expressions.BLangFieldBasedAccess;
 import org.wso2.ballerinalang.compiler.tree.expressions.BLangIndexBasedAccess;
 import org.wso2.ballerinalang.compiler.tree.expressions.BLangInvocation;
 import org.wso2.ballerinalang.compiler.tree.expressions.BLangIsAssignableExpr;
+import org.wso2.ballerinalang.compiler.tree.expressions.BLangIsLikeExpr;
 import org.wso2.ballerinalang.compiler.tree.expressions.BLangLiteral;
 import org.wso2.ballerinalang.compiler.tree.expressions.BLangMatchExpression;
+import org.wso2.ballerinalang.compiler.tree.expressions.BLangNamedArgsExpression;
 import org.wso2.ballerinalang.compiler.tree.expressions.BLangRecordLiteral;
+import org.wso2.ballerinalang.compiler.tree.expressions.BLangRecordVarRef;
+import org.wso2.ballerinalang.compiler.tree.expressions.BLangServiceConstructorExpr;
 import org.wso2.ballerinalang.compiler.tree.expressions.BLangSimpleVarRef;
 import org.wso2.ballerinalang.compiler.tree.expressions.BLangStatementExpression;
 import org.wso2.ballerinalang.compiler.tree.expressions.BLangTableLiteral;
 import org.wso2.ballerinalang.compiler.tree.expressions.BLangTypeConversionExpr;
 import org.wso2.ballerinalang.compiler.tree.expressions.BLangTypeInit;
+import org.wso2.ballerinalang.compiler.tree.expressions.BLangTypeTestExpr;
 import org.wso2.ballerinalang.compiler.tree.expressions.BLangTypedescExpr;
 import org.wso2.ballerinalang.compiler.tree.expressions.BLangUnaryExpr;
 import org.wso2.ballerinalang.compiler.tree.expressions.BLangVariableReference;
+import org.wso2.ballerinalang.compiler.tree.expressions.BLangXMLTextLiteral;
 import org.wso2.ballerinalang.compiler.tree.statements.BLangAssignment;
 import org.wso2.ballerinalang.compiler.tree.statements.BLangBlockStmt;
 import org.wso2.ballerinalang.compiler.tree.statements.BLangContinue;
+import org.wso2.ballerinalang.compiler.tree.statements.BLangErrorVariableDef;
 import org.wso2.ballerinalang.compiler.tree.statements.BLangExpressionStmt;
 import org.wso2.ballerinalang.compiler.tree.statements.BLangForeach;
 import org.wso2.ballerinalang.compiler.tree.statements.BLangIf;
 import org.wso2.ballerinalang.compiler.tree.statements.BLangMatch;
-import org.wso2.ballerinalang.compiler.tree.statements.BLangMatch.BLangMatchStmtPatternClause;
+import org.wso2.ballerinalang.compiler.tree.statements.BLangRecordDestructure;
+import org.wso2.ballerinalang.compiler.tree.statements.BLangRecordVariableDef;
 import org.wso2.ballerinalang.compiler.tree.statements.BLangReturn;
+import org.wso2.ballerinalang.compiler.tree.statements.BLangSimpleVariableDef;
 import org.wso2.ballerinalang.compiler.tree.statements.BLangStatement;
-import org.wso2.ballerinalang.compiler.tree.statements.BLangVariableDef;
+import org.wso2.ballerinalang.compiler.tree.statements.BLangTupleVariableDef;
 import org.wso2.ballerinalang.compiler.tree.types.BLangType;
 import org.wso2.ballerinalang.compiler.tree.types.BLangValueType;
 import org.wso2.ballerinalang.compiler.util.Name;
@@ -79,6 +94,7 @@ import org.wso2.ballerinalang.util.Lists;
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.List;
+import java.util.stream.Collectors;
 
 /**
  * Some utils methods for building AST nodes at desugar phase.
@@ -116,14 +132,22 @@ public class ASTBuilderUtil {
         }
     }
 
-    static void defineVariable(BLangVariable variable, BSymbol targetSymbol, Names names) {
+    static void appendStatement(BLangStatement stmt, BLangBlockStmt target) {
+        int index = 0;
+        if (target.stmts.size() > 0 && target.stmts.get(target.stmts.size() - 1).getKind() == NodeKind.RETURN) {
+            index = target.stmts.size() - 1;
+        }
+        target.stmts.add(index, stmt);
+    }
+
+    static void defineVariable(BLangSimpleVariable variable, BSymbol targetSymbol, Names names) {
         variable.symbol = new BVarSymbol(0, names.fromIdNode(variable.name), targetSymbol.pkgID, variable.type,
                 targetSymbol);
         targetSymbol.scope.define(variable.symbol.name, variable.symbol);
     }
 
     private static boolean isValueType(BType type) {
-        return type.tag < TypeTags.TYPEDESC;
+        return type.tag < TypeTags.JSON;
     }
 
     static BLangExpression wrapToConversionExpr(BType sourceType, BLangExpression exprToWrap,
@@ -139,7 +163,7 @@ public class ASTBuilderUtil {
         return castExpr;
     }
 
-    private static BConversionOperatorSymbol createUnboxValueOpSymbolToAnyType(BType sourceType, SymbolTable symTable) {
+    private static BCastOperatorSymbol createUnboxValueOpSymbolToAnyType(BType sourceType, SymbolTable symTable) {
         int opcode;
         switch (sourceType.tag) {
             case TypeTags.INT:
@@ -154,6 +178,9 @@ public class ASTBuilderUtil {
             case TypeTags.STRING:
                 opcode = InstructionCodes.S2ANY;
                 break;
+            case TypeTags.DECIMAL:
+                opcode = InstructionCodes.NOP;
+                break;
             default:
                 opcode = InstructionCodes.B2ANY;
                 break;
@@ -161,9 +188,7 @@ public class ASTBuilderUtil {
 
         List<BType> paramTypes = Lists.of(sourceType, symTable.anyType);
         BInvokableType opType = new BInvokableType(paramTypes, symTable.anyType, null);
-        BConversionOperatorSymbol symbol = new BConversionOperatorSymbol(null, opType, null, false, true, opcode);
-        symbol.kind = SymbolKind.CONVERSION_OPERATOR;
-        return symbol;
+        return new BCastOperatorSymbol(null, opType, sourceType, null, false, true, opcode);
     }
 
     static BLangFunction createFunction(DiagnosticPos pos, String name) {
@@ -211,29 +236,34 @@ public class ASTBuilderUtil {
         return ifNode;
     }
 
+    static BLangTypeTestExpr createTypeTestExpr(DiagnosticPos pos, BLangExpression expr, BLangType type) {
+        final BLangTypeTestExpr typeTestExpr = (BLangTypeTestExpr) TreeBuilder.createTypeTestExpressionNode();
+        typeTestExpr.pos = pos;
+        typeTestExpr.expr = expr;
+        typeTestExpr.typeNode = type;
+        return typeTestExpr;
+    }
+
     static BLangForeach createForeach(DiagnosticPos pos,
                                       BLangBlockStmt target,
-                                      BLangSimpleVarRef collectionVarRef,
-                                      List<BLangSimpleVarRef> varRefs,
-                                      List<BType> inputTypes) {
+                                      BLangSimpleVarRef collectionVarRef) {
         final BLangForeach foreach = (BLangForeach) TreeBuilder.createForeachNode();
         foreach.pos = pos;
         target.addStatement(foreach);
         foreach.body = ASTBuilderUtil.createBlockStmt(pos);
         foreach.collection = collectionVarRef;
-        foreach.varRefs.addAll(varRefs);
-        foreach.varTypes = inputTypes;
         return foreach;
     }
 
-    static BLangVariableDef createVariableDefStmt(DiagnosticPos pos, BLangBlockStmt target) {
-        final BLangVariableDef variableDef = createVariableDef(pos);
+    static BLangSimpleVariableDef createVariableDefStmt(DiagnosticPos pos, BLangBlockStmt target) {
+        final BLangSimpleVariableDef variableDef = createVariableDef(pos);
         target.addStatement(variableDef);
         return variableDef;
     }
 
-    static BLangVariableDef createVariableDef(DiagnosticPos pos) {
-        final BLangVariableDef variableDef = (BLangVariableDef) TreeBuilder.createVariableDefinitionNode();
+    static BLangSimpleVariableDef createVariableDef(DiagnosticPos pos) {
+        final BLangSimpleVariableDef variableDef =
+                (BLangSimpleVariableDef) TreeBuilder.createSimpleVariableDefinitionNode();
         variableDef.pos = pos;
         return variableDef;
     }
@@ -243,6 +273,10 @@ public class ASTBuilderUtil {
         assignment.pos = pos;
         target.addStatement(assignment);
         return assignment;
+    }
+
+    static BLangAssignment createAssignmentStmt(DiagnosticPos pos, BLangExpression varRef, BLangExpression rhsExpr) {
+        return createAssignmentStmt(pos, varRef, rhsExpr, false);
     }
 
     static BLangAssignment createAssignmentStmt(DiagnosticPos pos, BLangExpression varRef,
@@ -295,11 +329,12 @@ public class ASTBuilderUtil {
         return blockNode;
     }
 
-    static BLangMatchStmtPatternClause createMatchStatementPattern(DiagnosticPos pos,
-                                                                   BLangVariable variable,
-                                                                   BLangBlockStmt body) {
-        BLangMatchStmtPatternClause patternClause =
-                (BLangMatchStmtPatternClause) TreeBuilder.createMatchStatementPattern();
+    static BLangMatch.BLangMatchTypedBindingPatternClause createMatchStatementPattern(DiagnosticPos pos,
+                                                                                      BLangSimpleVariable variable,
+                                                                                      BLangBlockStmt body) {
+        BLangMatch.BLangMatchTypedBindingPatternClause patternClause =
+                (BLangMatch.BLangMatchTypedBindingPatternClause)
+                        TreeBuilder.createMatchStatementSimpleBindingPattern();
         patternClause.pos = pos;
         patternClause.variable = variable;
         patternClause.body = body;
@@ -309,11 +344,11 @@ public class ASTBuilderUtil {
 
     static BLangMatch createMatchStatement(DiagnosticPos pos,
                                            BLangExpression expr,
-                                           List<BLangMatchStmtPatternClause> patternClauses) {
+                                           List<BLangMatch.BLangMatchTypedBindingPatternClause> patternClauses) {
         BLangMatch matchStmt = (BLangMatch) TreeBuilder.createMatchStatement();
         matchStmt.pos = pos;
         matchStmt.expr = expr;
-        matchStmt.patternClauses = patternClauses;
+        matchStmt.patternClauses.addAll(patternClauses);
         return matchStmt;
     }
 
@@ -354,7 +389,7 @@ public class ASTBuilderUtil {
     }
 
     static BLangExpression generateConversionExpr(BLangExpression varRef, BType target, SymbolResolver symResolver) {
-        if (varRef.type.tag == target.tag || varRef.type.tag > TypeTags.TYPEDESC) {
+        if (varRef.type.tag == target.tag || varRef.type.tag > TypeTags.BOOLEAN) {
             return varRef;
         }
         // Box value using cast expression.
@@ -363,12 +398,24 @@ public class ASTBuilderUtil {
         conversion.expr = varRef;
         conversion.type = target;
         conversion.targetType = target;
-        conversion.conversionSymbol = (BConversionOperatorSymbol) symResolver.resolveConversionOperator(varRef.type,
-                target);
+        conversion.conversionSymbol = (BCastOperatorSymbol) symResolver.resolveCastOperator(varRef, varRef.type,
+                                                                                            target);
         return conversion;
     }
 
-    static List<BLangExpression> generateArgExprs(DiagnosticPos pos, List<BLangVariable> args,
+    static BLangInvocation.BLangBuiltInMethodInvocation createBuiltInMethod(DiagnosticPos pos,
+                                                                            BLangExpression expr,
+                                                                            BInvokableSymbol invokableSymbol,
+                                                                            List<BLangExpression> requiredArgs,
+                                                                            SymbolResolver symResolver,
+                                                                            BLangBuiltInMethod builtInFunction) {
+        BLangInvocation invokeLambda = createInvocationExprMethod(pos, invokableSymbol, requiredArgs,
+                                                                  new ArrayList<>(), new ArrayList<>(), symResolver);
+        invokeLambda.expr = expr;
+        return new BLangInvocation.BLangBuiltInMethodInvocation(invokeLambda, builtInFunction);
+    }
+
+    static List<BLangExpression> generateArgExprs(DiagnosticPos pos, List<BLangSimpleVariable> args,
                                                   List<BVarSymbol> formalParams, SymbolResolver symResolver) {
         List<BLangExpression> argsExpr = new ArrayList<>();
         final List<BLangSimpleVarRef> variableRefList = createVariableRefList(pos, args);
@@ -385,15 +432,16 @@ public class ASTBuilderUtil {
         return argsExpr;
     }
 
-    static BLangInvocation createInvocationExpr(DiagnosticPos pos, BInvokableSymbol invokableSymbol,
-                                                List<BLangVariable> requiredArgs, SymbolResolver symResolver) {
+    public static BLangInvocation createInvocationExpr(DiagnosticPos pos, BInvokableSymbol invokableSymbol,
+                                                List<BLangSimpleVariable> requiredArgs, SymbolResolver symResolver) {
         return createInvocationExpr(pos, invokableSymbol, requiredArgs, new ArrayList<>(), new ArrayList<>(),
                 symResolver);
     }
 
     static BLangInvocation createInvocationExpr(DiagnosticPos pos, BInvokableSymbol invokableSymbol,
-                                                List<BLangVariable> requiredArgs, List<BLangVariable> namedArgs,
-                                                List<BLangVariable> restArgs, SymbolResolver symResolver) {
+                                                List<BLangSimpleVariable> requiredArgs,
+                                                List<BLangSimpleVariable> namedArgs,
+                                                List<BLangSimpleVariable> restArgs, SymbolResolver symResolver) {
         final BLangInvocation invokeLambda = (BLangInvocation) TreeBuilder.createInvocationNode();
         invokeLambda.pos = pos;
         invokeLambda.requiredArgs.addAll(generateArgExprs(pos, requiredArgs, invokableSymbol.params, symResolver));
@@ -414,10 +462,12 @@ public class ASTBuilderUtil {
     }
 
     static BLangInvocation createInvocationExprMethod(DiagnosticPos pos, BInvokableSymbol invokableSymbol,
-                                                List<BLangExpression> requiredArgs, List<BLangVariable> namedArgs,
-                                                List<BLangVariable> restArgs, SymbolResolver symResolver) {
+                                                      List<BLangExpression> requiredArgs,
+                                                      List<BLangSimpleVariable> namedArgs,
+                                                      List<BLangSimpleVariable> restArgs, SymbolResolver symResolver) {
         final BLangInvocation invokeLambda = (BLangInvocation) TreeBuilder.createInvocationNode();
         invokeLambda.pos = pos;
+        invokeLambda.name = createIdentifier(pos, invokableSymbol.name.value);
         invokeLambda.requiredArgs.addAll(requiredArgs);
         invokeLambda.namedArgs
                 .addAll(generateArgExprs(pos, namedArgs, invokableSymbol.defaultableParams, symResolver));
@@ -429,13 +479,13 @@ public class ASTBuilderUtil {
         return invokeLambda;
     }
 
-    static List<BLangSimpleVarRef> createVariableRefList(DiagnosticPos pos, List<BLangVariable> args) {
+    static List<BLangSimpleVarRef> createVariableRefList(DiagnosticPos pos, List<BLangSimpleVariable> args) {
         final List<BLangSimpleVarRef> varRefs = new ArrayList<>();
         args.forEach(variable -> varRefs.add(createVariableRef(pos, variable.symbol)));
         return varRefs;
     }
 
-    static BLangSimpleVarRef createVariableRef(DiagnosticPos pos, BVarSymbol varSymbol) {
+    static BLangSimpleVarRef createVariableRef(DiagnosticPos pos, BSymbol varSymbol) {
         final BLangSimpleVarRef varRef = (BLangSimpleVarRef) TreeBuilder.createSimpleVariableReferenceNode();
         varRef.pos = pos;
         varRef.variableName = createIdentifier(pos, varSymbol.name.value);
@@ -444,12 +494,22 @@ public class ASTBuilderUtil {
         return varRef;
     }
 
-    static BLangVariable createVariable(DiagnosticPos pos,
-                                        String name,
-                                        BType type,
-                                        BLangExpression expr,
-                                        BVarSymbol varSymbol) {
-        final BLangVariable varNode = (BLangVariable) TreeBuilder.createVariableNode();
+    static BLangSimpleVarRef createIgnoreVariableRef(DiagnosticPos pos, SymbolTable symTable) {
+        final BLangSimpleVarRef varRef = (BLangSimpleVarRef) TreeBuilder.createSimpleVariableReferenceNode();
+        varRef.pos = pos;
+        varRef.variableName = createIdentifier(pos, Names.IGNORE.value);
+        varRef.symbol = new BVarSymbol(0, Names.IGNORE, symTable.rootPkgSymbol.scope.owner.pkgID, symTable.noType,
+                symTable.rootPkgSymbol.scope.owner);
+        varRef.type = symTable.noType;
+        return varRef;
+    }
+
+    static BLangSimpleVariable createVariable(DiagnosticPos pos,
+                                              String name,
+                                              BType type,
+                                              BLangExpression expr,
+                                              BVarSymbol varSymbol) {
+        final BLangSimpleVariable varNode = (BLangSimpleVariable) TreeBuilder.createSimpleVariableNode();
         varNode.pos = pos;
         varNode.name = createIdentifier(pos, name);
         varNode.type = type;
@@ -458,15 +518,49 @@ public class ASTBuilderUtil {
         return varNode;
     }
 
-    static BLangVariable createVariable(DiagnosticPos pos, String name, BType type) {
+    public static BLangSimpleVariable createVariable(DiagnosticPos pos, String name, BType type) {
         return createVariable(pos, name, type, null, null);
     }
 
-    static BLangVariableDef createVariableDef(DiagnosticPos pos, BLangVariable variable) {
-        final BLangVariableDef variableDef = (BLangVariableDef) TreeBuilder.createVariableDefinitionNode();
+    public static BLangSimpleVariableDef createVariableDef(DiagnosticPos pos, BLangSimpleVariable variable) {
+        final BLangSimpleVariableDef variableDef =
+                (BLangSimpleVariableDef) TreeBuilder.createSimpleVariableDefinitionNode();
         variableDef.pos = pos;
         variableDef.var = variable;
         return variableDef;
+    }
+
+    static BLangTupleVariableDef createTupleVariableDef(DiagnosticPos pos, BLangTupleVariable variable) {
+        final BLangTupleVariableDef variableDef =
+                (BLangTupleVariableDef) TreeBuilder.createTupleVariableDefinitionNode();
+        variableDef.pos = pos;
+        variableDef.var = variable;
+        return variableDef;
+    }
+
+    static BLangRecordVariableDef createRecordVariableDef(DiagnosticPos pos, BLangRecordVariable variable) {
+        final BLangRecordVariableDef variableDef =
+                (BLangRecordVariableDef) TreeBuilder.createRecordVariableDefinitionNode();
+        variableDef.pos = pos;
+        variableDef.var = variable;
+        return variableDef;
+    }
+
+    static BLangErrorVariableDef createErrorVariableDef(DiagnosticPos pos, BLangErrorVariable variable) {
+        final BLangErrorVariableDef variableDef =
+                (BLangErrorVariableDef) TreeBuilder.createErrorVariableDefinitionNode();
+        variableDef.pos = pos;
+        variableDef.errorVariable = variable;
+        return variableDef;
+    }
+
+    static BLangCheckedExpr createCheckExpr(DiagnosticPos pos, BLangExpression expr, BType returnType) {
+        final BLangCheckedExpr checkExpr = (BLangCheckedExpr) TreeBuilder.createCheckExpressionNode();
+        checkExpr.pos = pos;
+        checkExpr.expr = expr;
+        checkExpr.type = returnType;
+        checkExpr.equivalentErrorTypeList = new ArrayList<>();
+        return checkExpr;
     }
 
     static BLangBinaryExpr createBinaryExpr(DiagnosticPos pos,
@@ -500,11 +594,20 @@ public class ASTBuilderUtil {
         return assignableExpr;
     }
 
+    static BLangIsLikeExpr createIsLikeExpr(DiagnosticPos pos, BLangExpression expr, BLangType typeNode,
+                                            BType retType) {
+        BLangIsLikeExpr isLikeExpr = (BLangIsLikeExpr) TreeBuilder.createIsLikeExpressionNode();
+        isLikeExpr.pos = pos;
+        isLikeExpr.expr = expr;
+        isLikeExpr.typeNode = typeNode;
+        isLikeExpr.type = retType;
+        return isLikeExpr;
+    }
+
     static BLangLiteral createLiteral(DiagnosticPos pos, BType type, Object value) {
         final BLangLiteral literal = (BLangLiteral) TreeBuilder.createLiteralExpression();
         literal.pos = pos;
         literal.value = value;
-        literal.typeTag = type.tag;
         literal.type = type;
         return literal;
     }
@@ -516,16 +619,8 @@ public class ASTBuilderUtil {
         return recordLiteralNode;
     }
 
-    static BLangRecordLiteral.BLangMapLiteral createEmptyMapLiteral(DiagnosticPos pos, BType type) {
-        final BLangRecordLiteral.BLangMapLiteral mapLiteralNode = (BLangRecordLiteral.BLangMapLiteral) TreeBuilder
-                .createTableLiteralNode();
-        mapLiteralNode.pos = pos;
-        mapLiteralNode.type = type;
-        return mapLiteralNode;
-    }
-
     static BLangTypeInit createEmptyTypeInit(DiagnosticPos pos, BType type) {
-        BLangTypeInit objectInitNode = (BLangTypeInit) TreeBuilder.createObjectInitNode();
+        BLangTypeInit objectInitNode = (BLangTypeInit) TreeBuilder.createInitNode();
         objectInitNode.pos = pos;
         objectInitNode.type = type;
 
@@ -541,7 +636,7 @@ public class ASTBuilderUtil {
         invocationNode.name = nameNode;
         invocationNode.pkgAlias = pkgNameNode;
 
-        objectInitNode.objectInitInvocation = invocationNode;
+        objectInitNode.initInvocation = invocationNode;
         return objectInitNode;
     }
 
@@ -552,7 +647,7 @@ public class ASTBuilderUtil {
         return tableLiteralNode;
     }
 
-    static BLangIdentifier createIdentifier(DiagnosticPos pos, String value) {
+    public static BLangIdentifier createIdentifier(DiagnosticPos pos, String value) {
         final BLangIdentifier node = (BLangIdentifier) TreeBuilder.createIdentifierNode();
         node.pos = pos;
         if (value != null) {
@@ -614,15 +709,55 @@ public class ASTBuilderUtil {
         return initFunction;
     }
 
-    public static BLangVariable createReceiver(DiagnosticPos pos, BType type) {
-        BLangVariable receiver = (BLangVariable) TreeBuilder.createVariableNode();
+    static BLangServiceConstructorExpr createServiceConstructor(BLangService service) {
+        BLangServiceConstructorExpr constExpr = (BLangServiceConstructorExpr) TreeBuilder
+                .createServiceConstructorNode();
+        constExpr.pos = service.pos;
+        constExpr.serviceNode = service;
+        constExpr.type = service.symbol.type;
+        return constExpr;
+    }
+
+    public static BLangSimpleVariable createReceiver(DiagnosticPos pos, BType type) {
+        BLangSimpleVariable receiver = (BLangSimpleVariable) TreeBuilder.createSimpleVariableNode();
         receiver.pos = pos;
         IdentifierNode identifier = createIdentifier(Names.SELF.getValue());
         receiver.setName(identifier);
-        receiver.docTag = DocTag.RECEIVER;
-
         receiver.type = type;
         return receiver;
+    }
+
+    public static BLangNamedArgsExpression createNamedArg(String argName, BLangExpression expr) {
+        BLangNamedArgsExpression argExpr = new BLangNamedArgsExpression();
+        argExpr.name = (BLangIdentifier) TreeBuilder.createIdentifierNode();
+        argExpr.name.value = argName;
+        argExpr.expr = expr;
+        return argExpr;
+    }
+
+    public static BVarSymbol duplicateVarSymbol(BVarSymbol varSymbol) {
+        BVarSymbol dupVarSymbol = new BVarSymbol(varSymbol.flags, varSymbol.name,
+                varSymbol.pkgID, varSymbol.type, varSymbol.owner);
+        dupVarSymbol.varIndex = varSymbol.varIndex;
+        dupVarSymbol.tainted = varSymbol.tainted;
+        dupVarSymbol.closure = varSymbol.closure;
+        dupVarSymbol.markdownDocumentation = varSymbol.markdownDocumentation;
+        dupVarSymbol.scope = varSymbol.scope;
+        dupVarSymbol.type = varSymbol.type;
+        dupVarSymbol.kind = varSymbol.kind;
+
+        return dupVarSymbol;
+    }
+
+    static BLangRecordDestructure createRecordDestructureStmt(DiagnosticPos pos, BLangExpression expr,
+                                                              BLangRecordVarRef detail, BLangBlockStmt target) {
+        BLangRecordDestructure destructureStatementNode =
+                (BLangRecordDestructure) TreeBuilder.createRecordDestructureStatementNode();
+        destructureStatementNode.pos = pos;
+        destructureStatementNode.expr = expr;
+        destructureStatementNode.varRef = detail;
+        target.addStatement(destructureStatementNode);
+        return destructureStatementNode;
     }
 
     private static IdentifierNode createIdentifier(String value) {
@@ -631,5 +766,113 @@ public class ASTBuilderUtil {
             node.setValue(value);
         }
         return node;
+    }
+
+    public static BInvokableSymbol duplicateInvokableSymbol(BInvokableSymbol invokableSymbol) {
+        BInvokableSymbol dupFuncSymbol = Symbols.createFunctionSymbol(invokableSymbol.flags, invokableSymbol.name,
+                invokableSymbol.pkgID, invokableSymbol.type, invokableSymbol.owner, invokableSymbol.bodyExist);
+        dupFuncSymbol.receiverSymbol = invokableSymbol.receiverSymbol;
+        dupFuncSymbol.retType = invokableSymbol.retType;
+        dupFuncSymbol.defaultableParams = new ArrayList<>(invokableSymbol.defaultableParams);
+        dupFuncSymbol.restParam = invokableSymbol.restParam;
+        dupFuncSymbol.params = new ArrayList<>(invokableSymbol.params);
+        dupFuncSymbol.taintTable = invokableSymbol.taintTable;
+        dupFuncSymbol.tainted = invokableSymbol.tainted;
+        dupFuncSymbol.closure = invokableSymbol.closure;
+        dupFuncSymbol.markdownDocumentation = invokableSymbol.markdownDocumentation;
+        dupFuncSymbol.scope = invokableSymbol.scope;
+        dupFuncSymbol.tag = invokableSymbol.tag;
+
+        BInvokableType prevFuncType = (BInvokableType) invokableSymbol.type;
+        dupFuncSymbol.type = new BInvokableType(new ArrayList<>(prevFuncType.paramTypes),
+                prevFuncType.retType, prevFuncType.tsymbol);
+        return dupFuncSymbol;
+    }
+
+    public static BInvokableSymbol duplicateInvokableSymbol(BInvokableSymbol invokableSymbol, BSymbol owner,
+                                                            Name newName, PackageID newPkgID) {
+        BInvokableSymbol dupFuncSymbol = Symbols.createFunctionSymbol(invokableSymbol.flags, newName, newPkgID,
+                invokableSymbol.type, owner, invokableSymbol.bodyExist);
+        dupFuncSymbol.receiverSymbol = invokableSymbol.receiverSymbol;
+        dupFuncSymbol.retType = invokableSymbol.retType;
+
+        dupFuncSymbol.defaultableParams = invokableSymbol.defaultableParams.stream()
+                .map(param -> duplicateParamSymbol(param, dupFuncSymbol))
+                .collect(Collectors.toList());
+        dupFuncSymbol.params = invokableSymbol.params.stream()
+                .map(param -> duplicateParamSymbol(param, dupFuncSymbol))
+                .collect(Collectors.toList());
+        if (dupFuncSymbol.restParam != null) {
+            dupFuncSymbol.restParam = duplicateParamSymbol(invokableSymbol.restParam, dupFuncSymbol);
+        }
+
+        dupFuncSymbol.taintTable = invokableSymbol.taintTable;
+        dupFuncSymbol.tainted = invokableSymbol.tainted;
+        dupFuncSymbol.closure = invokableSymbol.closure;
+        dupFuncSymbol.tag = invokableSymbol.tag;
+        dupFuncSymbol.markdownDocumentation = invokableSymbol.markdownDocumentation;
+
+        BInvokableType prevFuncType = (BInvokableType) invokableSymbol.type;
+        dupFuncSymbol.type = new BInvokableType(new ArrayList<>(prevFuncType.paramTypes), prevFuncType.retType,
+                prevFuncType.tsymbol);
+        return dupFuncSymbol;
+    }
+
+    private static BVarSymbol duplicateParamSymbol(BVarSymbol paramSymbol, BInvokableSymbol owner) {
+        BVarSymbol newParamSymbol =
+                new BVarSymbol(paramSymbol.flags, paramSymbol.name, paramSymbol.pkgID, paramSymbol.type, owner);
+        newParamSymbol.tainted = paramSymbol.tainted;
+        newParamSymbol.defaultValue = paramSymbol.defaultValue;
+        newParamSymbol.markdownDocumentation = paramSymbol.markdownDocumentation;
+        return newParamSymbol;
+    }
+
+    static BLangInvocation createLambdaInvocation(DiagnosticPos pos, BInvokableSymbol invokableSymbol,
+                                                  BLangSimpleVarRef varRef, List<BLangSimpleVariable> requiredArgs,
+                                                  SymbolResolver symResolver) {
+        final BLangInvocation invokeLambda = (BLangInvocation) TreeBuilder.createInvocationNode();
+        invokeLambda.pos = pos;
+        BLangIdentifier invocationName = (BLangIdentifier) TreeBuilder.createIdentifierNode();
+        invocationName.setValue(BLangBuiltInMethod.CALL.getName());
+        invokeLambda.name = invocationName;
+        invokeLambda.argExprs.addAll(generateArgExprsForLambdas(pos, requiredArgs, invokableSymbol.params,
+                symResolver));
+        invokeLambda.requiredArgs.addAll(generateArgExprsForLambdas(pos, requiredArgs, invokableSymbol.params,
+                symResolver));
+        invokeLambda.builtInMethod = BLangBuiltInMethod.CALL;
+        invokeLambda.type = ((BInvokableType) invokableSymbol.type).retType;
+        invokeLambda.expr = varRef;
+        invokeLambda.builtinMethodInvocation = true;
+        invokeLambda.symbol = varRef.symbol;
+        return invokeLambda;
+    }
+
+    private static List<BLangExpression> generateArgExprsForLambdas(DiagnosticPos pos, List<BLangSimpleVariable> args,
+                                                                    List<BVarSymbol> formalParams,
+                                                                    SymbolResolver symResolver) {
+        List<BLangExpression> argsExpr = new ArrayList<>();
+        final List<BLangSimpleVarRef> variableRefList = createVariableRefList(pos, args);
+        int mapSymbolsParams = formalParams.size() - args.size();
+        for (int i = 0; i < variableRefList.size(); i++) {
+            BLangSimpleVarRef varRef = variableRefList.get(i);
+            BType target = formalParams.get(i + mapSymbolsParams).type;
+            BType source = varRef.symbol.type;
+            if (source != target) {
+                argsExpr.add(generateConversionExpr(varRef, target, symResolver));
+                continue;
+            }
+            argsExpr.add(varRef);
+        }
+        return argsExpr;
+    }
+
+    static BLangXMLTextLiteral createXMLTextLiteralNode(BLangBinaryExpr parent, BLangExpression concatExpr,
+                                                        DiagnosticPos pos, BType type) {
+        BLangXMLTextLiteral xmlTextLiteral = new BLangXMLTextLiteral();
+        xmlTextLiteral.concatExpr = concatExpr;
+        xmlTextLiteral.pos = pos;
+        xmlTextLiteral.parent = parent;
+        xmlTextLiteral.type = type;
+        return xmlTextLiteral;
     }
 }

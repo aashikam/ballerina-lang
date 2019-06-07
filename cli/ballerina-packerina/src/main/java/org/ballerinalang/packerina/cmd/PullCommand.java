@@ -20,6 +20,7 @@ package org.ballerinalang.packerina.cmd;
 import org.ballerinalang.launcher.BLauncherCmd;
 import org.ballerinalang.launcher.LauncherUtils;
 import org.ballerinalang.model.elements.PackageID;
+import org.ballerinalang.repository.CompilerInput;
 import org.wso2.ballerinalang.compiler.packaging.Patten;
 import org.wso2.ballerinalang.compiler.packaging.converters.Converter;
 import org.wso2.ballerinalang.compiler.packaging.repo.RemoteRepo;
@@ -43,7 +44,7 @@ import static org.ballerinalang.runtime.Constants.SYSTEM_PROP_BAL_DEBUG;
  * @since 0.964
  */
 @CommandLine.Command(name = PULL_COMMAND,
-                description = "download the package source and binaries from a remote repository")
+                description = "download the module source and binaries from a remote repository")
 public class PullCommand implements BLauncherCmd {
     private static PrintStream outStream = System.err;
 
@@ -65,7 +66,7 @@ public class PullCommand implements BLauncherCmd {
         }
 
         if (argList == null || argList.size() == 0) {
-            throw LauncherUtils.createUsageExceptionWithHelp("no package given");
+            throw LauncherUtils.createUsageExceptionWithHelp("no module given");
         }
 
         if (argList.size() > 1) {
@@ -87,14 +88,14 @@ public class PullCommand implements BLauncherCmd {
         if (orgNameIndex != -1) {
             orgName = resourceName.substring(0, orgNameIndex);
             if (orgName.equals("ballerina")) {
-                throw LauncherUtils.createLauncherException("`Ballerina` is the builtin organization and its packages"
+                throw LauncherUtils.createLauncherException("`Ballerina` is the builtin organization and its modules"
                                                                     + " are included in the runtime.");
             }
         } else {
-            throw LauncherUtils.createLauncherException("no package-name provided");
+            throw LauncherUtils.createLauncherException("no module-name provided");
         }
 
-        // Get package name
+        // Get module name
         int packageNameIndex = resourceName.indexOf(":");
         if (packageNameIndex != -1) { // version is provided
             packageName = resourceName.substring(orgNameIndex + 1, packageNameIndex);
@@ -112,11 +113,18 @@ public class PullCommand implements BLauncherCmd {
         Patten patten = remoteRepo.calculate(packageID);
         if (patten != Patten.NULL) {
             Converter converter = remoteRepo.getConverterInstance();
-            patten.convertToSources(converter, packageID).collect(Collectors.toList());
-
+            List<CompilerInput> compilerInputs = patten.convertToSources(converter, packageID)
+                                                       .collect(Collectors.toList());
+            if (compilerInputs.size() == 0) {
+                // Exit status, zero for OK, non-zero for error
+                Runtime.getRuntime().exit(1);
+            }
         } else {
-            outStream.println("couldn't find package " + patten);
+            outStream.println("couldn't find module " + patten);
+            // Exit status, zero for OK, non-zero for error
+            Runtime.getRuntime().exit(1);
         }
+        // Exit status, zero for OK, non-zero for error
         Runtime.getRuntime().exit(0);
     }
 
@@ -127,19 +135,15 @@ public class PullCommand implements BLauncherCmd {
 
     @Override
     public void printLongDesc(StringBuilder out) {
-        out.append("download packages to the user repository \n");
+        out.append("download modules to the user repository \n");
     }
 
     @Override
     public void printUsage(StringBuilder out) {
-        out.append("  ballerina pull <package-name> \n");
+        out.append("  ballerina pull <module-name> \n");
     }
 
     @Override
     public void setParentCmdParser(CommandLine parentCmdParser) {
-    }
-
-    @Override
-    public void setSelfCmdParser(CommandLine selfCmdParser) {
     }
 }

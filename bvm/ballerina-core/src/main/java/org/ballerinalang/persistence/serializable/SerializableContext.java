@@ -16,10 +16,10 @@
  */
 package org.ballerinalang.persistence.serializable;
 
-import org.ballerinalang.bre.bvm.CallableWorkerResponseContext;
-import org.ballerinalang.bre.bvm.WorkerData;
-import org.ballerinalang.bre.bvm.WorkerExecutionContext;
-import org.ballerinalang.bre.bvm.WorkerState;
+import org.ballerinalang.bre.old.CallableWorkerResponseContext;
+import org.ballerinalang.bre.old.WorkerData;
+import org.ballerinalang.bre.old.WorkerExecutionContext;
+import org.ballerinalang.bre.old.WorkerState;
 import org.ballerinalang.model.util.serializer.JsonSerializer;
 import org.ballerinalang.persistence.Deserializer;
 import org.ballerinalang.persistence.Serializer;
@@ -27,7 +27,6 @@ import org.ballerinalang.runtime.Constants;
 import org.ballerinalang.util.codegen.CallableUnitInfo;
 import org.ballerinalang.util.codegen.PackageInfo;
 import org.ballerinalang.util.codegen.ProgramFile;
-import org.ballerinalang.util.codegen.ResourceInfo;
 import org.ballerinalang.util.codegen.ServiceInfo;
 import org.ballerinalang.util.codegen.WorkerInfo;
 
@@ -87,9 +86,6 @@ public class SerializableContext {
         runInCaller = ctx.runInCaller;
         interruptible = ctx.interruptible;
         if (ctx.callableUnitInfo != null) {
-            if (ctx.callableUnitInfo instanceof ResourceInfo) {
-                enclosingServiceName = ((ResourceInfo) ctx.callableUnitInfo).getServiceInfo().getName();
-            }
             callableUnitName = ctx.callableUnitInfo.getName();
             callableUnitPkgPath = ctx.callableUnitInfo.getPkgPath();
         }

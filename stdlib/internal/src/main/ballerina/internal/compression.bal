@@ -12,44 +12,39 @@
 // "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
 // KIND, either express or implied.  See the License for the
 // specific language governing permissions and limitations
-// under the License.package internal;
-
-import ballerina/file;
+// under the License.
 
 # Represent all compression related errors.
 #
 # + message - The error message
-# + cause - The error which caused the compression error
-public type CompressionError record {
+public type CompressionError record {|
     string message;
-    error? cause;
-    !...
-};
+|};
 
 # Decompresses a byte array into a directory.
 #
 # + content - Byte array of the compressed file
 # + destDir - Path of the directory to decompress the file
 # + return - An error if an error occurs during the decompression process
-public extern function decompressFromByteArray(byte[] content, Path destDir) returns CompressionError?;
+public function decompressFromByteArray(byte[] content, Path destDir) returns error? = external;
 
 # Decompresses a compressed file.
 #
 # + dirPath - Path of the compressed file
 # + destDir - Path of the directory to decompress the file
 # + return - An error if an error occurs during the decompression process
-public extern function decompress(Path dirPath, Path destDir) returns CompressionError?;
+public function decompress(Path dirPath, Path destDir) returns error? = external;
 
 # Compresses a directory.
 #
 # + dirPath - Path of the directory to be compressed
 # + destDir - Path of the directory to place the compressed file
 # + return - An error if an error occurs during the compression process
-public extern function compress(Path dirPath, Path destDir) returns CompressionError?;
+public function compress(Path dirPath, Path destDir) returns error? = external;
 
 # Compresses a directory into a byte array.
 #
 # + dirPath - Path of the directory to be compressed
 # + return - Compressed byte array of the file.
 #            An error if an error occurs during the compression process.
-public extern function compressToByteArray(Path dirPath) returns byte[]|CompressionError;
+public function compressToByteArray(Path dirPath) returns byte[]|error = external;

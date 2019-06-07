@@ -21,6 +21,7 @@ import org.ballerinalang.test.BaseTest;
 import org.ballerinalang.test.context.BallerinaTestException;
 import org.ballerinalang.test.context.LogLeecher;
 import org.ballerinalang.test.context.LogLeecher.LeecherType;
+import org.ballerinalang.test.utils.TestUtils;
 import org.testng.annotations.AfterClass;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
@@ -29,8 +30,7 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-
-import static org.ballerinalang.test.utils.PackagingTestUtils.deleteFiles;
+import java.nio.file.Paths;
 
 /**
  * This class tests invoking an entry function in a balx via the Ballerina Run Command and the data binding
@@ -44,36 +44,52 @@ import static org.ballerinalang.test.utils.PackagingTestUtils.deleteFiles;
  */
 public class BalxRunFunctionNegativeTestCase extends BaseTest {
 
-    private String sourceRoot = (new File("src/test/resources/run/balx/")).getAbsolutePath();
-
-    private Path tempProjectDir;
+    private static final int LOG_LEECHER_TIMEOUT = 10000;
     private String balxPath;
+    private String balxPathTwo;
+    private Path tempProjectDir;
+    private Path tempProjectDirTwo;
 
     @BeforeClass()
     public void setUp() throws BallerinaTestException, IOException {
         tempProjectDir = Files.createTempDirectory("temp-entry-func-test");
-        String fileName = "test_entry_function.bal";
-        String[] clientArgs = {"-o", tempProjectDir.toString().concat(File.separator).concat("entry"),
-                sourceRoot.concat(File.separator).concat(fileName)};
-        balClient.runMain("build", clientArgs, null, new String[0],
-                new LogLeecher[0], tempProjectDir.toString());
+        String[] clientArgs = {"-o", Paths.get(tempProjectDir.toString(), "entry").toString(),
+                (new File("src/test/resources/run/balx/multiple_params/test_main_with_multiple_typed_params.bal"))
+                        .getAbsolutePath()};
+        balClient.runMain("build", clientArgs, null, new String[0], new LogLeecher[0],
+                          tempProjectDir.toString());
         Path generatedBalx = tempProjectDir.resolve("entry.balx");
         balxPath = generatedBalx.toString();
+
+        tempProjectDirTwo = Files.createTempDirectory("temp-entry-func-test-two");
+        clientArgs = new String[]{"-o", Paths.get(tempProjectDirTwo.toString(), "entry").toString(),
+                (new File("src/test/resources/run/balx/no_params/test_main_with_no_params.bal")).getAbsolutePath()};
+        balClient.runMain("build", clientArgs, null, new String[0], new LogLeecher[0], tempProjectDirTwo.toString());
+        generatedBalx = tempProjectDirTwo.resolve("entry.balx");
+        balxPathTwo = generatedBalx.toString();
     }
 
-    @Test
-    public void testEmptyEntryFunctionName() throws BallerinaTestException {
-        String sourceArg = balxPath + ":";
-        LogLeecher errLogLeecher = new LogLeecher("ballerina: expected function name after final ':'",
-                LeecherType.ERROR);
-        balClient.runMain(sourceArg, new LogLeecher[]{errLogLeecher});
-        errLogLeecher.waitForText(2000);
+    @Test(description = "test insufficient arguments")
+    public void testInsufficientArguments() throws BallerinaTestException {
+        LogLeecher errLogLeecher = new LogLeecher("ballerina: insufficient arguments to call the 'main' function",
+                                                  LeecherType.ERROR);
+        balClient.runMain(balxPath, new LogLeecher[]{errLogLeecher});
+        errLogLeecher.waitForText(LOG_LEECHER_TIMEOUT);
+    }
+
+    @Test(description = "test too many arguments")
+    public void testTooManyArguments() throws BallerinaTestException {
+        LogLeecher errLogLeecher = new LogLeecher("ballerina: too many arguments to call the 'main' function",
+                                                  LeecherType.ERROR);
+        balClient.runMain(balxPathTwo, new String[]{}, new String[]{"extra"}, new LogLeecher[]{errLogLeecher});
+        errLogLeecher.waitForText(LOG_LEECHER_TIMEOUT);
     }
 
     @AfterClass
     public void tearDown() throws BallerinaTestException {
         try {
-            deleteFiles(tempProjectDir);
+            TestUtils.deleteFiles(tempProjectDir);
+            TestUtils.deleteFiles(tempProjectDirTwo);
         } catch (IOException e) {
             throw new BallerinaTestException("Error deleting files");
         }

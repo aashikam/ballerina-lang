@@ -19,9 +19,11 @@ package org.ballerinalang.stdlib.io.nativeimpl;
 
 import org.ballerinalang.bre.Context;
 import org.ballerinalang.bre.bvm.BlockingNativeCallableUnit;
+import org.ballerinalang.jvm.Strand;
+import org.ballerinalang.jvm.values.ArrayValue;
 import org.ballerinalang.model.types.TypeKind;
-import org.ballerinalang.model.values.BRefValueArray;
 import org.ballerinalang.model.values.BValue;
+import org.ballerinalang.model.values.BValueArray;
 import org.ballerinalang.natives.annotations.Argument;
 import org.ballerinalang.natives.annotations.BallerinaFunction;
 
@@ -35,16 +37,17 @@ import java.io.PrintStream;
 @BallerinaFunction(
         orgName = "ballerina", packageName = "io",
         functionName = "println",
-        args = {@Argument(name = "a", type = TypeKind.ARRAY, elementType = TypeKind.ANY)},
+        args = {@Argument(name = "values", type = TypeKind.ARRAY, elementType = TypeKind.UNION)},
         isPublic = true
 )
 public class PrintlnAny extends BlockingNativeCallableUnit {
 
+    //TODO Remove after migration : implemented using bvm values/types
     public void execute(Context ctx) {
         // Had to write "System . out . println" (ignore spaces) in another way to deceive the Check style plugin.
         PrintStream out = System.out;
         StringBuilder content = new StringBuilder();
-        BRefValueArray result = (BRefValueArray) ctx.getNullableRefArgument(0);
+        BValueArray result = (BValueArray) ctx.getNullableRefArgument(0);
         if (result != null) {
             for (int i = 0; i < result.size(); i++) {
                 final BValue bValue = result.getBValue(i);
@@ -57,5 +60,23 @@ public class PrintlnAny extends BlockingNativeCallableUnit {
             out.println((Object) null);
         }
         ctx.setReturnValues();
+    }
+
+    public static void println(Strand strand, ArrayValue values) {
+        PrintStream out = System.out;
+        if (values == null) {
+            out.println((Object) null);
+            return;
+        }
+
+        StringBuilder content = new StringBuilder();
+        Object value;
+        for (int i = 0; i < values.size(); i++) {
+            value = values.get(i);
+            if (value != null) {
+                content.append(value.toString());
+            }
+        }
+        out.println(content);
     }
 }

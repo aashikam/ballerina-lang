@@ -17,21 +17,21 @@
  */
 package org.wso2.ballerinalang.compiler.tree;
 
+import org.ballerinalang.model.TreeBuilder;
 import org.ballerinalang.model.elements.Flag;
 import org.ballerinalang.model.tree.AnnotationAttachmentNode;
-import org.ballerinalang.model.tree.DeprecatedNode;
 import org.ballerinalang.model.tree.EndpointNode;
 import org.ballerinalang.model.tree.IdentifierNode;
 import org.ballerinalang.model.tree.InvokableNode;
 import org.ballerinalang.model.tree.MarkdownDocumentationNode;
-import org.ballerinalang.model.tree.VariableNode;
+import org.ballerinalang.model.tree.SimpleVariableNode;
 import org.ballerinalang.model.tree.WorkerNode;
 import org.ballerinalang.model.tree.statements.BlockNode;
 import org.ballerinalang.model.tree.statements.VariableDefinitionNode;
 import org.ballerinalang.model.tree.types.TypeNode;
 import org.wso2.ballerinalang.compiler.semantics.model.symbols.BInvokableSymbol;
 import org.wso2.ballerinalang.compiler.tree.statements.BLangBlockStmt;
-import org.wso2.ballerinalang.compiler.tree.statements.BLangVariableDef;
+import org.wso2.ballerinalang.compiler.tree.statements.BLangSimpleVariableDef;
 import org.wso2.ballerinalang.compiler.tree.types.BLangType;
 
 import java.util.ArrayList;
@@ -45,19 +45,21 @@ import java.util.Set;
  */
 public abstract class BLangInvokableNode extends BLangNode implements InvokableNode {
 
+    public static final String DEFAULT_WORKER_NAME = "default";
+
     public BLangIdentifier name;
-    public List<BLangVariable> requiredParams;
+    public BLangIdentifier defaultWorkerName;
+    public List<BLangSimpleVariable> requiredParams;
     public BLangType returnTypeNode;
     public List<BLangAnnotationAttachment> returnTypeAnnAttachments;
     public BLangBlockStmt body;
     public Set<Flag> flagSet;
     public List<BLangAnnotationAttachment> annAttachments;
     public BLangMarkdownDocumentation markdownDocumentationAttachment;
-    public List<BLangDeprecatedNode> deprecatedAttachments;
     public List<BLangEndpoint> endpoints;
     public List<BLangWorker> workers;
-    public List<BLangVariableDef> defaultableParams;
-    public BLangVariable restParam;
+    public List<BLangSimpleVariableDef> defaultableParams;
+    public BLangSimpleVariable restParam;
 
     public BInvokableSymbol symbol;
 
@@ -70,8 +72,9 @@ public abstract class BLangInvokableNode extends BLangNode implements InvokableN
         this.endpoints = new ArrayList<>();
         this.flagSet = EnumSet.noneOf(Flag.class);
         this.workers = new ArrayList<>();
-        this.deprecatedAttachments = new ArrayList<>();
         this.defaultableParams = new ArrayList<>();
+        this.defaultWorkerName = (BLangIdentifier) TreeBuilder.createIdentifierNode();
+        this.defaultWorkerName.value = DEFAULT_WORKER_NAME;
     }
 
     @Override
@@ -85,13 +88,13 @@ public abstract class BLangInvokableNode extends BLangNode implements InvokableN
     }
 
     @Override
-    public List<BLangVariable> getParameters() {
+    public List<BLangSimpleVariable> getParameters() {
         return requiredParams;
     }
 
     @Override
-    public void addParameter(VariableNode param) {
-        this.getParameters().add((BLangVariable) param);
+    public void addParameter(SimpleVariableNode param) {
+        this.getParameters().add((BLangSimpleVariable) param);
     }
 
     @Override
@@ -155,16 +158,6 @@ public abstract class BLangInvokableNode extends BLangNode implements InvokableN
     }
 
     @Override
-    public List<BLangDeprecatedNode> getDeprecatedAttachments() {
-        return deprecatedAttachments;
-    }
-
-    @Override
-    public void addDeprecatedAttachment(DeprecatedNode deprecatedNode) {
-        this.deprecatedAttachments.add((BLangDeprecatedNode) deprecatedNode);
-    }
-
-    @Override
     public void addWorker(WorkerNode worker) {
         this.workers.add((BLangWorker) worker);
     }
@@ -175,23 +168,23 @@ public abstract class BLangInvokableNode extends BLangNode implements InvokableN
     }
 
     @Override
-    public List<BLangVariableDef> getDefaultableParameters() {
+    public List<BLangSimpleVariableDef> getDefaultableParameters() {
         return defaultableParams;
     }
 
     @Override
     public void addDefaultableParameter(VariableDefinitionNode param) {
-        this.defaultableParams.add((BLangVariableDef) param);
+        this.defaultableParams.add((BLangSimpleVariableDef) param);
     }
 
     @Override
-    public VariableNode getRestParameters() {
+    public SimpleVariableNode getRestParameters() {
         return restParam;
     }
 
     @Override
-    public void setRestParameter(VariableNode restParam) {
-        this.restParam = (BLangVariable) restParam;
+    public void setRestParameter(SimpleVariableNode restParam) {
+        this.restParam = (BLangSimpleVariable) restParam;
     }
 
     @Override

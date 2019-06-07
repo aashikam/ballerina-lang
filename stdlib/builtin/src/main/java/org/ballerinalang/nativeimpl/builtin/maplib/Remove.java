@@ -20,6 +20,8 @@ package org.ballerinalang.nativeimpl.builtin.maplib;
 
 import org.ballerinalang.bre.Context;
 import org.ballerinalang.bre.bvm.BlockingNativeCallableUnit;
+import org.ballerinalang.jvm.Strand;
+import org.ballerinalang.jvm.values.MapValueImpl;
 import org.ballerinalang.model.types.TypeKind;
 import org.ballerinalang.model.values.BBoolean;
 import org.ballerinalang.model.values.BMap;
@@ -27,6 +29,8 @@ import org.ballerinalang.model.values.BValue;
 import org.ballerinalang.natives.annotations.Argument;
 import org.ballerinalang.natives.annotations.BallerinaFunction;
 import org.ballerinalang.natives.annotations.ReturnType;
+import org.ballerinalang.util.exceptions.BLangFreezeException;
+import org.ballerinalang.util.exceptions.BallerinaException;
 
 /**
  * Extern function to remove element from the map.
@@ -44,7 +48,17 @@ public class Remove extends BlockingNativeCallableUnit {
 
     public void execute(Context ctx) {
         BMap<String, BValue> map = (BMap<String, BValue>) ctx.getRefArgument(0);
-        boolean isRemoved = map.remove(ctx.getStringArgument(0));
-        ctx.setReturnValues(new BBoolean(isRemoved));
+        try {
+            boolean isRemoved = map.remove(ctx.getStringArgument(0));
+            ctx.setReturnValues(new BBoolean(isRemoved));
+        } catch (BLangFreezeException e) {
+            throw new BallerinaException(e.getMessage(), "Failed to remove element from map: " + e.getDetail());
+        }
+    }
+
+    public static boolean remove(Strand strand, MapValueImpl<?, ?> map, String key) {
+        boolean constains = map.containsKey(key);
+        map.remove(key);
+        return constains;
     }
 }

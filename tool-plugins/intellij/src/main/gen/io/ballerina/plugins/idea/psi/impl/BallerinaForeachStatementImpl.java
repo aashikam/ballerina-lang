@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2018, WSO2 Inc. (http://www.wso2.org) All Rights Reserved.
+ *  Copyright (c) 2019, WSO2 Inc. (http://www.wso2.org) All Rights Reserved.
  *
  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  you may not use this file except in compliance with the License.
@@ -24,9 +24,10 @@ import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiElementVisitor;
 import com.intellij.psi.util.PsiTreeUtil;
 import static io.ballerina.plugins.idea.psi.BallerinaTypes.*;
+import com.intellij.extapi.psi.ASTWrapperPsiElement;
 import io.ballerina.plugins.idea.psi.*;
 
-public class BallerinaForeachStatementImpl extends BallerinaCompositeElementImpl implements BallerinaForeachStatement {
+public class BallerinaForeachStatementImpl extends ASTWrapperPsiElement implements BallerinaForeachStatement {
 
   public BallerinaForeachStatementImpl(@NotNull ASTNode node) {
     super(node);
@@ -43,20 +44,26 @@ public class BallerinaForeachStatementImpl extends BallerinaCompositeElementImpl
 
   @Override
   @Nullable
+  public BallerinaBindingPattern getBindingPattern() {
+    return findChildByClass(BallerinaBindingPattern.class);
+  }
+
+  @Override
+  @Nullable
   public BallerinaBlock getBlock() {
-    return PsiTreeUtil.getChildOfType(this, BallerinaBlock.class);
+    return findChildByClass(BallerinaBlock.class);
   }
 
   @Override
   @Nullable
   public BallerinaExpression getExpression() {
-    return PsiTreeUtil.getChildOfType(this, BallerinaExpression.class);
+    return findChildByClass(BallerinaExpression.class);
   }
 
   @Override
   @Nullable
-  public BallerinaVariableReferenceList getVariableReferenceList() {
-    return PsiTreeUtil.getChildOfType(this, BallerinaVariableReferenceList.class);
+  public BallerinaTypeName getTypeName() {
+    return findChildByClass(BallerinaTypeName.class);
   }
 
   @Override
@@ -86,13 +93,19 @@ public class BallerinaForeachStatementImpl extends BallerinaCompositeElementImpl
   @Override
   @NotNull
   public PsiElement getForeach() {
-    return notNullChild(findChildByType(FOREACH));
+    return findNotNullChildByType(FOREACH);
   }
 
   @Override
   @Nullable
   public PsiElement getIn() {
     return findChildByType(IN);
+  }
+
+  @Override
+  @Nullable
+  public PsiElement getVar() {
+    return findChildByType(VAR);
   }
 
 }

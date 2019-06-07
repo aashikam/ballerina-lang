@@ -17,14 +17,15 @@
  */
 package org.ballerinalang.test.types.bytetype;
 
-import org.ballerinalang.launcher.util.BCompileUtil;
-import org.ballerinalang.launcher.util.BRunUtil;
-import org.ballerinalang.launcher.util.CompileResult;
+import org.ballerinalang.model.types.BTypes;
 import org.ballerinalang.model.values.BBoolean;
 import org.ballerinalang.model.values.BByte;
-import org.ballerinalang.model.values.BByteArray;
 import org.ballerinalang.model.values.BInteger;
 import org.ballerinalang.model.values.BValue;
+import org.ballerinalang.model.values.BValueArray;
+import org.ballerinalang.test.util.BCompileUtil;
+import org.ballerinalang.test.util.BRunUtil;
+import org.ballerinalang.test.util.CompileResult;
 import org.testng.Assert;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
@@ -60,8 +61,7 @@ public class BByteValueTest {
     public void testByteValueSpace() {
         BValue[] returns = BRunUtil.invoke(result, "testByteValueSpace", new BValue[]{});
         BByte byteValue = (BByte) returns[0];
-        Assert.assertEquals(byteValue.stringValue(), Integer.toString(Byte.toUnsignedInt((byte) 234)),
-                "Invalid byte value returned.");
+        Assert.assertEquals(byteValue.byteValue(), 234, "Invalid byte value returned.");
     }
 
     @Test(description = "Test byte default value")
@@ -84,7 +84,7 @@ public class BByteValueTest {
     }
 
     private void invokeByteInputFunction(String functionName) {
-        byte input = 34;
+        long input = 34;
         BValue[] args = {new BByte(input)};
         BValue[] returns = BRunUtil.invoke(result, functionName, args);
         Assert.assertEquals(returns.length, 1);
@@ -95,13 +95,13 @@ public class BByteValueTest {
 
     @Test(description = "Test byte to integer cast")
     public void testByteToIntCast() {
-        byte input = 12;
+        long input = 12;
         BValue[] args = {new BByte(input)};
         BValue[] returns = BRunUtil.invoke(result, "testByteToIntCast", args);
         Assert.assertEquals(returns.length, 1);
         Assert.assertSame(returns[0].getClass(), BInteger.class);
         BInteger intValue = (BInteger) returns[0];
-        Assert.assertEquals(intValue.intValue(), (int) input, "Invalid integer value returned.");
+        Assert.assertEquals(intValue.intValue(), input, "Invalid integer value returned.");
     }
 
     @Test(description = "Test integer to byte cast")
@@ -112,7 +112,7 @@ public class BByteValueTest {
         Assert.assertEquals(returns.length, 1);
         Assert.assertSame(returns[0].getClass(), BByte.class);
         BByte bByte = (BByte) returns[0];
-        Assert.assertEquals(bByte.byteValue(), (byte) input, "Invalid byte value returned.");
+        Assert.assertEquals(bByte.byteValue(), (long) input, "Invalid byte value returned.");
     }
 
     @Test(description = "Test integer to byte explicit cast")
@@ -123,7 +123,7 @@ public class BByteValueTest {
         Assert.assertEquals(returns.length, 1);
         Assert.assertSame(returns[0].getClass(), BByte.class);
         BByte bByte = (BByte) returns[0];
-        Assert.assertEquals(bByte.byteValue(), (byte) input, "Invalid byte value returned.");
+        Assert.assertEquals(bByte.byteValue(), (long) input, "Invalid byte value returned.");
     }
 
     @Test(description = "Test integer to byte conversion")
@@ -134,18 +134,18 @@ public class BByteValueTest {
         Assert.assertEquals(returns.length, 1);
         Assert.assertSame(returns[0].getClass(), BByte.class);
         BByte bByte = (BByte) returns[0];
-        Assert.assertEquals(bByte.byteValue(), (byte) input, "Invalid byte value returned.");
+        Assert.assertEquals(bByte.byteValue(), (long) input, "Invalid byte value returned.");
     }
 
     @Test(description = "Test byte to integer conversion")
     public void testByteToIntConversion() {
-        byte input = 45;
+        long input = 45;
         BValue[] args = {new BByte(input)};
         BValue[] returns = BRunUtil.invoke(result, "testByteToIntConversion", args);
         Assert.assertEquals(returns.length, 1);
         Assert.assertSame(returns[0].getClass(), BInteger.class);
         BInteger bInteger = (BInteger) returns[0];
-        Assert.assertEquals(bInteger.intValue(), (long) input, "Invalid integer value returned.");
+        Assert.assertEquals(bInteger.intValue(), input, "Invalid integer value returned.");
     }
 
     @Test(description = "Test byte to int safe conversion")
@@ -173,7 +173,7 @@ public class BByteValueTest {
         BValue[] args = {};
         BValue[] returns = BRunUtil.invoke(result, "testByteArray", args);
         Assert.assertEquals(returns.length, 1);
-        Assert.assertSame(returns[0].getClass(), BByteArray.class);
+        Assert.assertSame(returns[0].getClass(), BValueArray.class);
     }
 
     @Test(description = "Test byte array assignment")
@@ -183,7 +183,7 @@ public class BByteValueTest {
         byte input3 = 89;
         byte input4 = 23;
 
-        BByteArray bByteArrayIn = new BByteArray();
+        BValueArray bByteArrayIn = new BValueArray(BTypes.typeByte);
         bByteArrayIn.add(0, input1);
         bByteArrayIn.add(1, input2);
         bByteArrayIn.add(2, input3);
@@ -192,13 +192,13 @@ public class BByteValueTest {
 
         BValue[] returns = BRunUtil.invoke(result, "testByteArrayAssignment", args);
         Assert.assertEquals(returns.length, 1);
-        Assert.assertSame(returns[0].getClass(), BByteArray.class);
-        BByteArray bByteArrayOut = (BByteArray) returns[0];
+        Assert.assertSame(returns[0].getClass(), BValueArray.class);
+        BValueArray bByteArrayOut = (BValueArray) returns[0];
 
-        Assert.assertEquals(bByteArrayOut.get(0), input1);
-        Assert.assertEquals(bByteArrayOut.get(1), input2);
-        Assert.assertEquals(bByteArrayOut.get(2), input3);
-        Assert.assertEquals(bByteArrayOut.get(3), input4);
+        Assert.assertEquals(bByteArrayOut.getByte(0), input1);
+        Assert.assertEquals(bByteArrayOut.getByte(1), input2);
+        Assert.assertEquals(bByteArrayOut.getByte(2), input3);
+        Assert.assertEquals(bByteArrayOut.getByte(3), input4);
     }
 
 
@@ -362,7 +362,7 @@ public class BByteValueTest {
         BInteger bInteger2 = (BInteger) returns[2];
         BInteger bInteger3 = (BInteger) returns[3];
         BInteger bInteger4 = (BInteger) returns[4];
-        Assert.assertEquals(bByte.byteValue(), a & b, "Invalid result");
+        Assert.assertEquals(bByte.value().byteValue(), a & b, "Invalid result");
         Assert.assertEquals(bInteger1.intValue(), Byte.toUnsignedInt(a) & Byte.toUnsignedInt(b), "Invalid result");
         Assert.assertEquals(bInteger2.intValue(), Byte.toUnsignedInt(a) & i, "Invalid result");
         Assert.assertEquals(bInteger3.intValue(), i & j, "Invalid result");
@@ -406,7 +406,7 @@ public class BByteValueTest {
         BInteger bInteger2 = (BInteger) returns[2];
         BInteger bInteger3 = (BInteger) returns[3];
         BInteger bInteger4 = (BInteger) returns[4];
-        Assert.assertEquals(bByte.byteValue(), a | b, "Invalid result");
+        Assert.assertEquals(bByte.value().byteValue(), a | b, "Invalid result");
         Assert.assertEquals(bInteger1.intValue(), Byte.toUnsignedInt(a) | Byte.toUnsignedInt(b), "Invalid result");
         Assert.assertEquals(bInteger2.intValue(), Byte.toUnsignedInt(a) | i, "Invalid result");
         Assert.assertEquals(bInteger3.intValue(), i | j, "Invalid result");
@@ -451,7 +451,7 @@ public class BByteValueTest {
         BInteger bInteger2 = (BInteger) returns[2];
         BInteger bInteger3 = (BInteger) returns[3];
         BInteger bInteger4 = (BInteger) returns[4];
-        Assert.assertEquals(bByte.byteValue(), a ^ b, "Invalid result");
+        Assert.assertEquals(bByte.value().byteValue(), a ^ b, "Invalid result");
         Assert.assertEquals(bInteger1.intValue(), Byte.toUnsignedInt(a) ^ Byte.toUnsignedInt(b), "Invalid result");
         Assert.assertEquals(bInteger2.intValue(), Byte.toUnsignedInt(a) ^ i, "Invalid result");
         Assert.assertEquals(bInteger3.intValue(), i ^ j, "Invalid result");
@@ -486,7 +486,7 @@ public class BByteValueTest {
         BByte bByte1 = (BByte) returns[0];
         BInteger bInteger2 = (BInteger) returns[1];
         BByte bByte2 = (BByte) returns[2];
-        Assert.assertEquals(bByte1.byteValue(), (byte) (a >> b), "Invalid result");
+        Assert.assertEquals(bByte1.value().byteValue(), (byte) (a >> b), "Invalid result");
         Assert.assertEquals(bByte1.intValue(), Byte.toUnsignedInt((byte) (a >> b)), "Invalid result");
         Assert.assertEquals(bInteger2.intValue(), ((long) i >> (long) j), "Invalid result");
         Assert.assertEquals(bByte2.intValue(), Byte.toUnsignedInt((byte) (a >> j)), "Invalid result");
@@ -558,7 +558,7 @@ public class BByteValueTest {
         BByte bByte1 = (BByte) returns[0];
         BInteger bInteger2 = (BInteger) returns[1];
         BByte bByte2 = (BByte) returns[2];
-        Assert.assertEquals(bByte1.byteValue(), (byte) (a << b), "Invalid result");
+        Assert.assertEquals(bByte1.value().byteValue(), (byte) (a << b), "Invalid result");
         Assert.assertEquals(bByte1.intValue(), Byte.toUnsignedInt((byte) (a << b)), "Invalid result");
         Assert.assertEquals(bInteger2.intValue(), i << j, "Invalid result");
         Assert.assertEquals(bByte2.intValue(), Byte.toUnsignedInt((byte) (a << j)), "Invalid result");
@@ -586,7 +586,7 @@ public class BByteValueTest {
         Assert.assertEquals(returns.length, 1);
         Assert.assertSame(returns[0].getClass(), BByte.class);
         BByte bByte = (BByte) returns[0];
-        Assert.assertEquals(bByte.byteValue(), d, "Invalid byte value returned.");
+        Assert.assertEquals(bByte.value().byteValue(), d, "Invalid byte value returned.");
     }
 
     @Test(description = "Test bitwise Complement operator 1")
@@ -620,7 +620,7 @@ public class BByteValueTest {
         BByte bByte = (BByte) returns[0];
         BInteger bInteger = (BInteger) returns[1];
         byte a1 = (byte) ~a;
-        Assert.assertEquals(bByte.byteValue(), a1, "Invalid byte value returned.");
+        Assert.assertEquals(bByte.value().byteValue(), a1, "Invalid byte value returned.");
         Assert.assertEquals(bInteger.intValue(), ~b, "Invalid int value returned.");
     }
 
@@ -742,7 +742,7 @@ public class BByteValueTest {
         Assert.assertEquals(returns.length, 1);
         Assert.assertSame(returns[0].getClass(), BByte.class);
         BByte bByte = (BByte) returns[0];
-        Assert.assertEquals(bByte.byteValue(), expected, "Invalid byte value returned.");
+        Assert.assertEquals(bByte.value().byteValue(), expected, "Invalid byte value returned.");
     }
 
     private void invokeBitwisePrecedenceTestFunctionForInt(int a, int b, int c, String functionName, int expected) {

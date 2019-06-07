@@ -21,7 +21,11 @@ package org.ballerinalang.stdlib.io.nativeimpl;
 import org.ballerinalang.bre.Context;
 import org.ballerinalang.bre.bvm.BlockingNativeCallableUnit;
 import org.ballerinalang.connector.api.BLangConnectorSPIUtil;
+import org.ballerinalang.jvm.BallerinaValues;
+import org.ballerinalang.jvm.Strand;
+import org.ballerinalang.jvm.values.ObjectValue;
 import org.ballerinalang.model.types.TypeKind;
+import org.ballerinalang.model.values.BError;
 import org.ballerinalang.model.values.BMap;
 import org.ballerinalang.model.values.BValue;
 import org.ballerinalang.natives.annotations.Argument;
@@ -51,11 +55,12 @@ import org.slf4j.LoggerFactory;
         returnType = {
                 @ReturnType(type = TypeKind.OBJECT, structType = "DelimitedRecordChannel",
                         structPackage = "ballerina/io"),
-                @ReturnType(type = TypeKind.RECORD, structType = "IOError", structPackage = "ballerina/io")},
+                @ReturnType(type = TypeKind.ERROR)
+        },
         isPublic = true
 )
 public class CreateCsvChannel extends BlockingNativeCallableUnit {
-    private static final Logger log = LoggerFactory.getLogger(CreateDelimitedRecordChannel.class);
+    private static final Logger log = LoggerFactory.getLogger(CreateCsvChannel.class);
 
     /**
      * The index od the text record channel in ballerina/io#createDelimitedRecordChannel().
@@ -103,8 +108,24 @@ public class CreateCsvChannel extends BlockingNativeCallableUnit {
             String message = "Error occurred while converting character channel to textRecord channel:" + e
                     .getMessage();
             log.error(message, e);
-            context.setReturnValues(IOUtils.createError(context, message));
+            BError errorStruct = IOUtils.createError(context, IOConstants.IO_ERROR_CODE, message);
+            context.setReturnValues(errorStruct);
         }
     }
 
+    public static Object createCsvChannel(Strand strand, String filePath, String accessMode, String format,
+                                          String charset) {
+        try {
+            ObjectValue textRecordChannel = BallerinaValues.createObjectValue(RECORD_CHANNEL_PACKAGE, STRUCT_TYPE);
+            DelimitedRecordChannel delimitedRecordChannel =
+                    IOUtils.createDelimitedRecordChannelExtended(filePath, charset, accessMode, Format.valueOf(format));
+            textRecordChannel.addNativeData(IOConstants.TXT_RECORD_CHANNEL_NAME, delimitedRecordChannel);
+            return textRecordChannel;
+        } catch (Throwable e) {
+            String message = "Error occurred while converting character channel to textRecord channel:" + e
+                    .getMessage();
+            log.error(message, e);
+            return IOUtils.createError(message);
+        }
+    }
 }

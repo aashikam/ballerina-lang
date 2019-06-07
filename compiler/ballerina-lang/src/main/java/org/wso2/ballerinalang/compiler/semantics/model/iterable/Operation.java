@@ -17,9 +17,11 @@
 package org.wso2.ballerinalang.compiler.semantics.model.iterable;
 
 import org.wso2.ballerinalang.compiler.semantics.model.symbols.BInvokableSymbol;
+import org.wso2.ballerinalang.compiler.semantics.model.symbols.BVarSymbol;
 import org.wso2.ballerinalang.compiler.semantics.model.types.BInvokableType;
 import org.wso2.ballerinalang.compiler.semantics.model.types.BType;
-import org.wso2.ballerinalang.compiler.tree.BLangVariable;
+import org.wso2.ballerinalang.compiler.tree.BLangSimpleVariable;
+import org.wso2.ballerinalang.compiler.tree.expressions.BLangExpression;
 import org.wso2.ballerinalang.compiler.tree.expressions.BLangInvocation;
 import org.wso2.ballerinalang.compiler.util.diagnotic.DiagnosticPos;
 
@@ -46,9 +48,11 @@ public class Operation {
     public int arity;
     public BInvokableSymbol lambdaSymbol;
     public BInvokableType lambdaType;
+    public BLangExpression argExpression = null;
+    public BVarSymbol paramSymbol;
 
     /* fields required for code generation. */
-    public BLangVariable argVar = null, retVar = null;
+    public BLangSimpleVariable argVar = null, retVar = null;
 
     public Operation(IterableKind iterableKind, BLangInvocation iExpr, BType expType) {
         this.iExpr = iExpr;

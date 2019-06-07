@@ -18,6 +18,7 @@
 package org.wso2.ballerinalang.compiler.semantics.model.types;
 
 import org.ballerinalang.model.types.ConstrainedType;
+import org.wso2.ballerinalang.compiler.semantics.model.TypeVisitor;
 import org.wso2.ballerinalang.compiler.semantics.model.symbols.BTypeSymbol;
 import org.wso2.ballerinalang.compiler.util.TypeDescriptor;
 import org.wso2.ballerinalang.compiler.util.TypeTags;
@@ -48,7 +49,7 @@ public class BTableType extends BBuiltInRefType implements ConstrainedType {
 
     @Override
     public String toString() {
-        if (constraint.tag == TypeTags.NONE || constraint.tag == TypeTags.ERROR) {
+        if (constraint.tag == TypeTags.NONE || constraint.tag == TypeTags.SEMANTIC_ERROR) {
             return super.toString();
         }
 
@@ -57,10 +58,15 @@ public class BTableType extends BBuiltInRefType implements ConstrainedType {
 
     @Override
     public String getDesc() {
-        if (constraint.tag == TypeTags.NONE || constraint.tag == TypeTags.ERROR) {
+        if (constraint.tag == TypeTags.NONE || constraint.tag == TypeTags.SEMANTIC_ERROR) {
             return TypeDescriptor.SIG_TABLE + ";";
         }
 
         return TypeDescriptor.SIG_TABLE + constraint.getQualifiedTypeName() + ";";
+    }
+
+    @Override
+    public void accept(TypeVisitor visitor) {
+        visitor.visit(this);
     }
 }

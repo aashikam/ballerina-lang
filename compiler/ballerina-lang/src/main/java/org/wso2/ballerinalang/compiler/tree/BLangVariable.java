@@ -17,13 +17,9 @@
  */
 package org.wso2.ballerinalang.compiler.tree;
 
-import org.ballerinalang.model.elements.DocTag;
 import org.ballerinalang.model.elements.Flag;
 import org.ballerinalang.model.tree.AnnotationAttachmentNode;
-import org.ballerinalang.model.tree.DeprecatedNode;
-import org.ballerinalang.model.tree.IdentifierNode;
 import org.ballerinalang.model.tree.MarkdownDocumentationNode;
-import org.ballerinalang.model.tree.NodeKind;
 import org.ballerinalang.model.tree.VariableNode;
 import org.ballerinalang.model.tree.expressions.ExpressionNode;
 import org.ballerinalang.model.tree.types.TypeNode;
@@ -39,35 +35,26 @@ import java.util.Set;
 /**
  * @since 0.94
  */
-public class BLangVariable extends BLangNode implements VariableNode {
+public abstract class BLangVariable extends BLangNode implements VariableNode {
 
-    public DocTag docTag;
     public BLangType typeNode;
-    public BLangIdentifier name;
     public BLangExpression expr;
     public Set<Flag> flagSet;
     public List<BLangAnnotationAttachment> annAttachments;
     public BLangMarkdownDocumentation markdownDocumentationAttachment;
-    public List<BLangDeprecatedNode> deprecatedAttachments;
-    public boolean safeAssignment = false;
-    public boolean isField;
+
+    public boolean isDeclaredWithVar = false;
 
     public BVarSymbol symbol;
 
     public BLangVariable() {
         this.annAttachments = new ArrayList<>();
         this.flagSet = EnumSet.noneOf(Flag.class);
-        this.deprecatedAttachments = new ArrayList<>();
     }
 
     @Override
     public BLangType getTypeNode() {
         return typeNode;
-    }
-
-    @Override
-    public BLangIdentifier getName() {
-        return name;
     }
 
     @Override
@@ -83,11 +70,6 @@ public class BLangVariable extends BLangNode implements VariableNode {
     @Override
     public List<BLangAnnotationAttachment> getAnnotationAttachments() {
         return annAttachments;
-    }
-
-    @Override
-    public void accept(BLangNodeVisitor visitor) {
-        visitor.visit(this);
     }
 
     @Override
@@ -111,23 +93,8 @@ public class BLangVariable extends BLangNode implements VariableNode {
     }
 
     @Override
-    public List<BLangDeprecatedNode> getDeprecatedAttachments() {
-        return deprecatedAttachments;
-    }
-
-    @Override
-    public void addDeprecatedAttachment(DeprecatedNode deprecatedNode) {
-        this.deprecatedAttachments.add((BLangDeprecatedNode) deprecatedNode);
-    }
-
-    @Override
     public void setTypeNode(TypeNode typeNode) {
         this.typeNode = (BLangType) typeNode;
-    }
-
-    @Override
-    public void setName(IdentifierNode name) {
-        this.name = (BLangIdentifier) name;
     }
 
     @Override
@@ -136,17 +103,7 @@ public class BLangVariable extends BLangNode implements VariableNode {
     }
 
     @Override
-    public boolean isSafeAssignment() {
-        return safeAssignment;
-    }
-
-    @Override
-    public NodeKind getKind() {
-        return NodeKind.VARIABLE;
-    }
-
-    @Override
     public String toString() {
-        return String.valueOf(type) + " " + symbol.name.value + (expr != null ? " = " + String.valueOf(expr) : "");
+        return String.valueOf(type) + " " + (expr != null ? " = " + String.valueOf(expr) : "");
     }
 }

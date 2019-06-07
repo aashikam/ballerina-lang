@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2018, WSO2 Inc. (http://www.wso2.org) All Rights Reserved.
+ *  Copyright (c) 2019, WSO2 Inc. (http://www.wso2.org) All Rights Reserved.
  *
  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  you may not use this file except in compliance with the License.
@@ -24,9 +24,10 @@ import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiElementVisitor;
 import com.intellij.psi.util.PsiTreeUtil;
 import static io.ballerina.plugins.idea.psi.BallerinaTypes.*;
+import com.intellij.extapi.psi.ASTWrapperPsiElement;
 import io.ballerina.plugins.idea.psi.*;
 
-public class BallerinaServiceDefinitionImpl extends BallerinaCompositeElementImpl implements BallerinaServiceDefinition {
+public class BallerinaServiceDefinitionImpl extends ASTWrapperPsiElement implements BallerinaServiceDefinition {
 
   public BallerinaServiceDefinitionImpl(@NotNull ASTNode node) {
     super(node);
@@ -43,32 +44,14 @@ public class BallerinaServiceDefinitionImpl extends BallerinaCompositeElementImp
 
   @Override
   @Nullable
-  public BallerinaNameReference getNameReference() {
-    return PsiTreeUtil.getChildOfType(this, BallerinaNameReference.class);
+  public BallerinaExpressionList getExpressionList() {
+    return findChildByClass(BallerinaExpressionList.class);
   }
 
   @Override
   @Nullable
   public BallerinaServiceBody getServiceBody() {
-    return PsiTreeUtil.getChildOfType(this, BallerinaServiceBody.class);
-  }
-
-  @Override
-  @Nullable
-  public BallerinaServiceEndpointAttachments getServiceEndpointAttachments() {
-    return PsiTreeUtil.getChildOfType(this, BallerinaServiceEndpointAttachments.class);
-  }
-
-  @Override
-  @Nullable
-  public PsiElement getGt() {
-    return findChildByType(GT);
-  }
-
-  @Override
-  @Nullable
-  public PsiElement getLt() {
-    return findChildByType(LT);
+    return findChildByClass(BallerinaServiceBody.class);
   }
 
   @Override
@@ -79,8 +62,14 @@ public class BallerinaServiceDefinitionImpl extends BallerinaCompositeElementImp
 
   @Override
   @NotNull
+  public PsiElement getOn() {
+    return findNotNullChildByType(ON);
+  }
+
+  @Override
+  @NotNull
   public PsiElement getService() {
-    return notNullChild(findChildByType(SERVICE));
+    return findNotNullChildByType(SERVICE);
   }
 
 }

@@ -6,9 +6,97 @@
   "source": "annotation/source/resourceAnnotation1.bal",
   "items": [
     {
-      "label":"http:ResourceConfig",
+      "label":"openapi:ResourceInfo",
+      "kind":"Property",
       "detail":"Annotation",
-      "sortText":"110",
+      "insertText":"openapi:ResourceInfo {\n\t${1}\n}",
+      "insertTextFormat":"Snippet",
+      "additionalTextEdits":[
+        {
+          "range":{
+            "start":{
+              "line":1,
+              "character":0
+            },
+            "end":{
+              "line":1,
+              "character":0
+            }
+          },
+          "newText":"import ballerina/openapi;\n"
+        }
+      ]
+    },
+    {
+      "label":"openapi:MultiResourceInfo",
+      "kind":"Property",
+      "detail":"Annotation",
+      "insertText":"openapi:MultiResourceInfo {\n\t${1}\n}",
+      "insertTextFormat":"Snippet",
+      "additionalTextEdits":[
+        {
+          "range":{
+            "start":{
+              "line":1,
+              "character":0
+            },
+            "end":{
+              "line":1,
+              "character":0
+            }
+          },
+          "newText":"import ballerina/openapi;\n"
+        }
+      ]
+    },
+    {
+      "label":"grpc:ResourceConfig",
+      "kind":"Property",
+      "detail":"Annotation",
+      "insertText":"grpc:ResourceConfig {\n\t${1}\n}",
+      "insertTextFormat":"Snippet",
+      "additionalTextEdits":[
+        {
+          "range":{
+            "start":{
+              "line":1,
+              "character":0
+            },
+            "end":{
+              "line":1,
+              "character":0
+            }
+          },
+          "newText":"import ballerina/grpc;\n"
+        }
+      ]
+    },
+    {
+      "label":"transactions:Participant",
+      "kind":"Property",
+      "detail":"Annotation",
+      "insertText":"transactions:Participant {\n\t${1}\n}",
+      "insertTextFormat":"Snippet",
+      "additionalTextEdits":[
+        {
+          "range":{
+            "start":{
+              "line":1,
+              "character":0
+            },
+            "end":{
+              "line":1,
+              "character":0
+            }
+          },
+          "newText":"import ballerina/transactions;\n"
+        }
+      ]
+    },
+    {
+      "label":"http:ResourceConfig",
+      "kind":"Property",
+      "detail":"Annotation",
       "insertText":"http:ResourceConfig {\n\t${1}\n}",
       "insertTextFormat":"Snippet"
     }

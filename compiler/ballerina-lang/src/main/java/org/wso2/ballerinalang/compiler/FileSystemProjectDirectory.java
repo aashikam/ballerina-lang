@@ -89,6 +89,7 @@ public class FileSystemProjectDirectory extends FileSystemProgramDirectory {
         try {
             this.packageNames = Files.list(projectDirPath)
                     .filter(path -> Files.isDirectory(path, LinkOption.NOFOLLOW_LINKS))
+                    .filter(ProjectDirs::containsSourceFiles)
                     .map(ProjectDirs::getLastComp)
                     .filter(dirName -> !isSpecialDirectory(dirName))
                     .map(Path::toString)
@@ -217,6 +218,7 @@ public class FileSystemProjectDirectory extends FileSystemProgramDirectory {
     private String getTopLevelDirNameInPackage(Kind kind, FileSystem fs) {
         switch (kind) {
             case SRC:
+            case BIR:
             case OBJ:
                 return kind.getValue();
             case ROOT:

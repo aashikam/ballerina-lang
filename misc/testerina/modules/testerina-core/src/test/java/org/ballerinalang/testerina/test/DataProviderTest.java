@@ -17,9 +17,9 @@
 */
 package org.ballerinalang.testerina.test;
 
+import org.ballerinalang.launcher.BLauncherException;
 import org.ballerinalang.testerina.core.BTestRunner;
 import org.ballerinalang.testerina.core.TesterinaRegistry;
-import org.ballerinalang.util.exceptions.BallerinaException;
 import org.testng.Assert;
 import org.testng.annotations.AfterMethod;
 import org.testng.annotations.Test;
@@ -41,12 +41,11 @@ public class DataProviderTest {
         BTestRunner runner = new BTestRunner();
         runner.runTest(sourceRoot, new Path[]{Paths.get("data-provider-test.bal")}, new
                 ArrayList<>());
-        Assert.assertEquals(runner.getTesterinaReport().getTestSummary(".", "passed"), 5);
+        Assert.assertEquals(runner.getTesterinaReport().getTestSummary(".", "passed"), 6);
 
     }
 
-    @Test(expectedExceptions = BallerinaException.class, expectedExceptionsMessageRegExp = ".*Data provider " +
-            "function \\[invalidDataGen\\] should return an array of arrays.*")
+    @Test(expectedExceptions = BLauncherException.class)
     public void testInvalidDataProviderNonArrayOfArraysReturn() {
         new BTestRunner().runTest(sourceRoot, new Path[]{Paths.get
                         ("invalid-data-provider-test.bal")},
@@ -61,8 +60,7 @@ public class DataProviderTest {
                 ("invalid-data-provider-test-2.bal")}, new ArrayList<>());
     }
 
-    @Test(expectedExceptions = BallerinaException.class, expectedExceptionsMessageRegExp = ".*Data provider " +
-            "function \\[invalidDataGen\\] should return an array of arrays.*")
+    @Test(expectedExceptions = BLauncherException.class)
     public void testInvalidDataProviderPrimitiveReturn() {
         new BTestRunner().runTest(sourceRoot, new Path[]{Paths.get
                         ("invalid-data-provider-test-3.bal")}, new ArrayList<>());

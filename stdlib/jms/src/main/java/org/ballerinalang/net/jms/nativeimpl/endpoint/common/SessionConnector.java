@@ -22,11 +22,12 @@ package org.ballerinalang.net.jms.nativeimpl.endpoint.common;
 import org.ballerinalang.bre.Context;
 import org.ballerinalang.util.exceptions.BallerinaException;
 import org.ballerinalang.util.transactions.BallerinaTransactionContext;
-import org.ballerinalang.util.transactions.LocalTransactionInfo;
+import org.ballerinalang.util.transactions.TransactionLocalContext;
 import org.ballerinalang.util.transactions.TransactionResourceManager;
 
 import java.util.Objects;
 import java.util.UUID;
+
 import javax.jms.JMSException;
 import javax.jms.Session;
 import javax.jms.XASession;
@@ -104,13 +105,13 @@ public class SessionConnector implements BallerinaTransactionContext {
                         "jms transacted session objects should be used inside a transaction block ", context);
             }
 
-            LocalTransactionInfo localTransactionInfo = context.getLocalTransactionInfo();
-            BallerinaTransactionContext txContext = localTransactionInfo.getTransactionContext(
+            TransactionLocalContext transactionLocalContext = context.getLocalTransactionInfo();
+            BallerinaTransactionContext txContext = transactionLocalContext.getTransactionContext(
                     getConnectorId());
             if (Objects.isNull(txContext)) {
-                localTransactionInfo.registerTransactionContext(getConnectorId(), this);
-                String globalTxId = localTransactionInfo.getGlobalTransactionId();
-                int currentTxBlockId = localTransactionInfo.getCurrentTransactionBlockId();
+                transactionLocalContext.registerTransactionContext(getConnectorId(), this);
+                String globalTxId = transactionLocalContext.getGlobalTransactionId();
+                String currentTxBlockId = transactionLocalContext.getCurrentTransactionBlockId();
                 TransactionResourceManager.getInstance().register(globalTxId, currentTxBlockId, this);
             }
         }

@@ -14,50 +14,72 @@
 // specific language governing permissions and limitations
 // under the License.
 
+# Represents HTTP/1.0 protocol
+const string HTTP_1_0 = "1.0";
+
+# Represents HTTP/1.1 protocol
+const string HTTP_1_1 = "1.1";
+
+# Represents HTTP/2.0 protocol
+const string HTTP_2_0 = "2.0";
+
+# Defines the supported HTTP protocols.
+#
+# `HTTP_1_0`: HTTP/1.0 protocol
+# `HTTP_1_1`: HTTP/1.1 protocol
+# `HTTP_2_0`: HTTP/2.0 protocol
+public type HttpVersion HTTP_1_0|HTTP_1_1|HTTP_2_0;
+
 # Represents http protocol scheme
-@final string HTTP_SCHEME = "http://";
+const string HTTP_SCHEME = "http://";
 
 # Represents https protocol scheme
-@final string HTTPS_SCHEME = "https://";
+const string HTTPS_SCHEME = "https://";
+
+# Constant for the http error code
+public const string HTTP_ERROR_CODE = "{ballerina/http}HTTPError";
 
 # Constant for the default listener endpoint timeout
-@final int DEFAULT_LISTENER_TIMEOUT = 120000; //2 mins
+const int DEFAULT_LISTENER_TIMEOUT = 120000; //2 mins
 
 # Constant for the default failover starting index for failover endpoints
-@final int DEFAULT_FAILOVER_EP_STARTING_INDEX = 0;
+const int DEFAULT_FAILOVER_EP_STARTING_INDEX = 0;
 
 # Maximum number of requests that can be processed at a given time on a single connection.
-@final int MAX_PIPELINED_REQUESTS = 10;
+const int MAX_PIPELINED_REQUESTS = 10;
 
 # Represents multipart primary type
-@final public string MULTIPART_AS_PRIMARY_TYPE = "multipart/";
+public const string MULTIPART_AS_PRIMARY_TYPE = "multipart/";
 
 # Constant for the HTTP FORWARD method
-@final public HttpOperation HTTP_FORWARD = "FORWARD";
+public const HTTP_FORWARD = "FORWARD";
 
 # Constant for the HTTP GET method
-@final public HttpOperation HTTP_GET = "GET";
+public const HTTP_GET = "GET";
 
 # Constant for the HTTP POST method
-@final public HttpOperation HTTP_POST = "POST";
+public const HTTP_POST = "POST";
 
 # Constant for the HTTP DELETE method
-@final public HttpOperation HTTP_DELETE = "DELETE";
+public const HTTP_DELETE = "DELETE";
 
 # Constant for the HTTP OPTIONS method
-@final public HttpOperation HTTP_OPTIONS = "OPTIONS";
+public const HTTP_OPTIONS = "OPTIONS";
 
 # Constant for the HTTP PUT method
-@final public HttpOperation HTTP_PUT = "PUT";
+public const HTTP_PUT = "PUT";
 
 # Constant for the HTTP PATCH method
-@final public HttpOperation HTTP_PATCH = "PATCH";
+public const HTTP_PATCH = "PATCH";
 
 # Constant for the HTTP HEAD method
-@final public HttpOperation HTTP_HEAD = "HEAD";
+public const HTTP_HEAD = "HEAD";
+
+# constant for the HTTP SUBMIT method
+public const HTTP_SUBMIT = "SUBMIT";
 
 # Constant for the identify not an HTTP Operation
-@final public HttpOperation HTTP_NONE = "NONE";
+public const HTTP_NONE = "NONE";
 
 # Defines the possible values for the chunking configuration in HTTP services and clients.
 #
@@ -65,35 +87,41 @@
 #         otherwise chunking header is set in the outbound request/response
 # `ALWAYS`: Always set chunking header in the response
 # `NEVER`: Never set the chunking header even if the payload is larger than 8KB in the outbound request/response
-public type Chunking "AUTO" | "ALWAYS" | "NEVER";
+public type Chunking CHUNKING_AUTO|CHUNKING_ALWAYS|CHUNKING_NEVER;
 
 # If the payload is less than 8KB, content-length header is set in the outbound request/response,
 # otherwise chunking header is set in the outbound request/response.}
-@final public Chunking CHUNKING_AUTO = "AUTO";
+public const CHUNKING_AUTO = "AUTO";
 
 # Always set chunking header in the response.
-@final public Chunking CHUNKING_ALWAYS = "ALWAYS";
+public const CHUNKING_ALWAYS = "ALWAYS";
 
 # Never set the chunking header even if the payload is larger than 8KB in the outbound request/response.
-@final public Chunking CHUNKING_NEVER = "NEVER";
+public const CHUNKING_NEVER = "NEVER";
 
 # Options to compress using gzip or deflate.
 #
 # `AUTO`: When service behaves as a HTTP gateway inbound request/response accept-encoding option is set as the
-#         outbound request/response accept-encoding option
-# `ALWAYS`: Always set accept-encoding in outbound request/response
-# `NEVER`: Never set accept-encoding header in outbound request/response
-public type Compression "AUTO" | "ALWAYS" | "NEVER";
+#         outbound request/response accept-encoding/content-encoding option
+# `ALWAYS`: Always set accept-encoding/content-encoding in outbound request/response
+# `NEVER`: Never set accept-encoding/content-encoding header in outbound request/response
+public type Compression COMPRESSION_AUTO|COMPRESSION_ALWAYS|COMPRESSION_NEVER;
 
 # When service behaves as a HTTP gateway inbound request/response accept-encoding option is set as the
-# outbound request/response accept-encoding option.
-@final public Compression COMPRESSION_AUTO = "AUTO";
+# outbound request/response accept-encoding/content-encoding option.
+public const COMPRESSION_AUTO = "AUTO";
 
-# Always set accept-encoding in outbound request/response.
-@final public Compression COMPRESSION_ALWAYS = "ALWAYS";
+# Always set accept-encoding/content-encoding in outbound request/response.
+public const COMPRESSION_ALWAYS = "ALWAYS";
 
-# Never set accept-encoding header in outbound request/response.
-@final public Compression COMPRESSION_NEVER = "NEVER";
+# Never set accept-encoding/content-encoding header in outbound request/response.
+public const COMPRESSION_NEVER = "NEVER";
+
+# The types of messages that are accepted by HTTP `client` when sending out the outbound request.
+public type RequestMessage Request|string|xml|json|byte[]|io:ReadableByteChannel|mime:Entity[]|();
+
+# The types of messages that are accepted by HTTP `listener` when sending out the outbound response.
+public type ResponseMessage Response|string|xml|json|byte[]|io:ReadableByteChannel|mime:Entity[]|();
 
 # Defines the HTTP operations related to circuit breaker, failover and load balancer.
 #
@@ -105,61 +133,56 @@ public type Compression "AUTO" | "ALWAYS" | "NEVER";
 # `PUT`: Replace the target resource
 # `PATCH`: Apply partial modification to the resource
 # `HEAD`: Identical to `GET` but no resource body should be returned
+# `SUBMIT`: Submits a http request and returns an HttpFuture object
 # `NONE`: No operation should be performed
-public type HttpOperation "FORWARD" | "GET" | "POST" | "DELETE" | "OPTIONS" | "PUT" | "PATCH" | "HEAD" | "NONE";
+public type HttpOperation HTTP_FORWARD|HTTP_GET|HTTP_POST|HTTP_DELETE|HTTP_OPTIONS|HTTP_PUT|HTTP_PATCH|HTTP_HEAD
+                                                                                                |HTTP_SUBMIT|HTTP_NONE;
 
-# A record for providing trust store related configurations.
-#
-# + path - Path to the trust store file
-# + password - Trust store password
-public type TrustStore record {
-    string path;
-    string password;
-    !...
-};
-
-# A record for providing key store related configurations.
-#
-# + path - Path to the key store file
-# + password - Key store password
-public type KeyStore record {
-    string path;
-    string password;
-    !...
-};
+// Common type used for HttpFuture and Response used for resiliency clients.
+type HttpResponse Response|HttpFuture;
 
 # A record for configuring SSL/TLS protocol and version to be used.
 #
 # + name - SSL Protocol to be used (e.g.: TLS1.2)
 # + versions - SSL/TLS protocols to be enabled (e.g.: TLSv1,TLSv1.1,TLSv1.2)
-public type Protocols record {
-    string name;
-    string[] versions;
-    !...
-};
+public type Protocols record {|
+    string name = "";
+    string[] versions = [];
+|};
 
 # A record for providing configurations for certificate revocation status checks.
 #
 # + enable - The status of `validateCertEnabled`
 # + cacheSize - Maximum size of the cache
 # + cacheValidityPeriod - The time period for which a cache entry is valid
-public type ValidateCert record {
-    boolean enable;
-    int cacheSize;
-    int cacheValidityPeriod;
-    !...
-};
+public type ValidateCert record {|
+    boolean enable = false;
+    int cacheSize = 0;
+    int cacheValidityPeriod = 0;
+|};
 
 # A record for providing configurations for certificate revocation status checks.
 #
 # + enable - The status of OCSP stapling
 # + cacheSize - Maximum size of the cache
 # + cacheValidityPeriod - The time period for which a cache entry is valid
-public type ServiceOcspStapling record {
-    boolean enable;
-    int cacheSize;
-    int cacheValidityPeriod;
-    !...
+public type ServiceOcspStapling record {|
+    boolean enable = false;
+    int cacheSize = 0;
+    int cacheValidityPeriod = 0;
+|};
+
+# A record for providing configurations for content compression.
+#
+# + enable - The status of compression
+# + contentTypes - Content types which are allowed for compression
+public type CompressionConfig record {|
+    Compression enable = COMPRESSION_AUTO;
+    string[] contentTypes = [];
+|};
+
+type HTTPError record {
+    string message = "";
 };
 
 //////////////////////////////
@@ -171,64 +194,91 @@ public type ServiceOcspStapling record {
 # + headerValue - The header value
 # + return - Returns a tuple containing the value and its parameter map
 //TODO: Make the error nillable
-public extern function parseHeader (string headerValue) returns (string, map)|error;
+public function parseHeader(string headerValue) returns (string, map<any>)|error = external;
 
-function buildRequest(Request|string|xml|json|byte[]|io:ByteChannel|mime:Entity[]|() message) returns Request {
+function buildRequest(RequestMessage message) returns Request {
     Request request = new;
-    match message {
-        () => {}
-        Request req => {request = req;}
-        string textContent => {request.setTextPayload(textContent);}
-        xml xmlContent => {request.setXmlPayload(xmlContent);}
-        json jsonContent => {request.setJsonPayload(jsonContent);}
-        byte[] blobContent => {request.setBinaryPayload(blobContent);}
-        io:ByteChannel byteChannelContent => {request.setByteChannel(byteChannelContent);}
-        mime:Entity[] bodyParts => {request.setBodyParts(bodyParts);}
+    if (message is ()) {
+        request.noEntityBody = true;
+        return request;
+    } else if (message is Request) {
+        request = message;
+        request.noEntityBody = !request.checkEntityBodyAvailability();
+    } else if (message is string) {
+        request.setTextPayload(message);
+    } else if (message is xml) {
+        request.setXmlPayload(message);
+    } else if (message is json) {
+        request.setJsonPayload(message);
+    } else if (message is byte[]) {
+        request.setBinaryPayload(message);
+    } else if (message is io:ReadableByteChannel) {
+        request.setByteChannel(message);
+    } else {
+        request.setBodyParts(message);
     }
     return request;
 }
 
-function buildResponse(Response|string|xml|json|byte[]|io:ByteChannel|mime:Entity[]|() message) returns Response {
+function buildResponse(ResponseMessage message) returns Response {
     Response response = new;
-    match message {
-        () => {}
-        Response res => {response = res;}
-        string textContent => {response.setTextPayload(textContent);}
-        xml xmlContent => {response.setXmlPayload(xmlContent);}
-        json jsonContent => {response.setJsonPayload(jsonContent);}
-        byte[] blobContent => {response.setBinaryPayload(blobContent);}
-        io:ByteChannel byteChannelContent => {response.setByteChannel(byteChannelContent);}
-        mime:Entity[] bodyParts => {response.setBodyParts(bodyParts);}
+    if (message is ()) {
+        return response;
+    } else if (message is Response) {
+        response = message;
+    } else if (message is string) {
+        response.setTextPayload(message);
+    } else if (message is xml) {
+        response.setXmlPayload(message);
+    } else if (message is json) {
+        response.setJsonPayload(message);
+    } else if (message is byte[]) {
+        response.setBinaryPayload(message);
+    } else if (message is io:ReadableByteChannel) {
+        response.setByteChannel(message);
+    } else {
+        response.setBodyParts(message);
     }
     return response;
 }
 
-# The HEAD action implementation of the Circuit Breaker. This wraps the `head()` function of the underlying
-# HTTP actions provider.
+# The HEAD remote function implementation of the Circuit Breaker. This wraps the `head()` function of the underlying
+# HTTP remote function provider.
 
 # + path - Resource path
 # + outRequest - A Request struct
 # + requestAction - `HttpOperation` related to the request
 # + httpClient - HTTP client which uses to call the relavant functions
+# + verb - HTTP verb used for submit method
 # + return - The response for the request or an `error` if failed to establish communication with the upstream server
-public function invokeEndpoint (string path, Request outRequest,
-                                HttpOperation requestAction, CallerActions httpClient) returns Response|error {
+public function invokeEndpoint (string path, Request outRequest, HttpOperation requestAction,
+                                                Client httpClient, string verb = "") returns HttpResponse|error {
     if (HTTP_GET == requestAction) {
-        return httpClient.get(path, message = outRequest);
+        var result = httpClient->get(path, message = outRequest);
+        return result;
     } else if (HTTP_POST == requestAction) {
-        return httpClient.post(path, outRequest);
+        var result = httpClient->post(path, outRequest);
+        return result;
     } else if (HTTP_OPTIONS == requestAction) {
-        return httpClient.options(path, message = outRequest);
+        var result = httpClient->options(path, message = outRequest);
+        return result;
     } else if (HTTP_PUT == requestAction) {
-        return httpClient.put(path, outRequest);
+        var result = httpClient->put(path, outRequest);
+        return result;
     } else if (HTTP_DELETE == requestAction) {
-        return httpClient.delete(path, outRequest);
+        var result = httpClient->delete(path, outRequest);
+        return result;
     } else if (HTTP_PATCH == requestAction) {
-        return httpClient.patch(path, outRequest);
+        var result = httpClient->patch(path, outRequest);
+        return result;
     } else if (HTTP_FORWARD == requestAction) {
-        return httpClient.forward(path, outRequest);
+        var result = httpClient->forward(path, outRequest);
+        return result;
     } else if (HTTP_HEAD == requestAction) {
-        return httpClient.head(path, message = outRequest);
+        var result = httpClient->head(path, message = outRequest);
+        return result;
+    } else if (HTTP_SUBMIT == requestAction) {
+        return httpClient->submit(verb, path, outRequest);
     } else {
         return getError();
     }
@@ -253,6 +303,8 @@ function extractHttpOperation (string httpVerb) returns HttpOperation {
         inferredConnectorAction = HTTP_FORWARD;
     } else if ("HEAD" == httpVerb) {
         inferredConnectorAction = HTTP_HEAD;
+    } else if ("SUBMIT" == httpVerb) {
+        inferredConnectorAction = HTTP_SUBMIT;
     }
     return inferredConnectorAction;
 }
@@ -261,15 +313,14 @@ function extractHttpOperation (string httpVerb) returns HttpOperation {
 // at runtime.
 function populateErrorCodeIndex (int[] errorCode) returns boolean[] {
     boolean[] result = [];
-    foreach i in errorCode {
+    foreach var i in errorCode {
         result[i] = true;
     }
     return result;
 }
 
 function getError() returns error {
-    error httpConnectorErr = {};
-    httpConnectorErr.message = "Unsupported connector action received.";
+    error httpConnectorErr = error("Unsupported connector action received.");
     return httpConnectorErr;
 }
 
@@ -282,13 +333,13 @@ function populateRequestFields (Request originalRequest, Request newRequest)  {
     newRequest.extraPathInfo = originalRequest.extraPathInfo;
 }
 
-function populateMultipartRequest(Request inRequest) returns Request {
+function populateMultipartRequest(Request inRequest) returns Request|error {
     if (isMultipartRequest(inRequest)) {
         mime:Entity[] bodyParts = check inRequest.getBodyParts();
-        foreach bodyPart in bodyParts {
+        foreach var bodyPart in bodyParts {
             if (isNestedEntity(bodyPart)) {
                 mime:Entity[] childParts = check bodyPart.getBodyParts();
-                foreach childPart in childParts {
+                foreach var childPart in childParts {
                     // When performing passthrough scenarios, message needs to be built before
                     // invoking the endpoint to create a message datasource.
                     var childBlobContent = childPart.getByteArray();
@@ -313,7 +364,7 @@ function isNestedEntity(mime:Entity entity) returns boolean {
         entity.getHeader(mime:CONTENT_TYPE).hasPrefix(MULTIPART_AS_PRIMARY_TYPE);
 }
 
-function createFailoverRequest(Request request, mime:Entity requestEntity) returns Request {
+function createFailoverRequest(Request request, mime:Entity requestEntity) returns Request|error {
     if (isMultipartRequest(request)) {
         return populateMultipartRequest(request);
     } else {
@@ -324,5 +375,10 @@ function createFailoverRequest(Request request, mime:Entity requestEntity) retur
     }
 }
 
+function getInvalidTypeError() returns error {
+    error invalidTypeError = error("Invalid return type found for the HTTP operation");
+    return invalidTypeError;
+}
+
 //Resolve a given path against a given URI.
-extern function resolve(string baseUrl, string path) returns string|error;
+function resolve(string baseUrl, string path) returns string|error = external;

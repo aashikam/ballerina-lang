@@ -13,11 +13,11 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.ballerinalang.langserver.compiler.common.modal;
 
 import org.ballerinalang.util.diagnostic.Diagnostic;
 import org.wso2.ballerinalang.compiler.tree.BLangPackage;
+import org.wso2.ballerinalang.compiler.util.CompilerContext;
 
 import java.util.Comparator;
 import java.util.List;
@@ -28,9 +28,18 @@ import java.util.Optional;
  */
 public class BallerinaFile {
 
-    private BLangPackage bLangPackage = null;
-    private List<Diagnostic> diagnostics = null;
-    private boolean isBallerinaProject = false;
+    private BLangPackage bLangPackage;
+    private final List<Diagnostic> diagnostics;
+    private final boolean isBallerinaProject;
+    private CompilerContext compilerContext;
+
+    public BallerinaFile(BLangPackage bLangPackage,
+                         List<Diagnostic> diagnostics, boolean isBallerinaProject, CompilerContext compilerContext) {
+        this.bLangPackage = bLangPackage;
+        this.diagnostics = diagnostics;
+        this.isBallerinaProject = isBallerinaProject;
+        this.compilerContext = compilerContext;
+    }
 
     public Optional<List<Diagnostic>> getDiagnostics() {
         Optional<List<Diagnostic>> diagnostics = Optional.ofNullable(this.diagnostics);
@@ -40,23 +49,34 @@ public class BallerinaFile {
         return diagnostics;
     }
 
+    /**
+     * Returns optional BLangPackage.
+     *
+     * @return {@link BLangPackage}
+     */
     public Optional<BLangPackage> getBLangPackage() {
         return Optional.ofNullable(bLangPackage);
     }
 
-    public void setBLangPackage(BLangPackage bLangPackage) {
-        this.bLangPackage = bLangPackage;
-    }
-
-    public void setDiagnostics(List<Diagnostic> diagnostics) {
-        this.diagnostics = diagnostics;
-    }
-
-    public void setBallerinaProject(boolean ballerinaProject) {
-        isBallerinaProject = ballerinaProject;
-    }
-
+    /**
+     * Returns True if a ballerina project, False otherwise.
+     *
+     * @return True if it is ballerina project. False otherwise.
+     */
     public boolean isBallerinaProject() {
         return isBallerinaProject;
+    }
+
+    /**
+     * Returns compiler context.
+     *
+     * @return compiler context.
+     */
+    public CompilerContext getCompilerContext() {
+        return compilerContext;
+    }
+
+    public void setBLangPackage(BLangPackage bLangPackage) {
+        this.bLangPackage = bLangPackage;
     }
 }

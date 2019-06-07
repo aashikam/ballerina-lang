@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2018, WSO2 Inc. (http://www.wso2.org) All Rights Reserved.
+ *  Copyright (c) 2019, WSO2 Inc. (http://www.wso2.org) All Rights Reserved.
  *
  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  you may not use this file except in compliance with the License.
@@ -21,7 +21,10 @@ import java.util.List;
 import org.jetbrains.annotations.*;
 import com.intellij.psi.PsiElement;
 
-public interface BallerinaBuiltInReferenceTypeName extends BallerinaCompositeElement {
+public interface BallerinaBuiltInReferenceTypeName extends PsiElement {
+
+  @Nullable
+  BallerinaErrorTypeName getErrorTypeName();
 
   @Nullable
   BallerinaFunctionTypeName getFunctionTypeName();
@@ -34,6 +37,9 @@ public interface BallerinaBuiltInReferenceTypeName extends BallerinaCompositeEle
 
   @Nullable
   BallerinaMapTypeName getMapTypeName();
+
+  @Nullable
+  BallerinaServiceTypeName getServiceTypeName();
 
   @Nullable
   BallerinaStreamTypeName getStreamTypeName();

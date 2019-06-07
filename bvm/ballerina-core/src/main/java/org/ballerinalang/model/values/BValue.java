@@ -17,12 +17,16 @@
 */
 package org.ballerinalang.model.values;
 
+import org.ballerinalang.bre.bvm.BVM;
 import org.ballerinalang.model.types.BType;
+import org.ballerinalang.util.exceptions.BLangFreezeException;
 import org.ballerinalang.util.exceptions.BallerinaException;
 
 import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.charset.Charset;
+import java.util.List;
+import java.util.Map;
 
 /**
  * {@code BValue} represents any value in Ballerina.
@@ -35,16 +39,50 @@ public interface BValue {
 
     BType getType();
 
+    void stamp(BType type, List<BVM.TypeValuePair> unresolvedValues);
+
     /**
      * Deep copy {@link BValue}.
-     * 
+     *
+     * @param refs Represents the reference map which is passed from the top most 'copy' invocation. It contains all
+     *             the copies which were created earlier, within the current {@link BValue} object.
      * @return A copy of this {@link BValue}
      */
-    BValue copy();
+    BValue copy(Map<BValue, BValue> refs);
+
+    /**
+     * Method to attempt freezing a {@link BValue}, to disallow further modification.
+     *
+     * @param freezeStatus  the {@link BVM.FreezeStatus} instance to keep track of the
+     *                      freeze result of this attempt
+     */
+    default void attemptFreeze(BVM.FreezeStatus freezeStatus) {
+        throw new BLangFreezeException("'freeze()' not allowed on '" + getType() + "'");
+    }
+
+    /**
+     * Method to retrieve if the {@link BValue} is frozen, if applicable. Compile time checks ensure that the check
+     * is only possible on structured basic types.
+     *
+     * @return Whether the value is frozen
+     */
+    default boolean isFrozen() {
+        return false;
+    }
+
+    /**
+     * Method to returns an integer representing the number of items that a value contains, where the meaning of item
+     * depends on the basic type of value.
+     *
+     * @return  Length of the given value
+     */
+    default long size() {
+        return -1;
+    }
 
     /**
      * Default serialize implementation for {@link BValue}.
-     * 
+     *
      * @param outputStream Represent the output stream that the data will be written to.
      */
     public default void serialize(OutputStream outputStream) {

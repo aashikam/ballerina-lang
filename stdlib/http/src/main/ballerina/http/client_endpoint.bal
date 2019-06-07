@@ -14,6 +14,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+import ballerina/crypto;
 import ballerina/io;
 
 ////////////////////////////////
@@ -24,27 +25,180 @@ import ballerina/io;
 # provides includes functions for the standard HTTP methods, forwarding a received request and sending requests
 # using custom HTTP verbs.
 
-# + epName - The name of the client
 # + config - The configurations associated with the client
-# + httpClient - The provider which implements the HTTP methods
-public type Client object {
+# + httpClient - Chain of different HTTP clients which provides the capability for initiating contact with a remote
+#                HTTP service in resilient manner
+public type Client client object {
 
-    public string epName;
-    public ClientEndpointConfig config;
-    public CallerActions httpClient;
+    public ClientEndpointConfig config = {};
+    public Client httpClient;
 
-    # Gets invoked to initialize the endpoint. During initialization, configurations provided through the `config`
+    # Gets invoked to initialize the client. During initialization, configurations provided through the `config`
     # record is used to determine which type of additional behaviours are added to the endpoint (e.g: caching,
     # security, circuit breaking).
     #
-    # + c - The configurations to be used when initializing the endpoint
-    public function init(ClientEndpointConfig c);
+    # + url - URL of the target service
+    # + config - The configurations to be used when initializing the client
+    public function __init(string url, ClientEndpointConfig? config = ()) {
+        self.config = config ?: {};
+        var result = initialize(url, self.config);
+        if (result is error) {
+            panic result;
+        } else {
+            self.httpClient = result;
+        }
+    }
 
-    # Returns the HTTP actions associated with the endpoint.
+    # The `post()` function can be used to send HTTP POST requests to HTTP endpoints.
     #
-    # + return - The HTTP caller actions provider of the endpoint
-    public function getCallerActions() returns CallerActions {
-        return self.httpClient;
+    # + path - Resource path
+    # + message - An HTTP outbound request message or any payload of type `string`, `xml`, `json`, `byte[]`,
+    #             `io:ReadableByteChannel` or `mime:Entity[]`
+    # + return - The response for the request or an `error` if failed to establish communication with the upstream server
+    public remote function post(@sensitive string path, RequestMessage message) returns Response|error {
+        Request req = buildRequest(message);
+        return self.httpClient->post(path, req);
+    }
+
+    # The `head()` function can be used to send HTTP HEAD requests to HTTP endpoints.
+    #
+    # + path - Resource path
+    # + message - An HTTP outbound request message or any payload of type `string`, `xml`, `json`, `byte[]`,
+    #             `io:ReadableByteChannel` or `mime:Entity[]`
+    # + return - The response for the request or an `error` if failed to establish communication with the upstream server
+    public remote function head(@sensitive string path, RequestMessage message = ()) returns Response|error {
+        Request req = buildRequest(message);
+        return self.httpClient->head(path, message = req);
+    }
+
+    # The `put()` function can be used to send HTTP PUT requests to HTTP endpoints.
+    #
+    # + path - Resource path
+    # + message - An HTTP outbound request message or any payload of type `string`, `xml`, `json`, `byte[]`,
+    #             `io:ReadableByteChannel` or `mime:Entity[]`
+    # + return - The response for the request or an `error` if failed to establish communication with the upstream server
+    public remote function put(@sensitive string path, RequestMessage message) returns Response|error {
+        Request req = buildRequest(message);
+        return self.httpClient->put(path, req);
+    }
+
+    # Invokes an HTTP call with the specified HTTP verb.
+    #
+    # + httpVerb - HTTP verb value
+    # + path - Resource path
+    # + message - An HTTP outbound request message or any payload of type `string`, `xml`, `json`, `byte[]`,
+    #             `io:ReadableByteChannel` or `mime:Entity[]`
+    # + return - The response for the request or an `error` if failed to establish communication with the upstream server
+    public remote function execute(@sensitive string httpVerb, @sensitive string path, RequestMessage message) returns Response|error {
+        Request req = buildRequest(message);
+        return self.httpClient->execute(httpVerb, path, req);
+    }
+
+    # The `patch()` function can be used to send HTTP PATCH requests to HTTP endpoints.
+    #
+    # + path - Resource path
+    # + message - An HTTP outbound request message or any payload of type `string`, `xml`, `json`, `byte[]`,
+    #             `io:ReadableByteChannel` or `mime:Entity[]`
+    # + return - The response for the request or an `error` if failed to establish communication with the upstream server
+    public remote function patch(@sensitive string path, RequestMessage message) returns Response|error {
+        Request req = buildRequest(message);
+        return self.httpClient->patch(path, req);
+    }
+
+    # The `delete()` function can be used to send HTTP DELETE requests to HTTP endpoints.
+    #
+    # + path - Resource path
+    # + message - An HTTP outbound request message or any payload of type `string`, `xml`, `json`, `byte[]`,
+    #             `io:ReadableByteChannel` or `mime:Entity[]`
+    # + return - The response for the request or an `error` if failed to establish communication with the upstream server
+    public remote function delete(@sensitive string path, RequestMessage message) returns Response|error {
+        Request req = buildRequest(message);
+        return self.httpClient->delete(path, req);
+    }
+
+    # The `get()` function can be used to send HTTP GET requests to HTTP endpoints.
+    #
+    # + path - Request path
+    # + message - An optional HTTP outbound request message or any payload of type `string`, `xml`, `json`, `byte[]`,
+    #             `io:ReadableByteChannel` or `mime:Entity[]`
+    # + return - The response for the request or an `error` if failed to establish communication with the upstream server
+    public remote function get(@sensitive string path, RequestMessage message = ()) returns Response|error {
+        Request req = buildRequest(message);
+        return self.httpClient->get(path, message = req);
+    }
+
+    # The `options()` function can be used to send HTTP OPTIONS requests to HTTP endpoints.
+    #
+    # + path - Request path
+    # + message - An optional HTTP outbound request message or any payload of type `string`, `xml`, `json`, `byte[]`,
+    #             `io:ReadableByteChannel` or `mime:Entity[]`
+    # + return - The response for the request or an `error` if failed to establish communication with the upstream server
+    public remote function options(@sensitive string path, RequestMessage message = ()) returns Response|error {
+        Request req = buildRequest(message);
+        return self.httpClient->options(path, message = req);
+    }
+
+    # The `forward()` function can be used to invoke an HTTP call with inbound request's HTTP verb
+    #
+    # + path - Request path
+    # + request - An HTTP inbound request message
+    # + return - The response for the request or an `error` if failed to establish communication with the upstream server
+    public remote function forward(@sensitive string path, Request request) returns Response|error {
+        return self.httpClient->forward(path, request);
+    }
+
+    # Submits an HTTP request to a service with the specified HTTP verb.
+    # The `submit()` function does not give out a `Response` as the result,
+    # rather it returns an `HttpFuture` which can be used to do further interactions with the endpoint.
+    #
+    # + httpVerb - The HTTP verb value
+    # + path - The resource path
+    # + message - An HTTP outbound request message or any payload of type `string`, `xml`, `json`, `byte[]`,
+    #             `io:ReadableByteChannel` or `mime:Entity[]`
+    # + return - An `HttpFuture` that represents an asynchronous service invocation, or an `error` if the submission fails
+    public remote function submit(@sensitive string httpVerb, string path, RequestMessage message) returns HttpFuture|error {
+        Request req = buildRequest(message);
+        return self.httpClient->submit(httpVerb, path, req);
+
+    }
+
+    # This just pass the request to actual network call.
+    #
+    # + httpFuture - The `HttpFuture` relates to a previous asynchronous invocation
+    # + return - An HTTP response message, or an error if the invocation fails
+    public remote function getResponse(HttpFuture httpFuture) returns Response|error {
+        return self.httpClient->getResponse(httpFuture);
+    }
+
+    # This just pass the request to actual network call.
+    #
+    # + httpFuture - The `HttpFuture` relates to a previous asynchronous invocation
+    # + return - A `boolean` that represents whether a `PushPromise` exists
+    public remote function hasPromise(HttpFuture httpFuture) returns boolean {
+        return self.httpClient->hasPromise(httpFuture);
+    }
+
+    # This just pass the request to actual network call.
+    #
+    # + httpFuture - The `HttpFuture` relates to a previous asynchronous invocation
+    # + return - An HTTP Push Promise message, or an error if the invocation fails
+    public remote function getNextPromise(HttpFuture httpFuture) returns PushPromise|error {
+        return self.httpClient->getNextPromise(httpFuture);
+    }
+
+    # This just pass the request to actual network call.
+    #
+    # + promise - The related `PushPromise`
+    # + return - A promised HTTP `Response` message, or an error if the invocation fails
+    public remote function getPromisedResponse(PushPromise promise) returns Response|error {
+        return self.httpClient->getPromisedResponse(promise);
+    }
+
+    # This just pass the request to actual network call.
+    #
+    # + promise - The Push Promise to be rejected
+    public remote function rejectPromise(PushPromise promise) {
+        return self.httpClient->rejectPromise(promise);
     }
 };
 
@@ -52,65 +206,77 @@ public type Client object {
 #
 # + url - URL of the target service
 # + secureSocket - Configurations for secure communication with the remote HTTP endpoint
-public type TargetService record {
-    string url;
-    SecureSocket? secureSocket;
-    !...
-};
+public type TargetService record {|
+    string url = "";
+    SecureSocket? secureSocket = ();
+|};
 
 # Provides a set of configurations for controlling the behaviours when communicating with a remote HTTP endpoint.
 #
-# + url - URL of the target service
-# + circuitBreaker - Configurations associated with Circuit Breaker behaviour
-# + timeoutMillis - The maximum time to wait (in milliseconds) for a response before closing the connection
-# + keepAlive - Specifies whether to reuse a connection for multiple requests
-# + chunking - The chunking behaviour of the request
 # + httpVersion - The HTTP version understood by the client
+# + http1Settings - Configurations related to HTTP/1.x protocol
+# + http2Settings - Configurations related to HTTP/2 protocol
+# + timeoutMillis - The maximum time to wait (in milliseconds) for a response before closing the connection
 # + forwarded - The choice of setting `forwarded`/`x-forwarded` header
 # + followRedirects - Configurations associated with Redirection
-# + retryConfig - Configurations associated with Retry
+# + poolConfig - Configurations associated with request pooling
 # + proxy - Proxy server related options
-# + connectionThrottling - Configurations for connection throttling
 # + secureSocket - SSL/TLS related options
 # + cache - HTTP caching related configurations
 # + compression - Specifies the way of handling compression (`accept-encoding`) header
-# + auth - HTTP authentication releated configurations
-public type ClientEndpointConfig record {
-    string url;
-    CircuitBreakerConfig? circuitBreaker;
+# + auth - HTTP authentication related configurations
+# + circuitBreaker - Configurations associated with Circuit Breaker behaviour
+# + retryConfig - Configurations associated with Retry
+public type ClientEndpointConfig record {|
+    string httpVersion = HTTP_1_1;
+    Http1Settings http1Settings = {};
+    Http2Settings http2Settings = {};
     int timeoutMillis = 60000;
-    KeepAlive keepAlive = KEEPALIVE_AUTO;
-    Chunking chunking = "AUTO";
-    string httpVersion = "1.1";
     string forwarded = "disable";
-    FollowRedirects? followRedirects;
-    RetryConfig? retryConfig;
-    ProxyConfig? proxy;
-    ConnectionThrottling? connectionThrottling;
-    SecureSocket? secureSocket;
-    CacheConfig cache;
+    FollowRedirects? followRedirects = ();
+    ProxyConfig? proxy = ();
+    PoolConfiguration? poolConfig = ();
+    SecureSocket? secureSocket = ();
+    CacheConfig cache = {};
     Compression compression = COMPRESSION_AUTO;
-    AuthConfig? auth;
-    !...
-};
+    OutboundAuthConfig? auth = ();
+    CircuitBreakerConfig? circuitBreaker = ();
+    RetryConfig? retryConfig = ();
+|};
 
-extern function createHttpClient(string uri, ClientEndpointConfig config) returns CallerActions;
+# Provides settings related to HTTP/1.x protocol.
+#
+# + keepAlive - Specifies whether to reuse a connection for multiple requests
+# + chunking - The chunking behaviour of the request
+public type Http1Settings record {|
+    KeepAlive keepAlive = KEEPALIVE_AUTO;
+    Chunking chunking = CHUNKING_AUTO;
+|};
 
-extern function createSimpleHttpClient(string uri, ClientEndpointConfig config) returns CallerActions;
+function createSimpleHttpClient(string uri, ClientEndpointConfig config, PoolConfiguration globalPoolConfig)
+                    returns Client = external;
 
-# Provides configurations for controlling the retry behaviour in failure scenarios.
+# Provides settings related to HTTP/2 protocol.
+#
+# + http2PriorKnowledge - Configuration to enable HTTP/2 prior knowledge
+public type Http2Settings record {|
+    boolean http2PriorKnowledge = false;
+|};
+
+# Provides configurations for controlling the retrying behavior in failure scenarios.
 #
 # + count - Number of retry attempts before giving up
 # + interval - Retry interval in milliseconds
 # + backOffFactor - Multiplier of the retry interval to exponentailly increase retry interval
 # + maxWaitInterval - Maximum time of the retry interval in milliseconds
-public type RetryConfig record {
-    int count;
-    int interval;
-    float backOffFactor;
-    int maxWaitInterval;
-    !...
-};
+# + statusCodes - HTTP response status codes which are considered as failures
+public type RetryConfig record {|
+    int count = 0;
+    int interval = 0;
+    float backOffFactor = 0.0;
+    int maxWaitInterval = 0;
+    int[] statusCodes = [];
+|};
 
 # Provides configurations for facilitating secure communication with a remote HTTP endpoint.
 #
@@ -127,31 +293,33 @@ public type RetryConfig record {
 # + verifyHostname - Enable/disable host name verification
 # + shareSession - Enable/disable new SSL session creation
 # + ocspStapling - Enable/disable OCSP stapling
-public type SecureSocket record {
-    TrustStore? trustStore;
-    KeyStore? keyStore;
-    string certFile;
-    string keyFile;
-    string keyPassword;
-    string trustedCertFile;
-    Protocols? protocol;
-    ValidateCert? certValidation;
-    string[] ciphers;
+# + handshakeTimeout - SSL handshake time out
+# + sessionTimeout - SSL session time out
+public type SecureSocket record {|
+    crypto:TrustStore? trustStore = ();
+    crypto:KeyStore? keyStore = ();
+    string certFile = "";
+    string keyFile = "";
+    string keyPassword = "";
+    string trustedCertFile = "";
+    Protocols? protocol = ();
+    ValidateCert? certValidation = ();
+    string[] ciphers = [];
     boolean verifyHostname = true;
     boolean shareSession = true;
-    boolean ocspStapling;
-    !...
-};
+    boolean ocspStapling = false;
+    int handshakeTimeout?;
+    int sessionTimeout?;
+|};
 
 # Provides configurations for controlling the endpoint's behaviour in response to HTTP redirect related responses.
 #
 # + enabled - Enable/disable redirection
 # + maxCount - Maximum number of redirects to follow
-public type FollowRedirects record {
+public type FollowRedirects record {|
     boolean enabled = false;
     int maxCount = 5;
-    !...
-};
+|};
 
 # Proxy server configurations to be used with the HTTP client endpoint.
 #
@@ -159,188 +327,289 @@ public type FollowRedirects record {
 # + port - Proxy server port
 # + userName - Proxy server username
 # + password - proxy server password
-public type ProxyConfig record {
-    string host;
-    int port;
-    string userName;
-    string password;
-    !...
-};
+public type ProxyConfig record {|
+    string host = "";
+    int port = 0;
+    string userName = "";
+    string password = "";
+|};
 
-# Provides configurations for throttling connections of the endpoint.
+# The `OutboundAuthConfig` record can be used to configure the authentication mechanism used by the HTTP endpoint.
 #
-# + maxActiveConnections - Maximum number of active connections allowed for the endpoint. The default value, -1,
-#                          indicates that the number of connections are not restricted.
-# + waitTime - Maximum waiting time for a request to grab an idle connection from the client
-# + maxActiveStreamsPerConnection - Maximum number of active streams allowed per an HTTP/2 connection
-public type ConnectionThrottling record {
-    int maxActiveConnections = -1;
-    int waitTime = 60000;
-    int maxActiveStreamsPerConnection = -1;
-    !...
-};
+# + scheme - Authentication scheme
+# + config - Configuration related to the selected authenticator.
+public type OutboundAuthConfig record {|
+    OutboundAuthScheme scheme;
+    BasicAuthConfig|OAuth2AuthConfig|JwtAuthConfig config?;
+|};
 
-# AuthConfig record can be used to configure the authentication mechanism used by the HTTP endpoint.
+# The `BasicAuthConfig` record can be used to configure Basic Authentication used by the HTTP endpoint.
 #
-# + scheme - Scheme of the configuration (Basic, OAuth2, JWT etc.)
 # + username - Username for Basic authentication
 # + password - Password for Basic authentication
-# + accessToken - Access token for OAuth2 authentication
-# + refreshToken - Refresh token for OAuth2 authentication
-# + refreshUrl - Refresh token URL for OAuth2 authentication
-# + consumerKey - Consumer key for OAuth2 authentication
-# + consumerSecret - Consumer secret for OAuth2 authentication
-# + tokenUrl - Token URL for OAuth2 authentication
-# + clientId - Clietnt ID for OAuth2 authentication
-# + clientSecret - Client secret for OAuth2 authentication
-public type AuthConfig record {
-    AuthScheme scheme;
+public type BasicAuthConfig record {|
     string username;
     string password;
-    string accessToken;
-    string refreshToken;
-    string refreshUrl;
-    string consumerKey;
-    string consumerSecret;
+|};
+
+# The `OAuth2AuthConfig` record can be used to configure OAuth2 based authentication used by the HTTP endpoint.
+#
+# + grantType - OAuth2 grant type
+# + config - Configurations for the given grant type
+public type OAuth2AuthConfig record {|
+    OAuth2GrantType grantType;
+    ClientCredentialsGrantConfig|PasswordGrantConfig|DirectTokenConfig config;
+|};
+
+# The `ClientCredentialsGrantConfig` record can be used to configue OAuth2 client credentials grant type.
+#
+# + tokenUrl - Token URL for the authorization server
+# + clientId - Client ID for the client credentials grant authentication
+# + clientSecret - Client secret for the client credentials grant authentication
+# + scopes - Scope of the access request
+# + clockSkew - Clock skew in seconds
+# + retryRequest - Retry the request if the initial request returns a 401 response
+# + credentialBearer - How authentication credentials are sent to the authorization server
+public type ClientCredentialsGrantConfig record {|
     string tokenUrl;
     string clientId;
     string clientSecret;
-    !...
-};
+    string[] scopes?;
+    int clockSkew = 0;
+    boolean retryRequest = true;
+    CredentialBearer credentialBearer = AUTH_HEADER_BEARER;
+|};
 
-function Client::init(ClientEndpointConfig c) {
+# The `PasswordGrantConfig` record can be used to configue OAuth2 password grant type
+#
+# + tokenUrl - Token URL for the authorization server
+# + username - Username for password grant authentication
+# + password - Password for password grant authentication
+# + clientId - Client ID for password grant authentication
+# + clientSecret - Client secret for password grant authentication
+# + scopes - Scope of the access request
+# + refreshConfig - Configurations for refreshing the access token
+# + clockSkew - Clock skew in seconds
+# + retryRequest - Retry the request if the initial request returns a 401 response
+# + credentialBearer - How authentication credentials are sent to the authorization server
+public type PasswordGrantConfig record {|
+    string tokenUrl;
+    string username;
+    string password;
+    string clientId?;
+    string clientSecret?;
+    string[] scopes?;
+    RefreshConfig refreshConfig?;
+    int clockSkew = 0;
+    boolean retryRequest = true;
+    CredentialBearer credentialBearer = AUTH_HEADER_BEARER;
+|};
+
+# The `DirectTokenConfig` record configures the access token directly.
+#
+# + accessToken - Access token for the authorization server
+# + refreshConfig - Configurations for refreshing the access token
+# + clockSkew - Clock skew in seconds
+# + retryRequest - Retry the request if the initial request returns a 401 response
+# + credentialBearer - How authentication credentials are sent to the authorization server
+public type DirectTokenConfig record {|
+    string accessToken?;
+    DirectTokenRefreshConfig refreshConfig?;
+    int clockSkew = 0;
+    boolean retryRequest = true;
+    CredentialBearer credentialBearer = AUTH_HEADER_BEARER;
+|};
+
+# The `RefreshConfig` record can be used to pass the configurations for refreshing the access token of password grant type.
+#
+# + refreshUrl - Refresh token URL for the refresh token server
+# + scopes - Scope of the access request
+# + credentialBearer - How authentication credentials are sent to the authorization server
+public type RefreshConfig record {|
+    string refreshUrl;
+    string[] scopes?;
+    CredentialBearer credentialBearer = AUTH_HEADER_BEARER;
+|};
+
+# The `DirectTokenRefreshConfig` record passes the configurations for refreshing the access token for 
+# the grant type of the direct token grant type.
+#
+# + refreshUrl - Refresh token URL for the refresh token server
+# + refreshToken - Refresh token for the refresh token server
+# + clientId - Client ID for authentication with the authorization server
+# + clientSecret - Client secret for authentication with the authorization server
+# + scopes - Scope of the access request
+# + credentialBearer - How authentication credentials are sent to the authorization server
+public type DirectTokenRefreshConfig record {|
+    string refreshUrl;
+    string refreshToken;
+    string clientId;
+    string clientSecret;
+    string[] scopes?;
+    CredentialBearer credentialBearer = AUTH_HEADER_BEARER;
+|};
+
+// TODO: Resolve with https://github.com/ballerina-platform/ballerina-lang/issues/15487
+# The `JwtAuthConfig` record can be used to configure JWT based authentication used by the HTTP endpoint.
+#
+//# + inferredJwtIssuerConfig - JWT issuer configuration used to issue JWT with specific configuration
+public type JwtAuthConfig record {|
+    //jwt:InferredJwtIssuerConfig inferredJwtIssuerConfig;
+|};
+
+function initialize(string serviceUrl, ClientEndpointConfig config) returns Client|error {
     boolean httpClientRequired = false;
-    string url = c.url;
+    string url = serviceUrl;
     if (url.hasSuffix("/")) {
         int lastIndex = url.length() - 1;
         url = url.substring(0, lastIndex);
     }
-    self.config = c;
-    var cbConfig = c.circuitBreaker;
-    match cbConfig {
-        CircuitBreakerConfig cb => {
-            if (url.hasSuffix("/")) {
-                int lastIndex = url.length() - 1;
-                url = url.substring(0, lastIndex);
-            }
-            httpClientRequired = false;
+    var cbConfig = config.circuitBreaker;
+    if (cbConfig is CircuitBreakerConfig) {
+        if (url.hasSuffix("/")) {
+            int lastIndex = url.length() - 1;
+            url = url.substring(0, lastIndex);
         }
-        () => {
-            httpClientRequired = true;
+    } else {
+        httpClientRequired = true;
+    }
+    if (httpClientRequired) {
+        var redirectConfigVal = config.followRedirects;
+        if (redirectConfigVal is FollowRedirects) {
+            return createRedirectClient(url, config);
+        } else {
+            return checkForRetry(url, config);
+        }
+    } else {
+        return createCircuitBreakerClient(url, config);
+    }
+}
+
+function createRedirectClient(string url, ClientEndpointConfig configuration) returns Client|error {
+    var redirectConfig = configuration.followRedirects;
+    if (redirectConfig is FollowRedirects) {
+        if (redirectConfig.enabled) {
+            var retryClient = createRetryClient(url, configuration);
+            if (retryClient is Client) {
+                return new RedirectClient(url, configuration, redirectConfig, retryClient);
+            } else {
+                return retryClient;
+            }
+        } else {
+            return createRetryClient(url, configuration);
+        }
+    } else {
+        return createRetryClient(url, configuration);
+    }
+}
+
+function checkForRetry(string url, ClientEndpointConfig config) returns Client|error {
+    var retryConfigVal = config.retryConfig;
+    if (retryConfigVal is RetryConfig) {
+        return createRetryClient(url, config);
+    } else {
+        if (config.cache.enabled) {
+            return createHttpCachingClient(url, config, config.cache);
+        } else {
+            return createHttpSecureClient(url, config);
         }
     }
+}
 
-    if (httpClientRequired) {
-        var redirectConfigVal = c.followRedirects;
-        match redirectConfigVal {
-            FollowRedirects redirectConfig => {
-                self.httpClient = createRedirectClient(url, c);
+function createCircuitBreakerClient(string uri, ClientEndpointConfig configuration) returns Client|error {
+    Client cbHttpClient;
+    var cbConfig = configuration.circuitBreaker;
+    if (cbConfig is CircuitBreakerConfig) {
+        validateCircuitBreakerConfiguration(cbConfig);
+        boolean[] statusCodes = populateErrorCodeIndex(cbConfig.statusCodes);
+        var redirectConfig = configuration.followRedirects;
+        if (redirectConfig is FollowRedirects) {
+            var redirectClient = createRedirectClient(uri, configuration);
+            if (redirectClient is Client) {
+                cbHttpClient = redirectClient;
+            } else {
+                return redirectClient;
             }
-            () => {
-                self.httpClient = checkForRetry(url, c);
+        } else {
+            var retryClient = checkForRetry(uri, configuration);
+            if (retryClient is Client) {
+                cbHttpClient = retryClient;
+            } else {
+                return retryClient;
+            }
+        }
+
+        time:Time circuitStartTime = time:currentTime();
+        int numberOfBuckets = (cbConfig.rollingWindow.timeWindowMillis / cbConfig.rollingWindow.bucketSizeMillis);
+        Bucket?[] bucketArray = [];
+        int bucketIndex = 0;
+        while (bucketIndex < numberOfBuckets) {
+            bucketArray[bucketIndex] = {};
+            bucketIndex = bucketIndex + 1;
+        }
+
+        CircuitBreakerInferredConfig circuitBreakerInferredConfig = {
+            failureThreshold: cbConfig.failureThreshold,
+            resetTimeMillis: cbConfig.resetTimeMillis,
+            statusCodes: statusCodes,
+            noOfBuckets: numberOfBuckets,
+            rollingWindow: cbConfig.rollingWindow
+        };
+        CircuitHealth circuitHealth = {
+            startTime: circuitStartTime,
+            lastRequestTime: circuitStartTime,
+            lastErrorTime: circuitStartTime,
+            lastForcedOpenTime: circuitStartTime,
+            totalBuckets: bucketArray
+        };
+        return new CircuitBreakerClient(uri, configuration, circuitBreakerInferredConfig, cbHttpClient, circuitHealth);
+    } else {
+        //remove following once we can ignore
+        if (configuration.cache.enabled) {
+            return createHttpCachingClient(uri, configuration, configuration.cache);
+        } else {
+            return createHttpSecureClient(uri, configuration);
+        }
+    }
+}
+
+function createRetryClient(string url, ClientEndpointConfig configuration) returns Client|error {
+    var retryConfig = configuration.retryConfig;
+    if (retryConfig is RetryConfig) {
+        boolean[] statusCodes = populateErrorCodeIndex(retryConfig.statusCodes);
+        RetryInferredConfig retryInferredConfig = {
+            count: retryConfig.count,
+            interval: retryConfig.interval,
+            backOffFactor: retryConfig.backOffFactor,
+            maxWaitInterval: retryConfig.maxWaitInterval,
+            statusCodes: statusCodes
+        };
+        if (configuration.cache.enabled) {
+            var httpCachingClient = createHttpCachingClient(url, configuration, configuration.cache);
+            if (httpCachingClient is Client) {
+                return new RetryClient(url, configuration, retryInferredConfig, httpCachingClient);
+            } else {
+                return httpCachingClient;
+            }
+        } else {
+            var httpSecureClient = createHttpSecureClient(url, configuration);
+            if (httpSecureClient is Client) {
+                return new RetryClient(url, configuration, retryInferredConfig, httpSecureClient);
+            } else {
+                return httpSecureClient;
             }
         }
     } else {
-        self.httpClient = createCircuitBreakerClient(url, c);
-    }
-}
-
-function createRedirectClient(string url, ClientEndpointConfig configuration) returns CallerActions {
-    var redirectConfigVal = configuration.followRedirects;
-    match redirectConfigVal {
-        FollowRedirects redirectConfig => {
-            if (redirectConfig.enabled) {
-                return new RedirectClient(url, configuration, redirectConfig, createRetryClient(url, configuration));
-            } else {
-                return createRetryClient(url, configuration);
-            }
-        }
-        () => {
-            return createRetryClient(url, configuration);
+        //remove following once we can ignore
+        if (configuration.cache.enabled) {
+            return createHttpCachingClient(url, configuration, configuration.cache);
+        } else {
+            return createHttpSecureClient(url, configuration);
         }
     }
 }
 
-function checkForRetry(string url, ClientEndpointConfig config) returns CallerActions {
-    var retryConfigVal = config.retryConfig;
-    match retryConfigVal {
-        RetryConfig retryConfig => {
-            return createRetryClient(url, config);
-        }
-        () => {
-            if (config.cache.enabled) {
-                return createHttpCachingClient(url, config, config.cache);
-            } else {
-                return createHttpSecureClient(url, config);
-            }
-        }
-    }
-}
-
-function createCircuitBreakerClient(string uri, ClientEndpointConfig configuration) returns CallerActions {
-    var cbConfig = configuration.circuitBreaker;
-    match cbConfig {
-        CircuitBreakerConfig cb => {
-            validateCircuitBreakerConfiguration(cb);
-            boolean [] statusCodes = populateErrorCodeIndex(cb.statusCodes);
-            CallerActions cbHttpClient = new;
-            var redirectConfigVal = configuration.followRedirects;
-            match redirectConfigVal {
-                FollowRedirects redirectConfig => {
-                    cbHttpClient = createRedirectClient(uri, configuration);
-                }
-                () => {
-                    cbHttpClient = checkForRetry(uri, configuration);
-                }
-            }
-
-            time:Time circuitStartTime = time:currentTime();
-            int numberOfBuckets = (cb.rollingWindow.timeWindowMillis/ cb.rollingWindow.bucketSizeMillis);
-            Bucket[] bucketArray = [];
-            int bucketIndex = 0;
-            while (bucketIndex < numberOfBuckets) {
-                bucketArray[bucketIndex] = {};
-                bucketIndex = bucketIndex + 1;
-            }
-
-            CircuitBreakerInferredConfig circuitBreakerInferredConfig = {
-                                                                failureThreshold:cb.failureThreshold,
-                                                                resetTimeMillis:cb.resetTimeMillis,
-                                                                statusCodes:statusCodes,
-                                                                noOfBuckets:numberOfBuckets,
-                                                                rollingWindow:cb.rollingWindow
-                                                            };
-            CircuitHealth circuitHealth = {startTime:circuitStartTime, totalBuckets: bucketArray};
-            return new CircuitBreakerClient(uri, configuration, circuitBreakerInferredConfig, cbHttpClient, circuitHealth);
-        }
-        () => {
-            //remove following once we can ignore
-            if (configuration.cache.enabled) {
-                return createHttpCachingClient(uri, configuration, configuration.cache);
-            } else {
-                return createHttpSecureClient(uri, configuration);
-            }
-        }
-    }
-}
-
-function createRetryClient(string url, ClientEndpointConfig configuration) returns CallerActions {
-    var retryConfigVal = configuration.retryConfig;
-    match retryConfigVal {
-        RetryConfig retryConfig => {
-            if (configuration.cache.enabled) {
-                return new RetryClient(url, configuration, retryConfig, createHttpCachingClient(url, configuration, configuration.cache));
-            } else{
-                return new RetryClient(url, configuration, retryConfig, createHttpSecureClient(url, configuration));
-            }
-        }
-        () => {
-            //remove following once we can ignore
-            if (configuration.cache.enabled) {
-                return createHttpCachingClient(url, configuration, configuration.cache);
-            } else {
-                return createHttpSecureClient(url, configuration);
-            }
-        }
-    }
+function createClient(string url, ClientEndpointConfig config) returns Client|error {
+    HttpClient simpleClient = new(url, config);
+    return simpleClient;
 }

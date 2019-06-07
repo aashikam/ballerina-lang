@@ -17,6 +17,8 @@
 */
 package org.ballerinalang.util.codegen;
 
+import java.math.BigDecimal;
+
 /**
  * {@code AnnotationAttributeValue} contains the default value of a Ballerina struct field.
  *
@@ -28,8 +30,9 @@ public class DefaultValue {
 
     private int valueCPIndex = -1;
     private long intValue;
-    private byte byteValue;
+    private long byteValue;
     private double floatValue;
+    private BigDecimal decimalValue;
     private String stringValue;
     private boolean booleanValue;
 
@@ -70,6 +73,14 @@ public class DefaultValue {
         this.floatValue = floatValue;
     }
 
+    public BigDecimal getDecimalValue() {
+        return decimalValue;
+    }
+
+    public void setDecimalValue(BigDecimal decimalValue) {
+        this.decimalValue = decimalValue;
+    }
+
     public String getStringValue() {
         return stringValue;
     }
@@ -86,11 +97,11 @@ public class DefaultValue {
         this.booleanValue = booleanValue;
     }
 
-    public byte getByteValue() {
+    public long getByteValue() {
         return byteValue;
     }
 
-    public void setByteValue(byte byteValue) {
+    public void setByteValue(long byteValue) {
         this.byteValue = byteValue;
     }
 }

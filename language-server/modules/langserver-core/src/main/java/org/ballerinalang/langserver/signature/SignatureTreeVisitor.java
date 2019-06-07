@@ -22,6 +22,7 @@ import org.ballerinalang.langserver.common.utils.CommonUtil;
 import org.ballerinalang.langserver.compiler.DocumentServiceKeys;
 import org.ballerinalang.langserver.compiler.LSServiceOperationContext;
 import org.ballerinalang.langserver.completions.SymbolInfo;
+import org.ballerinalang.model.elements.Flag;
 import org.ballerinalang.model.tree.TopLevelNode;
 import org.eclipse.lsp4j.Position;
 import org.wso2.ballerinalang.compiler.semantics.analyzer.SymbolResolver;
@@ -29,20 +30,20 @@ import org.wso2.ballerinalang.compiler.semantics.model.Scope;
 import org.wso2.ballerinalang.compiler.semantics.model.SymbolEnv;
 import org.wso2.ballerinalang.compiler.semantics.model.SymbolTable;
 import org.wso2.ballerinalang.compiler.semantics.model.symbols.BSymbol;
-import org.wso2.ballerinalang.compiler.tree.BLangCompilationUnit;
 import org.wso2.ballerinalang.compiler.tree.BLangFunction;
 import org.wso2.ballerinalang.compiler.tree.BLangNode;
 import org.wso2.ballerinalang.compiler.tree.BLangPackage;
-import org.wso2.ballerinalang.compiler.tree.BLangResource;
 import org.wso2.ballerinalang.compiler.tree.BLangService;
+import org.wso2.ballerinalang.compiler.tree.BLangSimpleVariable;
+import org.wso2.ballerinalang.compiler.tree.BLangTypeDefinition;
 import org.wso2.ballerinalang.compiler.tree.statements.BLangBlockStmt;
-import org.wso2.ballerinalang.compiler.tree.statements.BLangCatch;
+import org.wso2.ballerinalang.compiler.tree.statements.BLangCompoundAssignment;
 import org.wso2.ballerinalang.compiler.tree.statements.BLangForeach;
 import org.wso2.ballerinalang.compiler.tree.statements.BLangIf;
+import org.wso2.ballerinalang.compiler.tree.statements.BLangSimpleVariableDef;
 import org.wso2.ballerinalang.compiler.tree.statements.BLangTransaction;
-import org.wso2.ballerinalang.compiler.tree.statements.BLangTryCatchFinally;
-import org.wso2.ballerinalang.compiler.tree.statements.BLangVariableDef;
 import org.wso2.ballerinalang.compiler.tree.statements.BLangWhile;
+import org.wso2.ballerinalang.compiler.tree.types.BLangObjectTypeNode;
 import org.wso2.ballerinalang.compiler.util.CompilerContext;
 import org.wso2.ballerinalang.compiler.util.Name;
 import org.wso2.ballerinalang.compiler.util.diagnotic.DiagnosticPos;
@@ -52,6 +53,7 @@ import java.util.ArrayList;
 import java.util.Deque;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * Tree visitor to traverse through the ballerina node tree and find the scope of a given cursor position.
@@ -77,20 +79,28 @@ public class SignatureTreeVisitor extends LSNodeVisitor {
     private void init(CompilerContext compilerContext) {
         symTable = SymbolTable.getInstance(compilerContext);
         symbolResolver = SymbolResolver.getInstance(compilerContext);
-        lsContext.put(DocumentServiceKeys.SYMBOL_TABLE_KEY, symTable);
     }
 
     @Override
     public void visit(BLangPackage pkgNode) {
         SymbolEnv pkgEnv = symTable.pkgEnvMap.get(pkgNode.symbol);
-        // Then visit each top-level element sorted using the compilation unit
-        String fileName = lsContext.get(DocumentServiceKeys.FILE_NAME_KEY);
-        BLangCompilationUnit compilationUnit = pkgNode.getCompilationUnits().stream()
-                .filter(bLangCompilationUnit -> bLangCompilationUnit.getName().equals(fileName))
-                .findFirst().orElse(new BLangCompilationUnit());
-        List<TopLevelNode> topLevelNodes = compilationUnit.getTopLevelNodes();
+        List<TopLevelNode> topLevelNodes = CommonUtil.getCurrentFileTopLevelNodes(pkgNode, lsContext);
 
-        topLevelNodes.forEach(topLevelNode -> acceptNode((BLangNode) topLevelNode, pkgEnv));
+        topLevelNodes.stream()
+                .filter(CommonUtil.checkInvalidTypesDefs())
+                .forEach(topLevelNode -> acceptNode((BLangNode) topLevelNode, pkgEnv));
+    }
+
+    @Override
+    public void visit(BLangTypeDefinition typeDefinition) {
+        acceptNode(typeDefinition.typeNode, symbolEnv);
+    }
+
+    @Override
+    public void visit(BLangObjectTypeNode objectTypeNode) {
+        objectTypeNode.functions.stream()
+                .filter(bLangFunction -> !bLangFunction.flagSet.contains(Flag.INTERFACE))
+                .forEach(bLangFunction -> acceptNode(bLangFunction, symbolEnv));
     }
 
     @Override
@@ -109,19 +119,18 @@ public class SignatureTreeVisitor extends LSNodeVisitor {
 
     @Override
     public void visit(BLangService serviceNode) {
-        BSymbol serviceSymbol = serviceNode.symbol;
-        SymbolEnv serviceEnv = SymbolEnv.createPkgLevelSymbolEnv(serviceNode, serviceSymbol.scope, symbolEnv);
-        serviceNode.resources.forEach(r -> this.acceptNode(r, serviceEnv));
-    }
-
-    @Override
-    public void visit(BLangResource resourceNode) {
-        BSymbol resourceSymbol = resourceNode.symbol;
-        SymbolEnv resourceEnv = SymbolEnv.createResourceActionSymbolEnv(resourceNode, resourceSymbol.scope, symbolEnv);
-        resourceNode.workers.forEach(w -> this.acceptNode(w, resourceEnv));
-        this.blockPositionStack.push(resourceNode.pos);
-        acceptNode(resourceNode.body, resourceEnv);
-        this.blockPositionStack.pop();
+        BLangObjectTypeNode serviceType = (BLangObjectTypeNode) serviceNode.serviceTypeDefinition.typeNode;
+        List<BLangNode> serviceContent = new ArrayList<>();
+        SymbolEnv serviceEnv = SymbolEnv.createPkgLevelSymbolEnv(serviceNode, serviceType.symbol.scope, symbolEnv);
+        List<BLangFunction> serviceFunctions = ((BLangObjectTypeNode) serviceNode.serviceTypeDefinition.typeNode)
+                .getFunctions();
+        List<BLangSimpleVariable> serviceFields = serviceType.getFields().stream()
+                .map(simpleVar -> (BLangSimpleVariable) simpleVar)
+                .collect(Collectors.toList());
+        serviceContent.addAll(serviceFunctions);
+        serviceContent.addAll(serviceFields);
+        serviceContent.sort(new CommonUtil.BLangNodeComparator());
+        serviceContent.forEach(serviceField -> this.acceptNode(serviceField, serviceEnv));
     }
 
     @Override
@@ -135,7 +144,7 @@ public class SignatureTreeVisitor extends LSNodeVisitor {
     }
 
     @Override
-    public void visit(BLangVariableDef varDefNode) {
+    public void visit(BLangSimpleVariableDef varDefNode) {
         this.acceptNode(varDefNode.var, symbolEnv);
     }
 
@@ -180,26 +189,16 @@ public class SignatureTreeVisitor extends LSNodeVisitor {
     }
 
     @Override
-    public void visit(BLangTryCatchFinally tryNode) {
-        tryNode.catchBlocks.forEach(bLangCatch -> this.acceptNode(bLangCatch, symbolEnv));
-        if (tryNode.finallyBody != null) {
-            this.blockPositionStack.push(tryNode.finallyBody.pos);
-            this.acceptNode(tryNode.finallyBody, symbolEnv);
+    public void visit(BLangCompoundAssignment assignment) {
+        this.blockPositionStack.push(assignment.pos);
+        this.acceptNode(assignment.varRef, symbolEnv);
+        this.blockPositionStack.pop();
+
+        if (assignment.expr != null) {
+            this.blockPositionStack.push(assignment.expr.pos);
+            acceptNode(assignment.expr, symbolEnv);
             this.blockPositionStack.pop();
         }
-        this.blockPositionStack.push(tryNode.pos);
-        this.acceptNode(tryNode.tryBody, symbolEnv);
-        this.blockPositionStack.pop();
-    }
-
-    @Override
-    public void visit(BLangCatch catchNode) {
-        SymbolEnv catchBlockEnv = SymbolEnv.createBlockEnv(catchNode.body, symbolEnv);
-        this.acceptNode(catchNode.param, catchBlockEnv);
-
-        this.blockPositionStack.push(catchNode.pos);
-        this.acceptNode(catchNode.body, catchBlockEnv);
-        this.blockPositionStack.pop();
     }
 
     // Private Methods

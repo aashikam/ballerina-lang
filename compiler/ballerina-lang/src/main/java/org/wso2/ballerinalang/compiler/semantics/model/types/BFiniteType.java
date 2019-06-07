@@ -20,12 +20,13 @@ package org.wso2.ballerinalang.compiler.semantics.model.types;
 
 import org.ballerinalang.model.types.FiniteType;
 import org.ballerinalang.model.types.TypeKind;
+import org.wso2.ballerinalang.compiler.semantics.model.TypeVisitor;
 import org.wso2.ballerinalang.compiler.semantics.model.symbols.BTypeSymbol;
 import org.wso2.ballerinalang.compiler.tree.expressions.BLangExpression;
 import org.wso2.ballerinalang.compiler.util.TypeDescriptor;
 import org.wso2.ballerinalang.compiler.util.TypeTags;
 
-import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.Set;
 import java.util.StringJoiner;
 
@@ -39,7 +40,12 @@ public class BFiniteType extends BType implements FiniteType {
 
     public BFiniteType(BTypeSymbol tsymbol) {
         super(TypeTags.FINITE, tsymbol);
-        valueSpace = new HashSet<>();
+        valueSpace = new LinkedHashSet<>();
+    }
+
+    public BFiniteType(BTypeSymbol tsymbol, Set<BLangExpression> valueSpace) {
+        super(TypeTags.FINITE, tsymbol);
+        this.valueSpace = valueSpace;
     }
 
     @Override
@@ -52,6 +58,10 @@ public class BFiniteType extends BType implements FiniteType {
         return TypeKind.FINITE;
     }
 
+    @Override
+    public void accept(TypeVisitor visitor) {
+        visitor.visit(this);
+    }
 
     @Override
     public <T, R> R accept(BTypeVisitor<T, R> visitor, T t) {
@@ -61,12 +71,25 @@ public class BFiniteType extends BType implements FiniteType {
     @Override
     public String toString() {
         StringJoiner joiner = new StringJoiner("|");
-        this.valueSpace.forEach(value -> joiner.add(value.toString()));
+        for (BLangExpression value : this.valueSpace) {
+            if (value.type.tag == TypeTags.FLOAT) {
+                joiner.add(value.toString() + "f");
+            } else if (value.type.tag == TypeTags.DECIMAL) {
+                joiner.add(value.toString() + "d");
+            } else {
+                joiner.add(value.toString());
+            }
+        }
         return joiner.toString();
     }
 
     @Override
     public String getDesc() {
         return TypeDescriptor.SIG_FINITE + getQualifiedTypeName() + ";";
+    }
+
+    @Override
+    public boolean isNullable() {
+        return this.valueSpace.stream().anyMatch(v -> v.type.tag == TypeTags.NIL);
     }
 }

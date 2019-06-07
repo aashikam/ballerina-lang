@@ -18,8 +18,12 @@
 package org.wso2.ballerinalang.compiler.tree.expressions;
 
 import org.ballerinalang.model.tree.expressions.ExpressionNode;
+import org.wso2.ballerinalang.compiler.semantics.model.symbols.BVarSymbol;
+import org.wso2.ballerinalang.compiler.semantics.model.types.BType.NarrowedTypes;
 import org.wso2.ballerinalang.compiler.tree.BLangNode;
 import org.wso2.ballerinalang.programfile.Instruction.RegIndex;
+
+import java.util.Map;
 
 /**
  * {@code BLangExpression} represents an expression node in Ballerina AST.
@@ -41,4 +45,13 @@ public abstract class BLangExpression extends BLangNode implements ExpressionNod
      * during the code generation phase of the compiler.
      */
     public RegIndex regIndex;
+
+    /**
+     * Indicates whether the expression has already been type checked.
+     */
+    public boolean typeChecked;
+
+    public Map<BVarSymbol, NarrowedTypes> narrowedTypeInfo;
+
+    public boolean ignoreExpression;
 }

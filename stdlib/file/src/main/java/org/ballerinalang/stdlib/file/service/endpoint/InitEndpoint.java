@@ -19,15 +19,17 @@
 package org.ballerinalang.stdlib.file.service.endpoint;
 
 import org.ballerinalang.bre.Context;
-import org.ballerinalang.bre.bvm.BLangVMErrors;
 import org.ballerinalang.bre.bvm.BlockingNativeCallableUnit;
 import org.ballerinalang.connector.api.BLangConnectorSPIUtil;
 import org.ballerinalang.connector.api.Struct;
+import org.ballerinalang.jvm.Strand;
+import org.ballerinalang.jvm.values.MapValue;
+import org.ballerinalang.jvm.values.ObjectValue;
 import org.ballerinalang.model.types.TypeKind;
-import org.ballerinalang.natives.annotations.Argument;
 import org.ballerinalang.natives.annotations.BallerinaFunction;
 import org.ballerinalang.natives.annotations.Receiver;
 import org.ballerinalang.stdlib.file.service.DirectoryListenerConstants;
+import org.ballerinalang.stdlib.file.utils.FileUtils;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -42,9 +44,6 @@ import java.nio.file.Paths;
         packageName = "file",
         functionName = "initEndpoint",
         receiver = @Receiver(type = TypeKind.OBJECT, structType = "Listener", structPackage = "ballerina/file"),
-        args = {@Argument(name = "config", type = TypeKind.RECORD, structType = "ListenerEndpointConfiguration",
-                          structPackage = "ballerina/file")
-        },
         isPublic = true
 )
 public class InitEndpoint extends BlockingNativeCallableUnit {
@@ -55,15 +54,34 @@ public class InitEndpoint extends BlockingNativeCallableUnit {
         Struct serviceEndpointConfig = serviceEndpoint
                 .getStructField(DirectoryListenerConstants.SERVICE_ENDPOINT_CONFIG);
         final String path = serviceEndpointConfig.getStringField(DirectoryListenerConstants.ANNOTATION_PATH);
+        if (path == null || path.isEmpty()) {
+            context.setReturnValues(FileUtils.createError(context, "'path' field is empty"));
+            return;
+        }
         final Path dirPath = Paths.get(path);
         if (Files.notExists(dirPath)) {
-            context.setReturnValues(BLangVMErrors.createError(context, "Folder does not exist: " + path));
+            context.setReturnValues(FileUtils.createError(context, "Folder does not exist: " + path));
             return;
         }
         if (!Files.isDirectory(dirPath)) {
-            context.setReturnValues(BLangVMErrors.createError(context, "Unable to find a directory : " + path));
+            context.setReturnValues(FileUtils.createError(context, "Unable to find a directory: " + path));
             return;
         }
         context.setReturnValues();
+    }
+
+    public static Object initEndpoint(Strand strand, ObjectValue listener, MapValue<?, ?> serviceEndpointConfig) {
+        final String path = serviceEndpointConfig.getStringValue(DirectoryListenerConstants.ANNOTATION_PATH);
+        if (path == null || path.isEmpty()) {
+            return FileUtils.createError("'path' field is empty");
+        }
+        final Path dirPath = Paths.get(path);
+        if (Files.notExists(dirPath)) {
+            return FileUtils.createError("Folder does not exist: " + path);
+        }
+        if (!Files.isDirectory(dirPath)) {
+            return FileUtils.createError("Unable to find a directory: " + path);
+        }
+        return null;
     }
 }

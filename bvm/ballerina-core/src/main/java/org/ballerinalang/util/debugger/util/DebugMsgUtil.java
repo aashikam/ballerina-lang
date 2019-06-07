@@ -24,7 +24,7 @@ import org.ballerinalang.model.util.JsonParser;
 import org.ballerinalang.model.values.BInteger;
 import org.ballerinalang.model.values.BMap;
 import org.ballerinalang.model.values.BRefType;
-import org.ballerinalang.model.values.BRefValueArray;
+import org.ballerinalang.model.values.BValueArray;
 import org.ballerinalang.util.debugger.DebugConstants;
 import org.ballerinalang.util.debugger.dto.BreakPointDTO;
 import org.ballerinalang.util.debugger.dto.CommandDTO;
@@ -51,6 +51,7 @@ public class DebugMsgUtil {
     private static final String THREAD_ID = "threadId";
     private static final String FRAMES = "frames";
     private static final String LOCATION = "location";
+    // TODO packagePath has to be changed to modulePath. This has to be handled by the server and client.
     private static final String PACKAGE_PATH = "packagePath";
     private static final String FILE_NAME = "fileName";
     private static final String LINE_NUMBER = "lineNumber";
@@ -113,9 +114,9 @@ public class DebugMsgUtil {
             return null;
         }
         List<BreakPointDTO> bPoints = new ArrayList<>();
-        BRefValueArray jsonArray = (BRefValueArray) json;
+        BValueArray jsonArray = (BValueArray) json;
         for (int i = 0; i < jsonArray.size(); i++) {
-            BMap<String, BRefType<?>> element = (BMap) jsonArray.get(i);
+            BMap<String, BRefType<?>> element = (BMap) jsonArray.getRefValue(i);
             BreakPointDTO bPoint = new BreakPointDTO();
             bPoint.setPackagePath(element.get(PACKAGE_PATH) == null ? null : element.get(PACKAGE_PATH).stringValue());
             bPoint.setFileName(element.get(FILE_NAME) == null ? null : element.get(FILE_NAME).stringValue());

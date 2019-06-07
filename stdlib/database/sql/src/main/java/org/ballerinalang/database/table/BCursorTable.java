@@ -19,12 +19,15 @@ package org.ballerinalang.database.table;
 
 import org.ballerinalang.bre.Context;
 import org.ballerinalang.model.DataIterator;
+import org.ballerinalang.model.types.BStructureType;
 import org.ballerinalang.model.values.BFunctionPointer;
 import org.ballerinalang.model.values.BMap;
 import org.ballerinalang.model.values.BTable;
 import org.ballerinalang.model.values.BValue;
 import org.ballerinalang.util.TableUtils;
 import org.ballerinalang.util.exceptions.BallerinaException;
+
+import java.util.Map;
 
 /**
  * Represents a cursor based table which is returned from a database as result of a query.
@@ -33,20 +36,13 @@ import org.ballerinalang.util.exceptions.BallerinaException;
  */
 public class BCursorTable extends BTable {
 
-    private boolean loadSQLTableToMemory;
-
-    public BCursorTable(DataIterator dataIterator, boolean loadSQLTableToMemory) {
-        super();
+    public BCursorTable(DataIterator dataIterator, BStructureType constraintType) {
+        super(constraintType);
         this.iterator = dataIterator;
-        this.loadSQLTableToMemory = loadSQLTableToMemory;
     }
 
-    public void reset(boolean isInTransaction) {
-        if (loadSQLTableToMemory) {
-            iterator.reset(false);
-        } else {
-           iterator.reset(isInTransaction);
-        }
+    public void reset() {
+        iterator.reset();
         resetIterationHelperAttributes();
     }
 
@@ -63,7 +59,21 @@ public class BCursorTable extends BTable {
                 new BallerinaException("data cannot be deleted from a table returned from a database")));
     }
 
+    public int length() {
+        throw new BallerinaException("The row count of a table returned from a database cannot be provided");
+    }
+
     protected boolean isIteratorGenerationConditionMet() {
         return false;
+    }
+
+    @Override
+    public boolean isInMemoryTable() {
+        return false;
+    }
+
+    @Override
+    public BValue copy(Map<BValue, BValue> refs) {
+        throw new BallerinaException("A table returned from a database can not be cloned");
     }
 }

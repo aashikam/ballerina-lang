@@ -30,7 +30,10 @@ public class MimeConstants {
     public static final String CONTENT_DISPOSITION_STRUCT = "ContentDisposition";
     public static final String PROTOCOL_PACKAGE_MIME = BALLERINA_PACKAGE_PREFIX + "mime";
     public static final String PROTOCOL_PACKAGE_IO = BALLERINA_PACKAGE_PREFIX + "io";
-    public static final String BYTE_CHANNEL_STRUCT = "ByteChannel";
+    public static final String READABLE_BYTE_CHANNEL_STRUCT = "ReadableByteChannel";
+    public static final String MIME_ERROR_RECORD = "MIMEError";
+    public static final String MIME_ERROR_MESSAGE = "message";
+    public static final String MIME_ERROR_CODE = "{ballerina/mime}MIMEError";
 
     /**
      * Content type HTTP header.
@@ -98,6 +101,7 @@ public class MimeConstants {
     public static final String MULTIPART_ENCODER = "MultipartEncoder";
     public static final String BODY_PARTS = "body_parts";
     public static final String ENTITY_HEADERS = "entity_headers";
+    public static final String TRANSPORT_MESSAGE = "transport_message";
 
     public static final String CHARSET = "charset";
 

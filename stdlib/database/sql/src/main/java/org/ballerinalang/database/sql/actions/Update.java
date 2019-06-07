@@ -18,34 +18,32 @@
 package org.ballerinalang.database.sql.actions;
 
 import org.ballerinalang.bre.Context;
-import org.ballerinalang.database.sql.Constants;
 import org.ballerinalang.database.sql.SQLDatasource;
 import org.ballerinalang.database.sql.SQLDatasourceUtils;
 import org.ballerinalang.model.types.TypeKind;
-import org.ballerinalang.model.values.BRefValueArray;
+import org.ballerinalang.model.values.BValueArray;
 import org.ballerinalang.natives.annotations.Argument;
 import org.ballerinalang.natives.annotations.BallerinaFunction;
-import org.ballerinalang.natives.annotations.Receiver;
 import org.ballerinalang.natives.annotations.ReturnType;
 
 import static org.ballerinalang.util.BLangConstants.BALLERINA_BUILTIN_PKG;
 
 /**
- * {@code Update} is the Update action implementation of the SQL Connector.
+ * {@code Update} is the Update remote function implementation of the SQL Connector.
  *
  * @since 0.8.0
  */
 @BallerinaFunction(
         orgName = "ballerina", packageName = "sql",
-        functionName = "update",
-        receiver = @Receiver(type = TypeKind.OBJECT, structType = Constants.CALLER_ACTIONS),
+        functionName = "nativeUpdate",
         args = {
                 @Argument(name = "sqlQuery", type = TypeKind.STRING),
+                @Argument(name = "keyColumns", type = TypeKind.ARRAY, elementType = TypeKind.STRING),
                 @Argument(name = "parameters", type = TypeKind.ARRAY, elementType = TypeKind.UNION,
                           structType = "Param")
         },
         returnType = {
-                @ReturnType(type = TypeKind.INT),
+                @ReturnType(type = TypeKind.RECORD, structType = "Result", structPackage = "ballerina/sql"),
                 @ReturnType(type = TypeKind.RECORD, structType = "error", structPackage = BALLERINA_BUILTIN_PKG)
         }
 )
@@ -55,11 +53,12 @@ public class Update extends AbstractSQLAction {
     public void execute(Context context) {
         try {
             String query = context.getStringArgument(0);
-            BRefValueArray parameters = (BRefValueArray) context.getNullableRefArgument(1);
+            BValueArray keyColumns = (BValueArray) context.getNullableRefArgument(1);
+            BValueArray parameters = (BValueArray) context.getNullableRefArgument(2);
             SQLDatasource datasource = retrieveDatasource(context);
 
             checkAndObserveSQLAction(context, datasource, query);
-            executeUpdate(context, datasource, query, parameters);
+            executeUpdateWithKeys(context, datasource, query, keyColumns, parameters);
         } catch (Throwable e) {
             context.setReturnValues(SQLDatasourceUtils.getSQLConnectorError(context, e));
             SQLDatasourceUtils.handleErrorOnTransaction(context);

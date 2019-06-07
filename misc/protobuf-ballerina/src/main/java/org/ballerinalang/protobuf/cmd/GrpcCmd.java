@@ -40,6 +40,7 @@ import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 
 import static org.ballerinalang.net.grpc.proto.ServiceProtoConstants.TMP_DIRECTORY_PATH;
 import static org.ballerinalang.protobuf.BalGenerationConstants.BUILD_COMMAND_NAME;
@@ -77,6 +78,11 @@ public class GrpcCmd implements BLauncherCmd {
             required = true
     )
     private String protoPath;
+
+    @CommandLine.Option(names = {"--mode"},
+            description = "Ballerina source [service or client]"
+    )
+    private String mode = "stub";
 
     @CommandLine.Option(names = {"--output"},
             description = "Generated Ballerina source files location"
@@ -127,7 +133,7 @@ public class GrpcCmd implements BLauncherCmd {
         StringBuilder msg = new StringBuilder();
         LOG.debug("Initializing the ballerina code generation.");
         byte[] root;
-        List<byte[]> dependant;
+        Set<byte[]> dependant;
         try {
             ClassLoader classLoader = this.getClass().getClassLoader();
             List<String> protoFiles = readProperties(classLoader);
@@ -187,7 +193,7 @@ public class GrpcCmd implements BLauncherCmd {
             ballerinaFileBuilder = new BallerinaFileBuilder(root, dependant, balOutPath);
         }
         try {
-            ballerinaFileBuilder.build();
+            ballerinaFileBuilder.build(this.mode);
         } catch (BalGenerationException e) {
             LOG.error("Error generating ballerina file.", e);
             msg.append("Error generating ballerina file.").append(e.getMessage()).append(NEW_LINE_CHARACTER);
@@ -251,27 +257,31 @@ public class GrpcCmd implements BLauncherCmd {
      */
     private void downloadProtocexe() throws IOException {
         if (protocExePath == null) {
-            File protocExeFile = new File(TMP_DIRECTORY_PATH, "protoc-" + OSDetector.getDetectedClassifier() + ".exe");
+            String protocFilename = "protoc-" + OSDetector.getDetectedClassifier() + ".exe";
+            File protocExeFile = new File(TMP_DIRECTORY_PATH, protocFilename);
             protocExePath = protocExeFile.getAbsolutePath(); // if file already exists will do nothing
             if (!protocExeFile.exists()) {
-                outStream.println("Downloading proc executor.");
+                outStream.println("Downloading protoc executor file - " + protocFilename);
                 String protocDownloadurl = PROTOC_PLUGIN_EXE_URL_SUFFIX + protocVersion + "/protoc-" + protocVersion
                         + "-" + OSDetector.getDetectedClassifier() + PROTOC_PLUGIN_EXE_PREFIX;
+                File tempDownloadFile = new File(TMP_DIRECTORY_PATH,
+                        "protoc-" + OSDetector.getDetectedClassifier() + ".exe.download");
                 try {
-                    downloadFile(new URL(protocDownloadurl), protocExeFile);
+                    downloadFile(new URL(protocDownloadurl), tempDownloadFile);
+                    Files.move(tempDownloadFile.toPath(), protocExeFile.toPath());
                     //set application user permissions to 455
                     grantPermission(protocExeFile);
                 } catch (BalGenToolException e) {
                     Files.deleteIfExists(Paths.get(protocExePath));
                     throw e;
                 }
-                outStream.println("Download successfully completed.");
+                outStream.println("Download successfully completed. Executor file path - " + protocExeFile.getPath());
             } else {
                 grantPermission(protocExeFile);
-                outStream.println("Continue with existing protoc executor.");
+                outStream.println("Continue with existing protoc executor file at " + protocExeFile.getPath());
             }
         } else {
-            outStream.println("Continue with provided protoc executor at " + protocExePath);
+            outStream.println("Continue with provided protoc executor file at " + protocExePath);
         }
     }
     
@@ -290,7 +300,6 @@ public class GrpcCmd implements BLauncherCmd {
     
     @Override
     public void printUsage(StringBuilder stringBuilder) {
-        
         stringBuilder.append("  ballerina " + COMPONENT_IDENTIFIER + " --input chat.proto\n");
     }
     
@@ -302,11 +311,6 @@ public class GrpcCmd implements BLauncherCmd {
     @Override
     public void setParentCmdParser(CommandLine parentCmdParser) {
         this.parentCmdParser = parentCmdParser;
-    }
-    
-    @Override
-    public void setSelfCmdParser(CommandLine selfCmdParser) {
-    
     }
     
     private List<String> readProperties(ClassLoader classLoader) {
@@ -330,6 +334,11 @@ public class GrpcCmd implements BLauncherCmd {
     public void setBalOutPath(String balOutPath) {
         this.balOutPath = balOutPath;
     }
+
+    public void setMode(String mode) {
+        this.mode = mode;
+    }
+
 }
 
 

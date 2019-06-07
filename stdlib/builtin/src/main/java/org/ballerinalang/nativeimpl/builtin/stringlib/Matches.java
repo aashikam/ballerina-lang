@@ -19,12 +19,15 @@
 package org.ballerinalang.nativeimpl.builtin.stringlib;
 
 import org.ballerinalang.bre.Context;
-import org.ballerinalang.bre.bvm.BLangVMErrors;
+import org.ballerinalang.jvm.BallerinaErrors;
+import org.ballerinalang.jvm.Strand;
+import org.ballerinalang.jvm.util.exceptions.BallerinaErrorReasons;
 import org.ballerinalang.model.types.TypeKind;
 import org.ballerinalang.model.values.BBoolean;
 import org.ballerinalang.natives.annotations.Argument;
 import org.ballerinalang.natives.annotations.BallerinaFunction;
 import org.ballerinalang.natives.annotations.ReturnType;
+import org.ballerinalang.util.BuiltInUtils;
 
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -52,7 +55,17 @@ public class Matches extends AbstractRegexFunction {
             BBoolean matches = new BBoolean(matcher.matches());
             context.setReturnValues(matches);
         } catch (PatternSyntaxException e) {
-            context.setReturnValues(BLangVMErrors.createError(context, e.getMessage()));
+            context.setReturnValues(BuiltInUtils.createStringError(context, e.getMessage()));
+        }
+    }
+
+    public static Object matches(Strand strand, String value, String regex, String replaceWith) {
+        try {
+            Pattern pattern = validatePattern(regex);
+            Matcher matcher = pattern.matcher(value);
+            return matcher.matches();
+        } catch (PatternSyntaxException e) {
+            return BallerinaErrors.createError(BallerinaErrorReasons.STRING_OPERATION_ERROR, e.getMessage());
         }
     }
 }

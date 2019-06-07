@@ -32,7 +32,7 @@ import static org.ballerinalang.packerina.cmd.Constants.INSTALL_COMMAND;
  *
  * @since 0.90
  */
-@CommandLine.Command(name = INSTALL_COMMAND, description = "install packages to the home repository")
+@CommandLine.Command(name = INSTALL_COMMAND, description = "install modules to the home repository")
 public class InstallCommand implements BLauncherCmd {
 
     private static PrintStream outStream = System.err;
@@ -44,11 +44,14 @@ public class InstallCommand implements BLauncherCmd {
     private boolean helpFlag;
 
     @CommandLine.Option(names = {"--sourceroot"},
-            description = "path to the directory containing source files and packages")
+            description = "path to the directory containing source files and modules")
     private String sourceRoot;
 
     @CommandLine.Option(names = {"--no-build"}, description = "skip building before installing")
     private boolean noBuild;
+
+    @CommandLine.Option(names = "--experimental", description = "enable experimental language features")
+    private boolean experimentalFlag;
 
     @Override
     public void execute() {
@@ -59,10 +62,10 @@ public class InstallCommand implements BLauncherCmd {
         }
 
         if (argList == null || argList.size() == 0) {
-            PushUtils.pushAllPackages(sourceRoot, "home", noBuild);
+            PushUtils.pushAllPackages(sourceRoot, "home", noBuild, experimentalFlag);
         } else if (argList.size() == 1) {
             String packageStr = argList.get(0);
-            PushUtils.pushPackages(packageStr, sourceRoot, "home", noBuild);
+            PushUtils.pushPackages(packageStr, sourceRoot, "home", noBuild, experimentalFlag);
         } else {
             throw LauncherUtils.createUsageExceptionWithHelp("too many arguments");
         }
@@ -75,19 +78,15 @@ public class InstallCommand implements BLauncherCmd {
 
     @Override
     public void printLongDesc(StringBuilder out) {
-        out.append("install packages to the home repository \n");
+        out.append("install modules to the home repository \n");
     }
 
     @Override
     public void printUsage(StringBuilder out) {
-        out.append("  ballerina install <package-name> \n");
+        out.append("  ballerina install <module-name> \n");
     }
 
     @Override
     public void setParentCmdParser(CommandLine parentCmdParser) {
-    }
-
-    @Override
-    public void setSelfCmdParser(CommandLine selfCmdParser) {
     }
 }

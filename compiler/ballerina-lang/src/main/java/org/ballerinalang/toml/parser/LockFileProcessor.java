@@ -21,8 +21,8 @@ import org.antlr.v4.runtime.ANTLRFileStream;
 import org.antlr.v4.runtime.ANTLRInputStream;
 import org.antlr.v4.runtime.CharStream;
 import org.antlr.v4.runtime.tree.ParseTreeWalker;
+import org.ballerinalang.toml.antlr4.TomlProcessor;
 import org.ballerinalang.toml.model.LockFile;
-import org.ballerinalang.toml.util.TomlProcessor;
 import org.wso2.ballerinalang.compiler.SourceDirectory;
 import org.wso2.ballerinalang.compiler.util.CompilerContext;
 
@@ -47,9 +47,13 @@ public class LockFileProcessor {
      * Get an instance of the LockFileProcessor.
      *
      * @param context compiler context
+     * @param lockEnabled if lock is enabled or not
      * @return instance of LockFileProcessor
      */
-    public static LockFileProcessor getInstance(CompilerContext context) {
+    public static LockFileProcessor getInstance(CompilerContext context, boolean lockEnabled) {
+        if (!lockEnabled) {
+            return new LockFileProcessor(new LockFile());
+        }
         LockFileProcessor lockFileProcessor = context.get(LOCK_FILE_PROC_KEY);
         if (lockFileProcessor == null) {
             SourceDirectory sourceDirectory = context.get(SourceDirectory.class);
@@ -108,7 +112,7 @@ public class LockFileProcessor {
     private static LockFile getLockFile(CharStream charStream) {
         LockFile lockFile = new LockFile();
         ParseTreeWalker walker = new ParseTreeWalker();
-        walker.walk(new LockFileBuildListener(lockFile), TomlProcessor.parseTomlContent(charStream));
+        walker.walk(new LockFileBuildListener(lockFile), TomlProcessor.parseTomlContent(charStream, "Ballerina.lock"));
         return lockFile;
     }
 

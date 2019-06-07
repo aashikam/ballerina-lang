@@ -18,6 +18,12 @@
 package org.wso2.ballerinalang.compiler.bir.writer;
 
 
+import org.ballerinalang.compiler.BLangCompilerException;
+
+import java.io.ByteArrayOutputStream;
+import java.io.DataOutputStream;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -28,7 +34,10 @@ import java.util.List;
  */
 public class ConstantPool {
 
-    private List<CPEntry> cpEntries = new ArrayList<>();
+    // Size to be written to tag a null value
+    private static final int NULL_VALUE_FIELD_SIZE_TAG = -1;
+
+    private final List<CPEntry> cpEntries = new ArrayList<>();
 
     public int addCPEntry(CPEntry cpEntry) {
         if (cpEntries.contains(cpEntry)) {
@@ -39,15 +48,55 @@ public class ConstantPool {
         return cpEntries.size() - 1;
     }
 
-    public CPEntry getCPEntry(int index) {
-        return cpEntries.get(index);
+    public byte[] serialize()  {
+        ByteArrayOutputStream byteArrayStream = new ByteArrayOutputStream();
+        try (DataOutputStream dataStream = new DataOutputStream(byteArrayStream)) {
+            writeToStream(dataStream);
+            return byteArrayStream.toByteArray();
+        } catch (IOException e) {
+            throw new BLangCompilerException("failed to create bir consent pool", e);
+        }
     }
 
-    public int getCPEntryIndex(CPEntry cpEntry) {
-        return cpEntries.indexOf(cpEntry);
-    }
-
-    public CPEntry[] getConstPoolEntries() {
-        return cpEntries.toArray(new CPEntry[0]);
+    private void writeToStream(DataOutputStream stream) throws IOException {
+        stream.writeInt(cpEntries.size());
+        for (CPEntry cpEntry : cpEntries) {
+            stream.writeByte(cpEntry.entryType.value);
+            switch (cpEntry.entryType) {
+                case CP_ENTRY_INTEGER:
+                    stream.writeLong(((CPEntry.IntegerCPEntry) cpEntry).value);
+                    break;
+                case CP_ENTRY_BYTE:
+                    stream.writeByte(((CPEntry.ByteCPEntry) cpEntry).value);
+                    break;
+                case CP_ENTRY_FLOAT:
+                    stream.writeDouble(((CPEntry.FloatCPEntry) cpEntry).value);
+                    break;
+                case CP_ENTRY_BOOLEAN:
+                    stream.writeBoolean(((CPEntry.BooleanCPEntry) cpEntry).value);
+                    break;
+                case CP_ENTRY_STRING:
+                    CPEntry.StringCPEntry stringCPEntry = (CPEntry.StringCPEntry) cpEntry;
+                    if (stringCPEntry.value != null) {
+                        byte[] strBytes = stringCPEntry.value.getBytes(StandardCharsets.UTF_8);
+                        stream.writeInt(strBytes.length);
+                        stream.write(strBytes);
+                    } else {
+                        // If the string value is null, we write the size as -1.
+                        // This marks that the value followed by -1 size is a null value.
+                        stream.writeShort(NULL_VALUE_FIELD_SIZE_TAG);
+                    }
+                    break;
+                case CP_ENTRY_PACKAGE:
+                    CPEntry.PackageCPEntry pkgCPEntry = (CPEntry.PackageCPEntry) cpEntry;
+                    stream.writeInt(pkgCPEntry.orgNameCPIndex);
+                    stream.writeInt(pkgCPEntry.pkgNameCPIndex);
+                    stream.writeInt(pkgCPEntry.versionCPIndex);
+                    break;
+                default:
+                    throw new IllegalStateException("unsupported constant pool entry type: " +
+                                                    cpEntry.entryType.name());
+            }
+        }
     }
 }

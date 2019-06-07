@@ -20,9 +20,13 @@ package org.ballerinalang.stdlib.io.nativeimpl;
 
 import org.ballerinalang.bre.Context;
 import org.ballerinalang.bre.bvm.CallableUnitCallback;
+import org.ballerinalang.jvm.JSONParser;
+import org.ballerinalang.jvm.Strand;
+import org.ballerinalang.jvm.values.ObjectValue;
 import org.ballerinalang.model.NativeCallableUnit;
 import org.ballerinalang.model.types.TypeKind;
 import org.ballerinalang.model.util.JsonParser;
+import org.ballerinalang.model.values.BError;
 import org.ballerinalang.model.values.BMap;
 import org.ballerinalang.model.values.BRefType;
 import org.ballerinalang.model.values.BValue;
@@ -44,7 +48,8 @@ import org.ballerinalang.util.exceptions.BallerinaException;
         orgName = "ballerina",
         packageName = "io",
         functionName = "readJson",
-        receiver = @Receiver(type = TypeKind.OBJECT, structType = "CharacterChannel", structPackage = "ballerina/io"),
+        receiver = @Receiver(type = TypeKind.OBJECT, structType = "ReadableCharacterChannel",
+                structPackage = "ballerina/io"),
         isPublic = true
 )
 public class ReadJson implements NativeCallableUnit {
@@ -57,7 +62,7 @@ public class ReadJson implements NativeCallableUnit {
         try {
             json = JsonParser.parse(reader);
         } catch (BallerinaException e) {
-            BMap<String, BValue> errorStruct = IOUtils.createError(context, e.getMessage());
+            BError errorStruct = IOUtils.createError(context, IOConstants.IO_ERROR_CODE, e.getMessage());
             context.setReturnValues(errorStruct);
             callback.notifySuccess();
             return;
@@ -69,5 +74,16 @@ public class ReadJson implements NativeCallableUnit {
     @Override
     public boolean isBlocking() {
         return false;
+    }
+
+    public static Object readJson(Strand strand, ObjectValue channel) {
+
+        CharacterChannel charChannel = (CharacterChannel) channel.getNativeData(IOConstants.CHARACTER_CHANNEL_NAME);
+        CharacterChannelReader reader = new CharacterChannelReader(charChannel, new EventContext());
+        try {
+            return JSONParser.parse(reader);
+        } catch (org.ballerinalang.jvm.util.exceptions.BallerinaException e) {
+            return IOUtils.createError(e.getMessage());
+        }
     }
 }

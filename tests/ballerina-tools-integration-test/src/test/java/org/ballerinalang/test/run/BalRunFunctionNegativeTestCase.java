@@ -37,15 +37,24 @@ import java.io.File;
  */
 public class BalRunFunctionNegativeTestCase extends BaseTest {
 
-    private String fileName = "test_entry_function.bal";
-    private String filePath = (new File("src/test/resources/run/file/" + fileName)).getAbsolutePath();
+    private static final int LOG_LEECHER_TIMEOUT = 10000;
 
-    @Test
-    public void testEmptyEntryFunctionName() throws BallerinaTestException {
-        String sourceArg = filePath + ":";
-        LogLeecher errLogLeecher = new LogLeecher("ballerina: expected function name after final ':'",
-                LeecherType.ERROR);
-        balClient.runMain(sourceArg, new LogLeecher[]{errLogLeecher});
-        errLogLeecher.waitForText(2000);
+    @Test(description = "test insufficient arguments")
+    public void testInsufficientArguments() throws BallerinaTestException {
+        LogLeecher errLogLeecher = new LogLeecher("ballerina: insufficient arguments to call the 'main' function",
+                                                  LeecherType.ERROR);
+        balClient.runMain((new File("src/test/resources/run/file/test_main_with_multiple_typed_params.bal"))
+                                  .getAbsolutePath(), new LogLeecher[]{errLogLeecher});
+        errLogLeecher.waitForText(LOG_LEECHER_TIMEOUT);
+    }
+
+    @Test(description = "test too many arguments")
+    public void testTooManyArguments() throws BallerinaTestException {
+        LogLeecher errLogLeecher = new LogLeecher("ballerina: too many arguments to call the 'main' function",
+                                                  LeecherType.ERROR);
+        balClient.runMain((new File("src/test/resources/run/file/test_main_with_no_params.bal"))
+                                  .getAbsolutePath(), new String[]{}, new String[]{"extra"},
+                          new LogLeecher[]{errLogLeecher});
+        errLogLeecher.waitForText(LOG_LEECHER_TIMEOUT);
     }
 }

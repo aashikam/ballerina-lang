@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2018, WSO2 Inc. (http://www.wso2.org) All Rights Reserved.
+ *  Copyright (c) 2019, WSO2 Inc. (http://www.wso2.org) All Rights Reserved.
  *
  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  you may not use this file except in compliance with the License.
@@ -21,7 +21,7 @@ import java.util.List;
 import org.jetbrains.annotations.*;
 import com.intellij.psi.PsiElement;
 
-public interface BallerinaStatement extends BallerinaCompositeElement {
+public interface BallerinaStatement extends PsiElement {
 
   @Nullable
   BallerinaAbortStatement getAbortStatement();
@@ -33,16 +33,13 @@ public interface BallerinaStatement extends BallerinaCompositeElement {
   BallerinaBreakStatement getBreakStatement();
 
   @Nullable
-  BallerinaCompensateStatement getCompensateStatement();
-
-  @Nullable
   BallerinaCompoundAssignmentStatement getCompoundAssignmentStatement();
 
   @Nullable
   BallerinaContinueStatement getContinueStatement();
 
   @Nullable
-  BallerinaDoneStatement getDoneStatement();
+  BallerinaErrorDestructuringStatement getErrorDestructuringStatement();
 
   @Nullable
   BallerinaExpressionStmt getExpressionStmt();
@@ -66,16 +63,16 @@ public interface BallerinaStatement extends BallerinaCompositeElement {
   BallerinaNamespaceDeclarationStatement getNamespaceDeclarationStatement();
 
   @Nullable
-  BallerinaPostIncrementStatement getPostIncrementStatement();
+  BallerinaPanicStatement getPanicStatement();
+
+  @Nullable
+  BallerinaRecordDestructuringStatement getRecordDestructuringStatement();
 
   @Nullable
   BallerinaRetryStatement getRetryStatement();
 
   @Nullable
   BallerinaReturnStatement getReturnStatement();
-
-  @Nullable
-  BallerinaScopeStatement getScopeStatement();
 
   @Nullable
   BallerinaStreamingQueryStatement getStreamingQueryStatement();
@@ -96,7 +93,7 @@ public interface BallerinaStatement extends BallerinaCompositeElement {
   BallerinaWhileStatement getWhileStatement();
 
   @Nullable
-  BallerinaWorkerInteractionStatement getWorkerInteractionStatement();
+  BallerinaWorkerSendAsyncStatement getWorkerSendAsyncStatement();
 
   @Nullable
   BallerinaMatchStatement getMatchStatement();

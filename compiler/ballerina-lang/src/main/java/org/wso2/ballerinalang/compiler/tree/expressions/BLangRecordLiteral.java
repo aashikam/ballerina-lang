@@ -23,12 +23,13 @@ import org.wso2.ballerinalang.compiler.semantics.model.symbols.BAttachedFunction
 import org.wso2.ballerinalang.compiler.semantics.model.symbols.BRecordTypeSymbol;
 import org.wso2.ballerinalang.compiler.semantics.model.symbols.BVarSymbol;
 import org.wso2.ballerinalang.compiler.semantics.model.types.BType;
-import org.wso2.ballerinalang.compiler.tree.BLangIdentifier;
 import org.wso2.ballerinalang.compiler.tree.BLangNode;
 import org.wso2.ballerinalang.compiler.tree.BLangNodeVisitor;
+import org.wso2.ballerinalang.compiler.util.diagnotic.DiagnosticPos;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 
 import static org.ballerinalang.model.tree.NodeKind.RECORD_LITERAL_KEY_VALUE;
 
@@ -42,18 +43,19 @@ import static org.ballerinalang.model.tree.NodeKind.RECORD_LITERAL_KEY_VALUE;
  */
 public class BLangRecordLiteral extends BLangExpression implements RecordLiteralNode {
 
-    /**
-     * The identifier of this node.
-     */
-    public BLangIdentifier name;
-
     public List<BLangRecordKeyValue> keyValuePairs;
 
     public BLangRecordLiteral() {
         keyValuePairs = new ArrayList<>();
     }
 
-    public BLangRecordLiteral(BType type) {
+    public BLangRecordLiteral(DiagnosticPos pos) {
+        this();
+        this.pos = pos;
+    }
+
+    public BLangRecordLiteral(DiagnosticPos pos, BType type) {
+        this.pos = pos;
         keyValuePairs = new ArrayList<>();
         this.type = type;
     }
@@ -75,7 +77,9 @@ public class BLangRecordLiteral extends BLangExpression implements RecordLiteral
 
     @Override
     public String toString() {
-        return keyValuePairs.toString();
+        return " {" + keyValuePairs.stream()
+                .map(BLangRecordKeyValue::toString)
+                .collect(Collectors.joining(",")) + "}";
     }
 
     /**
@@ -107,6 +111,11 @@ public class BLangRecordLiteral extends BLangExpression implements RecordLiteral
         public void accept(BLangNodeVisitor visitor) {
 
         }
+
+        @Override
+        public String toString() {
+            return key + ((valueExpr != null) ? ": " + valueExpr : "");
+        }
     }
 
     /**
@@ -134,6 +143,11 @@ public class BLangRecordLiteral extends BLangExpression implements RecordLiteral
         public void accept(BLangNodeVisitor visitor) {
 
         }
+
+        @Override
+        public String toString() {
+            return expr.toString();
+        }
     }
 
     /**
@@ -144,7 +158,8 @@ public class BLangRecordLiteral extends BLangExpression implements RecordLiteral
     public static class BLangStructLiteral extends BLangRecordLiteral {
         public BAttachedFunction initializer;
 
-        public BLangStructLiteral(List<BLangRecordKeyValue> keyValuePairs, BType structType) {
+        public BLangStructLiteral(DiagnosticPos pos, List<BLangRecordKeyValue> keyValuePairs, BType structType) {
+            super(pos);
             this.keyValuePairs = keyValuePairs;
             this.type = structType;
             this.initializer = ((BRecordTypeSymbol) structType.tsymbol).initializerFunc;
@@ -163,7 +178,8 @@ public class BLangRecordLiteral extends BLangExpression implements RecordLiteral
      */
     public static class BLangMapLiteral extends BLangRecordLiteral {
 
-        public BLangMapLiteral(List<BLangRecordKeyValue> keyValuePairs, BType mapType) {
+        public BLangMapLiteral(DiagnosticPos pos, List<BLangRecordKeyValue> keyValuePairs, BType mapType) {
+            super(pos);
             this.keyValuePairs = keyValuePairs;
             this.type = mapType;
         }
@@ -181,7 +197,8 @@ public class BLangRecordLiteral extends BLangExpression implements RecordLiteral
      */
     public static class BLangJSONLiteral extends BLangRecordLiteral {
 
-        public BLangJSONLiteral(List<BLangRecordKeyValue> keyValuePairs, BType jsonType) {
+        public BLangJSONLiteral(DiagnosticPos pos, List<BLangRecordKeyValue> keyValuePairs, BType jsonType) {
+            super(pos);
             this.keyValuePairs = keyValuePairs;
             this.type = jsonType;
         }
@@ -199,9 +216,12 @@ public class BLangRecordLiteral extends BLangExpression implements RecordLiteral
      */
     public static class BLangStreamLiteral extends BLangRecordLiteral {
 
-        public BLangStreamLiteral(BType streamType, BLangIdentifier name) {
+        public String streamName;
+
+        public BLangStreamLiteral(DiagnosticPos pos, BType streamType, String streamName) {
+            super(pos);
             this.type = streamType;
-            this.name = name;
+            this.streamName = streamName;
         }
 
         @Override
@@ -217,9 +237,12 @@ public class BLangRecordLiteral extends BLangExpression implements RecordLiteral
      */
     public static class BLangChannelLiteral extends BLangRecordLiteral {
 
-        public BLangChannelLiteral(BType channelType, BLangIdentifier name) {
+        public String channelName;
+
+        public BLangChannelLiteral(DiagnosticPos pos, BType channelType, String channelName) {
+            super(pos);
             this.type = channelType;
-            this.name = name;
+            this.channelName = channelName;
         }
 
         @Override

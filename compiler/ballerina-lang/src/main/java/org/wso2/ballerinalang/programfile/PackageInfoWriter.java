@@ -32,14 +32,15 @@ import org.wso2.ballerinalang.programfile.attributes.ParamDefaultValueAttributeI
 import org.wso2.ballerinalang.programfile.attributes.ParameterAttributeInfo;
 import org.wso2.ballerinalang.programfile.attributes.TaintTableAttributeInfo;
 import org.wso2.ballerinalang.programfile.attributes.VarTypeCountAttributeInfo;
+import org.wso2.ballerinalang.programfile.attributes.WorkerSendInsAttributeInfo;
 import org.wso2.ballerinalang.programfile.cpentries.ActionRefCPEntry;
 import org.wso2.ballerinalang.programfile.cpentries.BlobCPEntry;
-import org.wso2.ballerinalang.programfile.cpentries.ByteCPEntry;
 import org.wso2.ballerinalang.programfile.cpentries.ConstantPoolEntry;
 import org.wso2.ballerinalang.programfile.cpentries.FloatCPEntry;
 import org.wso2.ballerinalang.programfile.cpentries.ForkJoinCPEntry;
 import org.wso2.ballerinalang.programfile.cpentries.FunctionRefCPEntry;
 import org.wso2.ballerinalang.programfile.cpentries.IntegerCPEntry;
+import org.wso2.ballerinalang.programfile.cpentries.MapCPEntry;
 import org.wso2.ballerinalang.programfile.cpentries.PackageRefCPEntry;
 import org.wso2.ballerinalang.programfile.cpentries.StringCPEntry;
 import org.wso2.ballerinalang.programfile.cpentries.StructureRefCPEntry;
@@ -52,6 +53,8 @@ import java.io.ByteArrayOutputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 
 /**
  * Serialize Ballerina {@code PackageInfo} structure to a byte stream.
@@ -86,10 +89,6 @@ public class PackageInfoWriter {
                 case CP_ENTRY_INTEGER:
                     long longVal = ((IntegerCPEntry) cpEntry).getValue();
                     dataOutStream.writeLong(longVal);
-                    break;
-                case CP_ENTRY_BYTE:
-                    byte byteVal = ((ByteCPEntry) cpEntry).getValue();
-                    dataOutStream.writeByte(byteVal);
                     break;
                 case CP_ENTRY_FLOAT:
                     double doubleVal = ((FloatCPEntry) cpEntry).getValue();
@@ -137,6 +136,40 @@ public class PackageInfoWriter {
                     WorkerDataChannelRefCPEntry workerDataChannelCPEntry = (WorkerDataChannelRefCPEntry) cpEntry;
                     dataOutStream.writeInt(workerDataChannelCPEntry.getUniqueNameCPIndex());
                     break;
+                case CP_ENTRY_MAP:
+                    writeMapCPEntry(dataOutStream, (MapCPEntry) cpEntry);
+                    break;
+            }
+        }
+    }
+
+    private static void writeMapCPEntry(DataOutputStream dataOutStream, MapCPEntry mapCPEntry) throws IOException {
+        // Write size of the constant value map.
+        dataOutStream.writeInt(mapCPEntry.getConstantValueMap().size());
+
+        for (Map.Entry<KeyInfo, ConstantValue> entry : mapCPEntry.getConstantValueMap().entrySet()) {
+            KeyInfo key = entry.getKey();
+            ConstantValue value = entry.getValue();
+
+            // Write the key CP index.
+            dataOutStream.writeInt(key.cpIndex);
+
+            dataOutStream.writeBoolean(value.isSimpleLiteral);
+            if (value.isSimpleLiteral) {
+                // Write value type tag.
+                dataOutStream.writeInt(value.literalValueTypeTag);
+
+                // Write value.
+                if (value.literalValueTypeTag == TypeTags.NIL) {
+                    // Do nothing.
+                } else if (value.literalValueTypeTag == TypeTags.BOOLEAN) {
+                    dataOutStream.writeBoolean(value.booleanValue);
+                } else {
+                    dataOutStream.writeInt(value.valueCPEntryIndex);
+                }
+            } else {
+                // This situation occurs for any nested record literal.
+                dataOutStream.writeInt(value.valueCPEntryIndex);
             }
         }
     }
@@ -192,6 +225,9 @@ public class PackageInfoWriter {
             writeResourceInfo(dataOutStream, serviceInfo);
         }
 
+        // Emit constant info entries
+        writeConstantInfoEntries(dataOutStream, packageInfo.getConstantInfoEntries());
+
         // Emit global variable info entries
         writeGlobalVarInfoEntries(dataOutStream, packageInfo.getPackageInfoEntries());
 
@@ -219,8 +255,87 @@ public class PackageInfoWriter {
         }
     }
 
-
     // Private methods
+
+    private static void writeConstantInfoEntries(DataOutputStream dataOutStream,
+                                                 ConstantInfo[] constantInfos) throws IOException {
+        dataOutStream.writeShort(constantInfos.length);
+        for (ConstantInfo constantInfo : constantInfos) {
+            dataOutStream.writeInt(constantInfo.key.cpIndex);
+            dataOutStream.writeInt(constantInfo.flags);
+            dataOutStream.writeBoolean(constantInfo.isSimpleLiteral);
+            if (constantInfo.isSimpleLiteral) {
+
+                dataOutStream.writeInt(constantInfo.constantValue.finiteTypeSigCPIndex);
+                dataOutStream.writeInt(constantInfo.constantValue.valueTypeSigCPIndex);
+
+                // Write literal info.
+                writeSimpleLiteral(dataOutStream, constantInfo.constantValue);
+            } else {
+                // If the constant is a map literal, write the type signature CP index first.
+                dataOutStream.writeInt(constantInfo.valueTypeSigCPIndex);
+
+                // Write value CP entry index.
+                dataOutStream.writeInt(constantInfo.constantValue.valueCPEntryIndex);
+
+                // Write map literal info.
+                writeMapLiteral(dataOutStream, constantInfo.constantValue.constantValueMap);
+            }
+            // Write attribute info.
+            writeAttributeInfoEntries(dataOutStream, constantInfo.getAttributeInfoEntries());
+        }
+    }
+
+    private static void writeSimpleLiteral(DataOutputStream dataOutStream, ConstantValue constantValue)
+            throws IOException {
+        switch (constantValue.literalValueTypeTag) {
+            case TypeTags.BOOLEAN:
+                dataOutStream.writeBoolean(constantValue.booleanValue);
+                break;
+            case TypeTags.INT:
+            case TypeTags.BYTE:
+            case TypeTags.FLOAT:
+            case TypeTags.DECIMAL:
+            case TypeTags.STRING:
+                dataOutStream.writeInt(constantValue.valueCPEntryIndex);
+                break;
+            case TypeTags.NIL:
+                break;
+            default:
+                throw new RuntimeException("unexpected type tag: " + constantValue.literalValueTypeTag);
+        }
+    }
+
+    private static void writeMapLiteral(DataOutputStream dataOutStream, Map<KeyInfo, ConstantValue> constantValueMap)
+            throws IOException {
+        // Write the number of the key-value pairs in the record literal.
+        dataOutStream.writeInt(constantValueMap.size());
+        for (Map.Entry<KeyInfo, ConstantValue> entry : constantValueMap.entrySet()) {
+            // Write key CP index.
+            dataOutStream.writeInt(entry.getKey().cpIndex);
+
+            ConstantValue constantValue = entry.getValue();
+
+            dataOutStream.writeBoolean(constantValue.isSimpleLiteral);
+            dataOutStream.writeBoolean(constantValue.isConstRef);
+            if (constantValue.isSimpleLiteral) {
+                // Write value type signature CP entry.
+                dataOutStream.writeInt(constantValue.valueTypeSigCPIndex);
+
+                // If the value is a simple literal, write the simple literal info.
+                writeSimpleLiteral(dataOutStream, constantValue);
+            } else {
+                // If the value is a map literal, wrote the map literal type signature CP index first.
+                dataOutStream.writeInt(constantValue.recordLiteralSigCPIndex);
+
+                // Write value CP entry index. This is later used to reconstruct the record literal.
+                dataOutStream.writeInt(constantValue.valueCPEntryIndex);
+
+                // Write the map literal info.
+                writeMapLiteral(dataOutStream, constantValue.constantValueMap);
+            }
+        }
+    }
 
     private static void writeGlobalVarInfoEntries(DataOutputStream dataOutStream,
                                                   PackageVarInfo[] packageVarInfoEntry) throws IOException {
@@ -230,6 +345,7 @@ public class PackageInfoWriter {
             dataOutStream.writeInt(packageVarInfo.signatureCPIndex);
             dataOutStream.writeInt(packageVarInfo.flags);
             dataOutStream.writeInt(packageVarInfo.globalMemIndex);
+            dataOutStream.writeBoolean(packageVarInfo.isIdentifierLiteral);
 
             writeAttributeInfoEntries(dataOutStream, packageVarInfo.getAttributeInfoEntries());
         }
@@ -252,28 +368,38 @@ public class PackageInfoWriter {
             dataOutStream.writeInt(callableUnitInfo.attachedToTypeCPIndex);
         }
 
+        writeWorkerData(dataOutStream, callableUnitInfo);
+
+        writeAttributeInfoEntries(dataOutStream, callableUnitInfo.getAttributeInfoEntries());
+    }
+
+    private static void writeWorkerData(DataOutputStream dataOutStream, CallableUnitInfo callableUnitInfo)
+            throws IOException {
         ByteArrayOutputStream workerDataBAOS = new ByteArrayOutputStream();
         DataOutputStream workerDataDOS = new DataOutputStream(workerDataBAOS);
 
-        WorkerDataChannelInfo[] workerDataChannelInfoEntries = callableUnitInfo.getWorkerDataChannelInfo();
-        workerDataDOS.writeShort(workerDataChannelInfoEntries.length);
-        for (WorkerDataChannelInfo dataChannelInfo : workerDataChannelInfoEntries) {
-            writeWorkerDataChannelInfo(workerDataDOS, dataChannelInfo);
-        }
-
         WorkerInfo defaultWorker = callableUnitInfo.defaultWorkerInfo;
-        WorkerInfo[] workerInfoEntries = callableUnitInfo.getWorkerInfoEntries();
-        workerDataDOS.writeShort(workerInfoEntries.length + 1);
-        writeWorkerInfo(workerDataDOS, defaultWorker);
-        for (WorkerInfo workerInfo : workerInfoEntries) {
-            writeWorkerInfo(workerDataDOS, workerInfo);
+        if (defaultWorker == null) {
+            // No default worker implies an abstract function. Then there's no worker data.
+            dataOutStream.writeInt(0);
+        } else {
+            WorkerDataChannelInfo[] workerDataChannelInfoEntries = callableUnitInfo.getWorkerDataChannelInfo();
+            workerDataDOS.writeShort(workerDataChannelInfoEntries.length);
+            for (WorkerDataChannelInfo dataChannelInfo : workerDataChannelInfoEntries) {
+                writeWorkerDataChannelInfo(workerDataDOS, dataChannelInfo);
+            }
+
+            WorkerInfo[] workerInfoEntries = callableUnitInfo.getWorkerInfoEntries();
+            workerDataDOS.writeShort(workerInfoEntries.length + 1);
+            writeWorkerInfo(workerDataDOS, defaultWorker);
+            for (WorkerInfo workerInfo : workerInfoEntries) {
+                writeWorkerInfo(workerDataDOS, workerInfo);
+            }
+
+            byte[] workerData = workerDataBAOS.toByteArray();
+            dataOutStream.writeInt(workerData.length);
+            dataOutStream.write(workerData);
         }
-
-        byte[] workerData = workerDataBAOS.toByteArray();
-        dataOutStream.writeInt(workerData.length);
-        dataOutStream.write(workerData);
-
-        writeAttributeInfoEntries(dataOutStream, callableUnitInfo.getAttributeInfoEntries());
     }
 
     private static void writeWorkerDataChannelInfo(DataOutputStream dataOutStream,
@@ -303,6 +429,9 @@ public class PackageInfoWriter {
             case TypeTags.RECORD:
                 writeRecordTypeDefInfo(dataOutStream, (RecordTypeInfo) typeDefInfo.typeInfo);
                 break;
+            case TypeTags.ERROR:
+                writeErrorTypeDefInfo(dataOutStream, (ErrorTypeInfo) typeDefInfo.typeInfo);
+                break;
             case TypeTags.FINITE:
                 writeFiniteTypeDefInfo(dataOutStream, (FiniteTypeInfo) typeDefInfo.typeInfo);
                 break;
@@ -331,12 +460,6 @@ public class PackageInfoWriter {
             writeStructFieldInfo(dataOutStream, structFieldInfoEntry);
         }
 
-        // Write attached function info entries
-        dataOutStream.writeShort(objectInfo.attachedFuncInfoEntries.size());
-        for (AttachedFunctionInfo attachedFuncInfo : objectInfo.attachedFuncInfoEntries) {
-            writeAttachedFunctionInfo(dataOutStream, attachedFuncInfo);
-        }
-
         // Write attribute info
         writeAttributeInfoEntries(dataOutStream, objectInfo.getAttributeInfoEntries());
     }
@@ -355,14 +478,15 @@ public class PackageInfoWriter {
             writeStructFieldInfo(dataOutStream, structFieldInfoEntry);
         }
 
-        // Write attached function info entries TODO remove below segment once record init function removed
-        dataOutStream.writeShort(recordInfo.attachedFuncInfoEntries.size());
-        for (AttachedFunctionInfo attachedFuncInfo : recordInfo.attachedFuncInfoEntries) {
-            writeAttachedFunctionInfo(dataOutStream, attachedFuncInfo);
-        }
-
         // Write attribute info
         writeAttributeInfoEntries(dataOutStream, recordInfo.getAttributeInfoEntries());
+    }
+
+    private static void writeErrorTypeDefInfo(DataOutputStream dataOutStream, ErrorTypeInfo errorTypeInfo)
+            throws IOException {
+        dataOutStream.writeInt(errorTypeInfo.reasonTypeSigCPIndex);
+        dataOutStream.writeInt(errorTypeInfo.detailTypeSigCPIndex);
+        writeAttributeInfoEntries(dataOutStream, errorTypeInfo.getAttributeInfoEntries());
     }
 
     private static void writeFiniteTypeDefInfo(DataOutputStream dataOutStream,
@@ -385,54 +509,15 @@ public class PackageInfoWriter {
                                          ServiceInfo serviceInfo) throws IOException {
         dataOutStream.writeInt(serviceInfo.nameCPIndex);
         dataOutStream.writeInt(serviceInfo.flags);
-        dataOutStream.writeInt(serviceInfo.endpointNameCPIndex);
+        dataOutStream.writeInt(serviceInfo.serviceTypeCPIndex);
     }
 
     private static void writeResourceInfo(DataOutputStream dataOutStream,
                                           ServiceInfo serviceInfo) throws IOException {
-        ResourceInfo[] resourceInfoEntries = serviceInfo.resourceInfoMap.values().toArray(new ResourceInfo[0]);
-        dataOutStream.writeShort(resourceInfoEntries.length);
-        for (ResourceInfo resourceInfo : resourceInfoEntries) {
-            writeResourceInfo(dataOutStream, resourceInfo);
+        dataOutStream.writeShort(serviceInfo.resourcesCPIndex.size());
+        for (Integer resourceNameCPIndex : serviceInfo.resourcesCPIndex) {
+            dataOutStream.writeInt(resourceNameCPIndex);
         }
-
-        // Write attribute info entries
-        writeAttributeInfoEntries(dataOutStream, serviceInfo.getAttributeInfoEntries());
-    }
-
-    private static void writeResourceInfo(DataOutputStream dataOutStream,
-                                          ResourceInfo resourceInfo) throws IOException {
-        dataOutStream.writeInt(resourceInfo.nameCPIndex);
-        dataOutStream.writeInt(resourceInfo.signatureCPIndex);
-
-        int[] paramNameCPIndexes = resourceInfo.paramNameCPIndexes;
-        dataOutStream.writeShort(paramNameCPIndexes.length);
-        for (int paramNameCPIndex : paramNameCPIndexes) {
-            dataOutStream.writeInt(paramNameCPIndex);
-        }
-
-        ByteArrayOutputStream workerDataBAOS = new ByteArrayOutputStream();
-        DataOutputStream workerDataDOS = new DataOutputStream(workerDataBAOS);
-
-        WorkerDataChannelInfo[] workerDataChannelInfoEntries = resourceInfo.getWorkerDataChannelInfo();
-        workerDataDOS.writeShort(workerDataChannelInfoEntries.length);
-        for (WorkerDataChannelInfo dataChannelInfo : workerDataChannelInfoEntries) {
-            writeWorkerDataChannelInfo(workerDataDOS, dataChannelInfo);
-        }
-
-        WorkerInfo defaultWorker = resourceInfo.defaultWorkerInfo;
-        WorkerInfo[] workerInfoEntries = resourceInfo.getWorkerInfoEntries();
-        workerDataDOS.writeShort(workerInfoEntries.length + 1);
-        writeWorkerInfo(workerDataDOS, defaultWorker);
-        for (WorkerInfo workerInfo : workerInfoEntries) {
-            writeWorkerInfo(workerDataDOS, workerInfo);
-        }
-
-        byte[] workerData = workerDataBAOS.toByteArray();
-        dataOutStream.writeInt(workerData.length);
-        dataOutStream.write(workerData);
-
-        writeAttributeInfoEntries(dataOutStream, resourceInfo.getAttributeInfoEntries());
     }
 
     private static void writeWorkerInfo(DataOutputStream dataOutStream,
@@ -524,8 +609,8 @@ public class PackageInfoWriter {
                     attrDataOutStream.writeInt(errorTableEntry.ipFrom);
                     attrDataOutStream.writeInt(errorTableEntry.ipTo);
                     attrDataOutStream.writeInt(errorTableEntry.ipTarget);
-                    attrDataOutStream.writeInt(errorTableEntry.priority);
-                    attrDataOutStream.writeInt(errorTableEntry.errorStructCPIndex);
+                    attrDataOutStream.writeInt(
+                            Optional.ofNullable(errorTableEntry.errorVarIndex).map(Operand::getValue).orElse(-1));
                 }
                 break;
 
@@ -570,9 +655,9 @@ public class PackageInfoWriter {
                 attrDataOutStream.writeShort(taintTableAttributeInfo.columnCount);
                 for (Integer paramIndex : taintTableAttributeInfo.taintTable.keySet()) {
                     attrDataOutStream.writeShort(paramIndex);
-                    List<Boolean> taintRecord = taintTableAttributeInfo.taintTable.get(paramIndex);
-                    for (Boolean taintStatus : taintRecord) {
-                        attrDataOutStream.writeBoolean(taintStatus);
+                    List<Byte> taintRecord = taintTableAttributeInfo.taintTable.get(paramIndex);
+                    for (Byte taintStatus : taintRecord) {
+                        attrDataOutStream.writeByte(taintStatus);
                     }
                 }
                 break;
@@ -589,6 +674,14 @@ public class PackageInfoWriter {
                     attrDataOutStream.writeInt(docAttrInfo.returnParameterDescriptionCPIndex);
                 } else {
                     attrDataOutStream.writeBoolean(false);
+                }
+                break;
+            case WORKER_SEND_INS:
+                WorkerSendInsAttributeInfo wrkAttrInfo = (WorkerSendInsAttributeInfo) attributeInfo;
+                int[] sendIns = wrkAttrInfo.getWorkerSendIns();
+                attrDataOutStream.writeShort(sendIns.length);
+                for (int index : sendIns) {
+                    attrDataOutStream.writeInt(index);
                 }
                 break;
         }
@@ -621,13 +714,6 @@ public class PackageInfoWriter {
         writeAttributeInfoEntries(dataOutStream, structFieldInfo.getAttributeInfoEntries());
     }
 
-    private static void writeAttachedFunctionInfo(DataOutputStream dataOutStream,
-                                                  AttachedFunctionInfo attachedFuncInfo) throws IOException {
-        dataOutStream.writeInt(attachedFuncInfo.nameCPIndex);
-        dataOutStream.writeInt(attachedFuncInfo.signatureCPIndex);
-        dataOutStream.writeInt(attachedFuncInfo.flags);
-    }
-
     private static void writeLocalVariableInfo(DataOutputStream dataOutStream,
                                                LocalVariableInfo localVariableInfo) throws IOException {
         dataOutStream.writeInt(localVariableInfo.varNameCPIndex);
@@ -636,6 +722,8 @@ public class PackageInfoWriter {
 
         dataOutStream.writeInt(localVariableInfo.scopeStartLineNumber);
         dataOutStream.writeInt(localVariableInfo.scopeEndLineNumber);
+
+        dataOutStream.writeBoolean(localVariableInfo.isIdentifierLiteral);
 
         int[] attachmentsIndexes = localVariableInfo.attachmentIndexes;
         dataOutStream.writeShort(attachmentsIndexes.length);

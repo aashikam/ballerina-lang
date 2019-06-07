@@ -19,23 +19,25 @@ package org.wso2.ballerinalang.compiler.tree;
 
 import org.ballerinalang.model.tree.FunctionNode;
 import org.ballerinalang.model.tree.NodeKind;
-import org.ballerinalang.model.tree.VariableNode;
+import org.ballerinalang.model.tree.SimpleVariableNode;
 import org.wso2.ballerinalang.compiler.semantics.model.symbols.BInvokableSymbol;
 import org.wso2.ballerinalang.compiler.semantics.model.symbols.BSymbol;
 import org.wso2.ballerinalang.compiler.semantics.model.symbols.BVarSymbol;
 import org.wso2.ballerinalang.compiler.tree.statements.BLangStatement;
+import org.wso2.ballerinalang.compiler.util.ClosureVarSymbol;
 
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
 
 /**
  * @since 0.94
  */
 public class BLangFunction extends BLangInvokableNode implements FunctionNode {
 
-    public BLangVariable receiver;
+    public BLangSimpleVariable receiver;
 
     //TODO remove this and use ATTACHED flag instead
     // TODO remove when removing struct
@@ -45,20 +47,23 @@ public class BLangFunction extends BLangInvokableNode implements FunctionNode {
 
     public boolean interfaceFunction;
 
-    public Set<BVarSymbol> closureVarSymbols =  new LinkedHashSet<>();
-
+    public TreeMap<Integer, BVarSymbol> paramClosureMap = new TreeMap<>();
+    public BVarSymbol mapSymbol;
     public Map<BSymbol, BLangStatement> initFunctionStmts = new LinkedHashMap<>();
+
+    // Used to track uninitialized closure variables in DataFlowAnalyzer.
+    public Set<ClosureVarSymbol> closureVarSymbols = new LinkedHashSet<>();
 
     public BInvokableSymbol originalFuncSymbol;
 
-    public boolean isTypeChecked = false;
+    public LinkedHashSet<String> sendsToThis = new LinkedHashSet<>();
 
-    public VariableNode getReceiver() {
+    public SimpleVariableNode getReceiver() {
         return receiver;
     }
 
-    public void setReceiver(VariableNode receiver) {
-        this.receiver = (BLangVariable) receiver;
+    public void setReceiver(SimpleVariableNode receiver) {
+        this.receiver = (BLangSimpleVariable) receiver;
     }
 
     @Override
@@ -75,5 +80,4 @@ public class BLangFunction extends BLangInvokableNode implements FunctionNode {
     public String toString() {
         return "BLangFunction: " + super.toString();
     }
-    
 }

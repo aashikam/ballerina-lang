@@ -19,18 +19,22 @@
 
 package org.ballerinalang.net.jms;
 
+import org.ballerinalang.bre.bvm.BLangVMErrors;
 import org.ballerinalang.bre.bvm.CallableUnitCallback;
 import org.ballerinalang.connector.api.BLangConnectorSPIUtil;
 import org.ballerinalang.connector.api.Executor;
 import org.ballerinalang.connector.api.ParamDetail;
 import org.ballerinalang.connector.api.Resource;
+import org.ballerinalang.model.values.BError;
 import org.ballerinalang.model.values.BMap;
 import org.ballerinalang.model.values.BValue;
+import org.ballerinalang.services.ErrorHandlerUtils;
 import org.ballerinalang.util.codegen.ProgramFile;
 
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+
 import javax.jms.Message;
 import javax.jms.MessageListener;
 
@@ -57,11 +61,11 @@ public class JmsMessageListenerImpl implements MessageListener {
     }
 
     private BValue[] getSignatureParameters(Message jmsMessage) {
-        ProgramFile programFile = resource.getResourceInfo().getServiceInfo().getPackageInfo().getProgramFile();
+        ProgramFile programFile = resource.getResourceInfo().getPackageInfo().getProgramFile();
         BMap<String, BValue> message = BLangConnectorSPIUtil.createBStruct(programFile,
-                                                              Constants.BALLERINA_PACKAGE_JMS,
-                                                              Constants.JMS_MESSAGE_STRUCT_NAME);
-        message.addNativeData(Constants.JMS_MESSAGE_OBJECT, jmsMessage);
+                                                                           JmsConstants.BALLERINA_PACKAGE_JMS,
+                                                                           JmsConstants.MESSAGE_OBJ_NAME);
+        message.addNativeData(JmsConstants.JMS_MESSAGE_OBJECT, jmsMessage);
 
         List<ParamDetail> paramDetails = resource.getParamDetails();
         BValue[] bValues = new BValue[paramDetails.size()];
@@ -77,12 +81,12 @@ public class JmsMessageListenerImpl implements MessageListener {
 
         @Override
         public void notifySuccess() {
-
+            // Nothing to do on success
         }
 
         @Override
-        public void notifyFailure(BMap<String, BValue> bStruct) {
-
+        public void notifyFailure(BError error) {
+            ErrorHandlerUtils.printError("error: " + BLangVMErrors.getPrintableStackTrace(error));
         }
     }
 }

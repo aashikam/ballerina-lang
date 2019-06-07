@@ -21,12 +21,12 @@ package org.ballerinalang.mime.util;
 import io.netty.handler.codec.http.DefaultHttpHeaders;
 import io.netty.handler.codec.http.HttpHeaderNames;
 import io.netty.handler.codec.http.HttpHeaders;
-
+import org.ballerinalang.bre.bvm.BVM;
 import org.ballerinalang.model.types.BType;
 import org.ballerinalang.model.values.BMap;
-import org.ballerinalang.model.values.BRefValueArray;
 import org.ballerinalang.model.values.BString;
 import org.ballerinalang.model.values.BValue;
+import org.ballerinalang.model.values.BValueArray;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -37,6 +37,7 @@ import java.io.OutputStreamWriter;
 import java.io.Writer;
 import java.nio.charset.Charset;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 
 import static org.ballerinalang.mime.util.MimeConstants.BODY_PARTS;
@@ -86,15 +87,15 @@ public class MultipartDataSource implements BValue {
     private void serializeBodyPart(OutputStream outputStream, String parentBoundaryString,
                                    BMap<String, BValue> parentBodyPart) {
         final Writer writer = new BufferedWriter(new OutputStreamWriter(outputStream, Charset.defaultCharset()));
-        BRefValueArray childParts = parentBodyPart.getNativeData(BODY_PARTS) != null ?
-                (BRefValueArray) parentBodyPart.getNativeData(BODY_PARTS) : null;
+        BValueArray childParts = parentBodyPart.getNativeData(BODY_PARTS) != null ?
+                (BValueArray) parentBodyPart.getNativeData(BODY_PARTS) : null;
         try {
             if (childParts == null) {
                 return;
             }
             boolean firstPart = true;
             for (int i = 0; i < childParts.size(); i++) {
-                BMap<String, BValue> childPart = (BMap<String, BValue>) childParts.get(i);
+                BMap<String, BValue> childPart = (BMap<String, BValue>) childParts.getRefValue(i);
                 // Write leading boundary string
                 if (firstPart) {
                     firstPart = false;
@@ -134,7 +135,7 @@ public class MultipartDataSource implements BValue {
         writeBodyPartHeaders(writer, childPart);
         //Serialize nested parts
         if (childBoundaryString != null) {
-            BRefValueArray nestedParts = (BRefValueArray) childPart.getNativeData(BODY_PARTS);
+            BValueArray nestedParts = (BValueArray) childPart.getNativeData(BODY_PARTS);
             if (nestedParts != null && nestedParts.size() > 0) {
                 serializeBodyPart(this.outputStream, childBoundaryString, childPart);
             }
@@ -222,7 +223,12 @@ public class MultipartDataSource implements BValue {
     }
 
     @Override
-    public BValue copy() {
+    public void stamp(BType type, List<BVM.TypeValuePair> unresolvedValues) {
+        
+    }
+
+    @Override
+    public BValue copy(Map<BValue, BValue> refs) {
         return null;
     }
 }

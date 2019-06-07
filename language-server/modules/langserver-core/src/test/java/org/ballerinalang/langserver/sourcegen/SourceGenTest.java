@@ -16,18 +16,17 @@
 package org.ballerinalang.langserver.sourcegen;
 
 import com.google.gson.JsonObject;
-import org.ballerinalang.langserver.SourceGen;
 import org.ballerinalang.langserver.compiler.DocumentServiceKeys;
 import org.ballerinalang.langserver.compiler.LSCompiler;
 import org.ballerinalang.langserver.compiler.LSServiceOperationContext;
-import org.ballerinalang.langserver.compiler.format.JSONGenerationException;
 import org.ballerinalang.langserver.compiler.format.TextDocumentFormatUtil;
-import org.ballerinalang.langserver.compiler.workspace.WorkspaceDocumentException;
 import org.ballerinalang.langserver.compiler.workspace.WorkspaceDocumentManager;
 import org.ballerinalang.langserver.compiler.workspace.WorkspaceDocumentManagerImpl;
-import org.ballerinalang.langserver.completion.util.FileUtils;
+import org.ballerinalang.langserver.formatting.FormattingSourceGen;
 import org.ballerinalang.langserver.util.TestUtil;
 import org.eclipse.lsp4j.jsonrpc.Endpoint;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.testng.Assert;
 import org.testng.annotations.AfterClass;
 import org.testng.annotations.BeforeClass;
@@ -36,6 +35,7 @@ import org.testng.annotations.Test;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -52,18 +52,21 @@ import static java.nio.file.FileVisitResult.SKIP_SUBTREE;
  * Source generation test suit.
  */
 public class SourceGenTest {
-    private Path examples = FileUtils.RES_DIR.resolve("sourceGen");
-    private List<File> ballerinaFiles;
+    private Path examples = Paths.get("../../../examples").toAbsolutePath();
+    private Path unitTestResources = Paths.get("../../../tests/ballerina-unit-test/src/test/resources/test-src")
+            .toAbsolutePath();
+    private List<File> ballerinaTestResources;
     private Endpoint serviceEndpoint;
+    private static final Logger log = LoggerFactory.getLogger(SourceGenTest.class);
 
     @BeforeClass
     public void loadExampleFiles() throws IOException {
         this.serviceEndpoint = TestUtil.initializeLanguageSever();
-        this.ballerinaFiles = getExampleFiles();
+        this.ballerinaTestResources = getBallerinaUnitTestFiles();
     }
 
-    @Test(description = "Source gen test suit", dataProvider = "exampleFiles")
-    public void sourceGenTests(File file) throws IOException, WorkspaceDocumentException, JSONGenerationException {
+    @Test(description = "Source gen test suit for formatting source gen", dataProvider = "unitTestFiles")
+    public void formattingSourceGenTests(File file) {
         LSServiceOperationContext formatContext = new LSServiceOperationContext();
         try {
             Path filePath = Paths.get(file.getPath());
@@ -71,20 +74,20 @@ public class SourceGenTest {
 
             WorkspaceDocumentManager documentManager = WorkspaceDocumentManagerImpl.getInstance();
             byte[] encoded1 = Files.readAllBytes(filePath);
-            String expected = new String(encoded1);
+            String expected = new String(encoded1, StandardCharsets.UTF_8);
             TestUtil.openDocument(serviceEndpoint, filePath);
             LSCompiler lsCompiler = new LSCompiler(documentManager);
-            JsonObject ast = TextDocumentFormatUtil.getAST(filePath.toUri().toString(), lsCompiler, documentManager,
+            JsonObject ast = TextDocumentFormatUtil.getAST(filePath, lsCompiler, documentManager,
                     formatContext);
-            SourceGen sourceGen = new SourceGen(0);
-            sourceGen.build(ast.getAsJsonObject("model"), null, "CompilationUnit");
-            String actual = sourceGen.getSourceOf(ast.getAsJsonObject("model"), false, false);
+            FormattingSourceGen.build(ast.getAsJsonObject("model"), "CompilationUnit");
+            String actual = FormattingSourceGen.getSourceOf(ast.getAsJsonObject("model"));
             TestUtil.closeDocument(serviceEndpoint, filePath);
             Assert.assertEquals(actual, expected, "Generated source didn't match the expected for file: " +
                     file.getName());
         } catch (Exception e) {
+            // This error being catch to print failing source-gen file.
             Assert.fail("Exception occurred while processing file: " + file.getName() + "\nException:" +
-                    e.toString());
+                    e.toString(), e);
         }
     }
 
@@ -94,13 +97,15 @@ public class SourceGenTest {
     }
 
     @DataProvider
-    public Object[] exampleFiles() {
-        return this.ballerinaFiles.toArray();
+    public Object[] unitTestFiles() {
+        log.info("Test Source Gen");
+        return this.ballerinaTestResources.toArray();
     }
 
-    private List<File> getExampleFiles() throws IOException {
+    private List<File> getBallerinaUnitTestFiles() throws IOException {
         List<File> files = new ArrayList<>();
         FileVisitor fileVisitor = new FileVisitor(files);
+        Files.walkFileTree(unitTestResources, fileVisitor);
         Files.walkFileTree(examples, fileVisitor);
         return files;
     }
@@ -110,8 +115,34 @@ public class SourceGenTest {
      */
     static class FileVisitor extends SimpleFileVisitor<Path> {
         private List<File> files;
-        private String[] ignoredFiles = {"table_queries.bal", "table.bal", "csv_io.bal",
-                "channels_correlation.bal", "channels_workers.bal", "grpc_bidirectional_streaming_client.bal"};
+        private String[] ignoredFiles = {"grpc_bidirectional_streaming_client.bal", "compensate-stmt.bal",
+                "function-with-two-rest-params.bal", "redundant-compression-config.bal", "symbolic-string-test.bal",
+                "identifier-literal-success.bal", "entity-body-with-charset-test.bal",
+                "taintchecking" + File.separator + "annotations" + File.separator + "lambda.bal", "high_loc.bal",
+                "test_objects.bal", "lang" + File.separator + "annotations" + File.separator +
+                "variable-as-attribute-value.bal", "lang" + File.separator + "annotations" + File.separator +
+                "constant-as-attribute-value.bal", "lang" + File.separator + "annotations" + File.separator +
+                "multityped-attribute-array.bal", "lang" + File.separator + "annotations" + File.separator +
+                "default-values.bal", "lang" + File.separator + "annotations" + File.separator +
+                "lang.annotations.pkg.first" + File.separator + "annotation.bal", "structs" + File.separator +
+                "struct-equivalency.bal", "lang" + File.separator + "annotations" + File.separator +
+                "wrongly-attached-annot.bal", "structs" + File.separator + "eq" + File.separator + "eq1.bal",
+                "structs" + File.separator + "req" + File.separator + "eq2.bal", "lang" + File.separator +
+                "annotations" + File.separator + "lang.annotations.foo" + File.separator + "annotations.bal",
+                "structs" + File.separator + "req2" + File.separator + "eq2.bal", "lang" + File.separator +
+                "annotations" + File.separator + "attribute-value-type-mismatch.bal", "structs" + File.separator +
+                "org.foo.attached_funcs" + File.separator + "funcs.bal", "lang" + File.separator + "annotations" +
+                File.separator + "lang.annotations.doc1" + File.separator + "doc-annotation.bal", "structs" +
+                File.separator + "eq2" + File.separator + "eq2.bal", "workers" + File.separator +
+                "fork-join-some-map.bal", "services" + File.separator + "session" + File.separator +
+                "http-session-test.bal", "streamingv2-aggregation-groupby-test.bal",
+                "streamingv2-aggregation-test.bal", "streamingv2-external-window-test.bal",
+                "streamingv2-aggregation-with-groupby-test.bal", "not-enough-args-to-return-3.bal",
+                "too-many-args-to-return-1.bal", "file_ops.bal", "valid-service.bal", "match_stmt_basic.bal",
+                "checkpoint.bal", "http_load_balancer_test.bal", "content_based_routing_test.bal", "http_cors_test.bal",
+                "header_based_routing_test.bal", "http_compression_test.bal", "http_access_logs_test.bal",
+                "immutable_values_test.bal", "trap_error_test.bal", "http_redirects_test.bal",
+                "xml-native-functions.bal"};
 
         FileVisitor(List<File> ballerinaFiles) {
             this.files = ballerinaFiles;
@@ -120,9 +151,11 @@ public class SourceGenTest {
         @Override
         public FileVisitResult visitFile(Path filePath,
                                          BasicFileAttributes attr) {
-            if (attr.isRegularFile()) {
+            if (attr.isRegularFile()
+                    && !(filePath.getFileName().toString().contains("negative")
+                    || filePath.getFileName().toString().contains("invalid"))) {
                 File file = new File(filePath.toString());
-                if (file.getName().endsWith(".bal") && !isIgnoredFile(file.getName())) {
+                if (file.getName().endsWith(".bal") && !isIgnoredFile(file.getPath())) {
                     this.files.add(file);
                 }
             }
@@ -132,7 +165,9 @@ public class SourceGenTest {
 
         @Override
         public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) {
-            if (attrs.isSymbolicLink()) {
+            if (attrs.isSymbolicLink()
+                    || dir.getFileName().toString().contains("negative")
+                    || dir.getFileName().toString().contains("invalid")) {
                 return SKIP_SUBTREE;
             }
             return CONTINUE;

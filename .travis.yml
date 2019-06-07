@@ -16,19 +16,39 @@ language: java
 
 sudo: required
 
+git:
+  quiet: true
+
 services:
   - docker
+
+before_install:
+  - if [ $TRAVIS_OS_NAME == "linux" ]; then
+      export CXX="g++-4.9" CC="gcc-4.9" DISPLAY=:99.0;
+      sh -e /etc/init.d/xvfb start;
+      sleep 3;
+    fi
 
 install:
   - . $HOME/.nvm/nvm.sh
   - nvm install 8.9.0
   - nvm use 8.9.0
-  - mvn install -B -V -pl '!tool-plugins/vscode'
+  - npm install -g npm@'5.6.0'
 
-script: echo "Done"
+script:
+  - while sleep 9m; do echo "=====[ $SECONDS seconds still running ]====="; done &
+  - ./gradlew build jacocoTestReport --console=plain --stacktrace -scan
+  # Killing background sleep loop
+  - kill %1
 
+after_success:
+  - bash <(curl -s https://codecov.io/bash)
+
+before_cache:
+  - rm -f  $HOME/.gradle/caches/modules-2/modules-2.lock
+  - rm -fr $HOME/.gradle/caches/*/plugin-resolution/
 cache:
   directories:
-  - $HOME/.m2
-  - composer/modules/web/node_modules
-  - tool-plugins/vscode/node_modules
+    - $HOME/.gradle/caches/
+    - $HOME/.gradle/wrapper/
+    - $HOME/.m2

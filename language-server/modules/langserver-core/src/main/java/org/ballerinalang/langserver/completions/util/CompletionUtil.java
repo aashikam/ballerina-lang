@@ -15,29 +15,45 @@
  */
 package org.ballerinalang.langserver.completions.util;
 
+import org.antlr.v4.runtime.CommonTokenStream;
+import org.antlr.v4.runtime.Token;
+import org.antlr.v4.runtime.TokenStream;
 import org.ballerinalang.langserver.common.utils.CommonUtil;
 import org.ballerinalang.langserver.compiler.DocumentServiceKeys;
+import org.ballerinalang.langserver.compiler.LSContext;
 import org.ballerinalang.langserver.compiler.LSServiceOperationContext;
-import org.ballerinalang.langserver.compiler.common.LSDocument;
 import org.ballerinalang.langserver.compiler.workspace.WorkspaceDocumentException;
 import org.ballerinalang.langserver.compiler.workspace.WorkspaceDocumentManager;
 import org.ballerinalang.langserver.completions.CompletionKeys;
+import org.ballerinalang.langserver.completions.LSCompletionProviderFactory;
 import org.ballerinalang.langserver.completions.TreeVisitor;
+import org.ballerinalang.langserver.completions.spi.LSCompletionProvider;
+import org.ballerinalang.langserver.sourceprune.SourcePruner;
 import org.eclipse.lsp4j.CompletionItem;
-import org.eclipse.lsp4j.TextDocumentPositionParams;
+import org.eclipse.lsp4j.InsertTextFormat;
+import org.eclipse.lsp4j.Position;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.wso2.ballerinalang.compiler.parser.antlr4.BallerinaParser;
 import org.wso2.ballerinalang.compiler.tree.BLangNode;
 import org.wso2.ballerinalang.compiler.tree.BLangPackage;
 
+import java.net.URI;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 
-import static org.ballerinalang.langserver.compiler.LSCompilerUtil.getUntitledFilePath;
+import static org.ballerinalang.langserver.sourceprune.SourcePruner.searchTokenAtCursor;
 
 /**
  * Common utility methods for the completion operation.
  */
 public class CompletionUtil {
+    private static final Logger LOGGER = LoggerFactory.getLogger(CompletionUtil.class);
+
     /**
      * Resolve the visible symbols from the given BLang Package and the current context.
      *
@@ -54,39 +70,59 @@ public class CompletionUtil {
     /**
      * Get the completion Items for the context.
      *
-     * @param completionContext     Completion context
+     * @param ctx Completion context
      * @return {@link List}         List of resolved completion Items
      */
-    public static List<CompletionItem> getCompletionItems(LSServiceOperationContext completionContext) {
+    public static List<CompletionItem>  getCompletionItems(LSContext ctx) {
+        List<CompletionItem> items = new ArrayList<>();
+        if (ctx == null) {
+            return null;
+        }
+
+        BLangNode scope = ctx.get(CompletionKeys.SCOPE_NODE_KEY);
+        Map<Class, LSCompletionProvider> scopeProviders = LSCompletionProviderFactory.getInstance().getProviders();
+        LSCompletionProvider completionProvider = scopeProviders.get(scope.getClass());
         try {
-            completionContext.put(CompletionKeys.CURRENT_LINE_SEGMENT_KEY, getSourceSegmentOfLine(completionContext));
-            BLangNode symbolEnvNode = completionContext.get(CompletionKeys.SYMBOL_ENV_NODE_KEY);
-            return CompletionItemResolver.getResolverByClass(symbolEnvNode.getClass()).resolveItems(completionContext);
-        } catch (Exception | AssertionError e) {
-            return new ArrayList<>();
+            items.addAll(completionProvider.getCompletions(ctx));
+        } catch (Exception e) {
+            LOGGER.error("Error while retrieving completions from: " + completionProvider.getClass());
         }
+
+        boolean isSnippetSupported = ctx.get(CompletionKeys.CLIENT_CAPABILITIES_KEY).getCompletionItem()
+                .getSnippetSupport();
+        for (CompletionItem item : items) {
+            if (!isSnippetSupported) {
+                item.setInsertText(CommonUtil.getPlainTextSnippet(item.getInsertText()));
+                item.setInsertTextFormat(InsertTextFormat.PlainText);
+            } else {
+                item.setInsertTextFormat(InsertTextFormat.Snippet);
+            }
+        }
+        return items;
     }
-
-    /**
-     * From the source, extract the line segment for the current cursor position's line.
-     *
-     * @param context           Service Operation context
-     * @return {@link String}   Extracted line segment
-     */
-    private static String getSourceSegmentOfLine(LSServiceOperationContext context) throws WorkspaceDocumentException {
-        TextDocumentPositionParams positionParams = context.get(DocumentServiceKeys.POSITION_KEY);
+    
+    public static void getPrunedSource(LSContext context) throws WorkspaceDocumentException, SourcePruneException {
         WorkspaceDocumentManager documentManager = context.get(CompletionKeys.DOC_MANAGER_KEY);
-        int line = positionParams.getPosition().getLine();
-        String fileUri = positionParams.getTextDocument().getUri();
-        Path completionPath = new LSDocument(fileUri).getPath();
-        Path compilationPath = getUntitledFilePath(completionPath.toString()).orElse(completionPath);
-        String fileContent = documentManager.getFileContent(compilationPath);
-
-        String[] splitContent = fileContent.split(CommonUtil.LINE_SEPARATOR_SPLIT);
-        if (splitContent.length < line) {
-            return "";
+        String uri = context.get(DocumentServiceKeys.FILE_URI_KEY);
+        Position position = context.get(DocumentServiceKeys.POSITION_KEY).getPosition();
+        Path path = Paths.get(URI.create(uri));
+        String documentContent = documentManager.getFileContent(path);
+        BallerinaParser parser = CommonUtil.prepareParser(documentContent, true);
+        parser.removeErrorListeners();
+        parser.compilationUnit();
+        if (parser.getNumberOfSyntaxErrors() == 0) {
+            return;
         }
-
-        return splitContent[line];
+        TokenStream tokenStream = parser.getTokenStream();
+        List<Token> tokenList = new ArrayList<>(((CommonTokenStream) tokenStream).getTokens());
+        
+        Optional<Token> tokenAtCursor = searchTokenAtCursor(tokenList, position.getLine(), position.getCharacter());
+        
+        if (!tokenAtCursor.isPresent()) {
+            throw new SourcePruneException("Could not find token at cursor");
+        }
+        
+        SourcePruner.pruneSource(tokenStream, tokenAtCursor.get().getTokenIndex(), context);
+        documentManager.setPrunedContent(path, tokenStream.getText());
     }
 }

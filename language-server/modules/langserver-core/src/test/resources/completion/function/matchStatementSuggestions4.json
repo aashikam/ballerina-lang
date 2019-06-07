@@ -1,72 +1,85 @@
 {
   "position": {
-    "line": 7,
+    "line": 11,
     "character": 15
   },
   "source": "function/source/matchStatementSuggestions4.bal",
   "items": [
     {
-      "label":"extractBasicAuthHeaderValue(req)",
+      "label":"extractAuthorizationHeaderValue(req)",
       "kind":"Function",
       "detail":"Snippet",
+      "documentation":{
+        "left":"Extracts the Authorization header value from the request.\n"
+      },
       "sortText":"120",
-      "insertText":"extractBasicAuthHeaderValue(req) {\n\tstring \u003d\u003e {\n\t\t\n\t}\n\t() \u003d\u003e {\n\t\t\n\t}\n}",
+      "insertText":"extractAuthorizationHeaderValue(req) {\n${1:value} \u003d\u003e {${2}}\n}",
       "insertTextFormat":"Snippet"
     },
     {
       "label":"createHttpCachingClient(url,config,cacheConfig)",
       "kind":"Function",
       "detail":"Snippet",
+      "documentation":{
+        "left":"Creates an HTTP client capable of caching HTTP responses.\n"
+      },
       "sortText":"120",
-      "insertText":"createHttpCachingClient(url,config,cacheConfig) {\n\thttp:CallerActions \u003d\u003e {\n\t\t\n\t}\n}",
-      "insertTextFormat":"Snippet"
-    },
-    {
-      "label":"invokeEndpoint(path,outRequest,requestAction,httpClient)",
-      "kind":"Function",
-      "detail":"Snippet",
-      "sortText":"120",
-      "insertText":"invokeEndpoint(path,outRequest,requestAction,httpClient) {\n\thttp:Response \u003d\u003e {\n\t\t\n\t}\n\terror \u003d\u003e {\n\t\t\n\t}\n}",
+      "insertText":"createHttpCachingClient(url,config,cacheConfig) {\n${1:value} \u003d\u003e {${2}}\n}",
       "insertTextFormat":"Snippet"
     },
     {
       "label":"parseHeader(headerValue)",
       "kind":"Function",
       "detail":"Snippet",
+      "documentation":{
+        "left":"Parses the given header value to extract its value and parameter map.\n"
+      },
       "sortText":"120",
-      "insertText":"parseHeader(headerValue) {\n\thttp:(string,map) \u003d\u003e {\n\t\t\n\t}\n\terror \u003d\u003e {\n\t\t\n\t}\n}",
+      "insertText":"parseHeader(headerValue) {\n${1:value} \u003d\u003e {${2}}\n}",
+      "insertTextFormat":"Snippet"
+    },
+    {
+      "label":"invokeEndpoint(path,outRequest,requestAction,httpClient,verb)",
+      "kind":"Function",
+      "detail":"Snippet",
+      "documentation":{
+        "left":"The HEAD remote function implementation of the Circuit Breaker. This wraps the `head()` function of the underlying\nHTTP remote function provider."
+      },
+      "sortText":"120",
+      "insertText":"invokeEndpoint(path,outRequest,requestAction,httpClient,verb) {\n${1:value} \u003d\u003e {${2}}\n}",
       "insertTextFormat":"Snippet"
     },
     {
       "label":"createHttpSecureClient(url,config)",
       "kind":"Function",
       "detail":"Snippet",
+      "documentation":{
+        "left":"Creates an HTTP client capable of securing HTTP requests with authentication.\n"
+      },
       "sortText":"120",
-      "insertText":"createHttpSecureClient(url,config) {\n\thttp:CallerActions \u003d\u003e {\n\t\t\n\t}\n}",
-      "insertTextFormat":"Snippet"
-    },
-    {
-      "label":"roundRobin(lb,loadBalanceConfigArray)",
-      "kind":"Function",
-      "detail":"Snippet",
-      "sortText":"120",
-      "insertText":"roundRobin(lb,loadBalanceConfigArray) {\n\thttp:CallerActions \u003d\u003e {\n\t\t\n\t}\n}",
+      "insertText":"createHttpSecureClient(url,config) {\n${1:value} \u003d\u003e {${2}}\n}",
       "insertTextFormat":"Snippet"
     },
     {
       "label":"encode(url,charset)",
       "kind":"Function",
       "detail":"Snippet",
+      "documentation":{
+        "left":"Encodes the given URL.\n"
+      },
       "sortText":"120",
-      "insertText":"encode(url,charset) {\n\tstring \u003d\u003e {\n\t\t\n\t}\n\terror \u003d\u003e {\n\t\t\n\t}\n}",
+      "insertText":"encode(url,charset) {\n${1:value} \u003d\u003e {${2}}\n}",
       "insertTextFormat":"Snippet"
     },
     {
       "label":"decode(url,charset)",
       "kind":"Function",
       "detail":"Snippet",
+      "documentation":{
+        "left":"Decodes the given URL.\n"
+      },
       "sortText":"120",
-      "insertText":"decode(url,charset) {\n\tstring \u003d\u003e {\n\t\t\n\t}\n\terror \u003d\u003e {\n\t\t\n\t}\n}",
+      "insertText":"decode(url,charset) {\n${1:value} \u003d\u003e {${2}}\n}",
       "insertTextFormat":"Snippet"
     }
   ]

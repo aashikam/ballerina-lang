@@ -46,12 +46,7 @@ public class BXMLAttributesType extends BType {
     }
 
     @Override
-    public TypeSignature getSig() {
-        return null;
-    }
-
-    @Override
     public int getTag() {
-        return TypeTags.XML_ATTRIBUTES_TAG;
+        return -1;
     }
 }

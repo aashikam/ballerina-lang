@@ -17,6 +17,7 @@
 */
 package org.ballerinalang.util.codegen;
 
+import org.ballerinalang.model.types.BType;
 import org.ballerinalang.model.types.TypeTags;
 import org.ballerinalang.util.codegen.attributes.AttributeInfo;
 import org.ballerinalang.util.codegen.attributes.AttributeInfoPool;
@@ -44,7 +45,8 @@ public class PackageInfo implements ConstantPool, AttributeInfoPool {
     public String pkgPath;
     public int versionCPIndex;
     public String pkgVersion;
-    private FunctionInfo initFunctionInfo, startFunctionInfo, stopFunctionInfo;
+    private FunctionInfo initFunctionInfo, startFunctionInfo, stopFunctionInfo, testInitFunctionInfo,
+            testStartFunctionInfo, testStopFunctionInfo;
 
     // TODO TEMP Design PackageContext concept
     // This number is used as an index to the global memory area where package level variables are stored.
@@ -55,8 +57,6 @@ public class PackageInfo implements ConstantPool, AttributeInfoPool {
 
     private Instruction[] instructions;
     private List<Instruction> instructionList = new ArrayList<>();
-
-    private Map<String, PackageVarInfo> constantInfoMap = new LinkedHashMap<>();
 
     private Map<String, PackageVarInfo> globalVarInfoMap = new LinkedHashMap<>();
 
@@ -90,10 +90,8 @@ public class PackageInfo implements ConstantPool, AttributeInfoPool {
     }
 
     public int addCPEntry(ConstantPoolEntry cpEntry) {
-        if (constantPoolEntries.contains(cpEntry)) {
-            return constantPoolEntries.indexOf(cpEntry);
-        }
-
+        // We don't need to check for duplicate entries here since compiler should make sure there wont be any
+        // duplicate entries. So at this point, if there are any duplicates, that means they were added on purpose.
         constantPoolEntries.add(cpEntry);
         return constantPoolEntries.size() - 1;
     }
@@ -108,18 +106,6 @@ public class PackageInfo implements ConstantPool, AttributeInfoPool {
 
     public ConstantPoolEntry[] getConstPoolEntries() {
         return constPool;
-    }
-
-    public PackageVarInfo getConstantInfo(String constantName) {
-        return constantInfoMap.get(constantName);
-    }
-
-    public void addConstantInfo(String constantName, PackageVarInfo constantInfo) {
-        constantInfoMap.put(constantName, constantInfo);
-    }
-
-    public PackageVarInfo[] getConstantInfoEntries() {
-        return constantInfoMap.values().toArray(new PackageVarInfo[0]);
     }
 
     public PackageVarInfo getPackageVarInfo(String globalVarName) {
@@ -180,10 +166,14 @@ public class PackageInfo implements ConstantPool, AttributeInfoPool {
         return serviceInfoMap.get(serviceName);
     }
 
+    public ServiceInfo getServiceInfo(BType serviceType) {
+        return serviceInfoMap.values().stream()
+                .filter(serviceInfo -> serviceInfo.serviceType.getType().equals(serviceType)).findFirst().orElse(null);
+    }
+
     public void addServiceInfo(String serviceName, ServiceInfo serviceInfo) {
         serviceInfo.setPackageInfo(this);
         serviceInfoMap.put(serviceName, serviceInfo);
-        structureTypeInfoMap.put(serviceName, serviceInfo);
     }
 
     public CustomTypeInfo getStructureTypeInfo(String structureTypeName) {
@@ -278,6 +268,30 @@ public class PackageInfo implements ConstantPool, AttributeInfoPool {
     public void complete() {
         this.constPool = constantPoolEntries.toArray(new ConstantPoolEntry[0]);
         this.instructions = instructionList.toArray(new Instruction[0]);
+    }
+
+    public FunctionInfo getTestInitFunctionInfo() {
+        return testInitFunctionInfo;
+    }
+
+    public void setTestInitFunctionInfo(FunctionInfo testInitFunctionInfo) {
+        this.testInitFunctionInfo = testInitFunctionInfo;
+    }
+
+    public FunctionInfo getTestStartFunctionInfo() {
+        return testStartFunctionInfo;
+    }
+
+    public void setTestStartFunctionInfo(FunctionInfo testStartFunctionInfo) {
+        this.testStartFunctionInfo = testStartFunctionInfo;
+    }
+
+    public FunctionInfo getTestStopFunctionInfo() {
+        return testStopFunctionInfo;
+    }
+
+    public void setTestStopFunctionInfo(FunctionInfo testStopFunctionInfo) {
+        this.testStopFunctionInfo = testStopFunctionInfo;
     }
 
     @Override

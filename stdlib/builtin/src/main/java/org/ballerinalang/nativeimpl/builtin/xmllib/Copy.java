@@ -20,12 +20,17 @@ package org.ballerinalang.nativeimpl.builtin.xmllib;
 
 import org.ballerinalang.bre.Context;
 import org.ballerinalang.bre.bvm.BlockingNativeCallableUnit;
+import org.ballerinalang.jvm.Strand;
+import org.ballerinalang.jvm.util.exceptions.BLangExceptionHelper;
+import org.ballerinalang.jvm.values.XMLValue;
 import org.ballerinalang.model.types.TypeKind;
 import org.ballerinalang.model.values.BValue;
 import org.ballerinalang.model.values.BXML;
 import org.ballerinalang.nativeimpl.lang.utils.ErrorHandler;
 import org.ballerinalang.natives.annotations.BallerinaFunction;
 import org.ballerinalang.natives.annotations.ReturnType;
+
+import java.util.HashMap;
 
 /**
  * Make a deep copy of an XML.
@@ -46,12 +51,22 @@ private static final String OPERATION = "get children from xml";
         try {
             // Accessing Parameters.
             BXML value = (BXML) ctx.getRefArgument(0);
-            result = value.copy();
+            result = value.copy(new HashMap<>());
         } catch (Throwable e) {
             ErrorHandler.handleXMLException(OPERATION, e);
         }
 
         // Setting output value.
         ctx.setReturnValues(result);
+    }
+
+    public static XMLValue<?> copy(Strand strand, XMLValue<?> xml) {
+        try {
+            return (XMLValue<?>) xml.copy(new HashMap<>());
+        } catch (Throwable e) {
+            BLangExceptionHelper.handleXMLException(OPERATION, e);
+        }
+
+        return null;
     }
 }

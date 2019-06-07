@@ -21,6 +21,12 @@ import org.ballerinalang.model.types.BType;
 import org.ballerinalang.model.types.BTypes;
 import org.ballerinalang.util.exceptions.BallerinaException;
 
+import java.math.BigDecimal;
+import java.math.MathContext;
+import java.util.Map;
+
+import static org.ballerinalang.bre.bvm.BVM.isByteLiteral;
+
 /**
  * The {@code BString} represents a string in Ballerina.
  *
@@ -29,6 +35,8 @@ import org.ballerinalang.util.exceptions.BallerinaException;
 public final class BString extends BValueType implements BRefType<String> {
 
     private String value;
+    private BType type = BTypes.typeString;
+
 
     public BString(String value) {
         this.value = value;
@@ -46,10 +54,13 @@ public final class BString extends BValueType implements BRefType<String> {
     }
 
     @Override
-    public byte byteValue() {
-        byte result;
+    public long byteValue() {
+        long result;
         try {
-            result = Byte.parseByte(this.value);
+            result = Long.parseLong(this.value);
+            if (!isByteLiteral(result)) {
+                throw new BallerinaException("input value " + this.value + " cannot be cast to byte");
+            }
         } catch (NumberFormatException e) {
             throw new BallerinaException("input value " + this.value + " cannot be cast to byte");
         }
@@ -68,8 +79,19 @@ public final class BString extends BValueType implements BRefType<String> {
     }
 
     @Override
+    public BigDecimal decimalValue() {
+        BigDecimal result;
+        try {
+            result = new BigDecimal(this.value, MathContext.DECIMAL128);
+        } catch (NumberFormatException e) {
+            throw new BallerinaException("input value " + this.value + " cannot be cast to decimal");
+        }
+        return result;
+    }
+
+    @Override
     public boolean booleanValue() {
-        return false;
+        return Boolean.parseBoolean(value);
     }
 
     @Override
@@ -79,7 +101,12 @@ public final class BString extends BValueType implements BRefType<String> {
 
     @Override
     public BType getType() {
-        return BTypes.typeString;
+        return type;
+    }
+
+    @Override
+    public void setType(BType type) {
+        this.type = type;
     }
 
     @Override
@@ -108,7 +135,7 @@ public final class BString extends BValueType implements BRefType<String> {
     }
 
     @Override
-    public BValue copy() {
-        return new BString(value);
+    public BValue copy(Map<BValue, BValue> refs) {
+        return this;
     }
 }
